@@ -10,6 +10,7 @@
 | `decisions/` | 关键技术与结构决策记录（不可变历史文档） | [decisions/README.md](decisions/README.md) |
 | `changes/` | 源码改动随行变更记录与验证报告（不可变历史文档） | [changes/README.md](changes/README.md) |
 | `troubleshooting/` | 长期、可复现问题的排查与解决方案 | [troubleshooting/README.md](troubleshooting/README.md) |
+| `assets/` | README 品牌封面图与界面预览图等文档视觉资源 | [../README.md](../README.md) |
 
 ## 文档清单
 
