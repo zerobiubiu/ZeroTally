@@ -1,0 +1,137 @@
+{
+  "meta": {
+    "name": "简记（keep-accounts）设计令牌",
+    "personality": {
+      "tone": "冷静、克制、可信赖的个人财务工具",
+      "style": "现代极简、留白克制、数字层次清晰",
+      "radius": "中等圆角（8/12/16/9999）"
+    }
+  },
+  "primitive": {
+    "color": {
+      "primary": {
+        "100": "#ebffff",
+        "200": "#98fffc",
+        "300": "#5beae4",
+        "400": "#28cbc0",
+        "500": "#0d9488",
+        "600": "#07866d",
+        "700": "#017853",
+        "800": "#00653b",
+        "900": "#00522f"
+      },
+      "neutral": {
+        "50": "#fafdff",
+        "100": "#f6fbfd",
+        "200": "#d3dee4",
+        "300": "#b1c0c8",
+        "400": "#919eac",
+        "500": "#707a8f",
+        "600": "#5c6479",
+        "700": "#494e62",
+        "800": "#35394c",
+        "900": "#222435",
+        "950": "#11121f"
+      },
+      "expense": {
+        "100": "#ffebf6",
+        "200": "#ffb0dc",
+        "300": "#ff75c1",
+        "400": "#f4458b",
+        "500": "#e11d48",
+        "600": "#c81134",
+        "700": "#ae0620",
+        "800": "#900012",
+        "900": "#6b000a"
+      },
+      "income": {
+        "100": "#ebffff",
+        "200": "#97fff6",
+        "300": "#52f0d6",
+        "400": "#1fcfa6",
+        "500": "#059669",
+        "600": "#028d5b",
+        "700": "#00834c",
+        "800": "#00773f",
+        "900": "#006b33"
+      },
+      "transfer": {
+        "100": "#ebffff",
+        "200": "#a2f6ff",
+        "300": "#5ae1ff",
+        "400": "#1fbbf3",
+        "500": "#0284c7",
+        "600": "#0067b2",
+        "700": "#004e9a",
+        "800": "#003883",
+        "900": "#00266b"
+      },
+      "warning": {
+        "100": "#fffceb",
+        "200": "#fff3a8",
+        "300": "#ffd965",
+        "400": "#faaf28",
+        "500": "#d97706",
+        "600": "#c25a00",
+        "700": "#a54100",
+        "800": "#882c00",
+        "900": "#6b1c00"
+      }
+    },
+    "spacing": [4, 8, 12, 16, 24, 32, 48, 64],
+    "fontSize": [12, 14, 16, 18, 20, 24, 30, 36],
+    "fontWeight": ["400", "600"],
+    "radius": {
+      "sm": 8,
+      "md": 12,
+      "lg": 16,
+      "full": 9999
+    },
+    "borderWidth": {
+      "hairline": 1,
+      "focus": 2
+    },
+    "opacity": {
+      "disabled": 0.45,
+      "pressed": 0.78,
+      "scrim": 0.5
+    }
+  },
+  "pairs": [
+    { "name": "Light: text on page", "fg": "#222435", "bg": "#f6fbfd", "size": "normal" },
+    { "name": "Light: text on card", "fg": "#222435", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: textSecondary on card", "fg": "#494e62", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: textMuted on card", "fg": "#5c6479", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: textMuted on page", "fg": "#5c6479", "bg": "#f6fbfd", "size": "normal" },
+    { "name": "Light: onAction on action", "fg": "#ffffff", "bg": "#017853", "size": "normal" },
+    { "name": "Light: actionText on actionSubtle", "fg": "#00522f", "bg": "#ebffff", "size": "normal" },
+    { "name": "Light: heroText on heroBg", "fg": "#fafdff", "bg": "#00522f", "size": "normal" },
+    { "name": "Light: heroSubtext on heroBg", "fg": "#98fffc", "bg": "#00522f", "size": "normal" },
+    { "name": "Light: expense on card", "fg": "#c81134", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: expenseBadgeText on expenseSubtle", "fg": "#6b000a", "bg": "#ffebf6", "size": "normal" },
+    { "name": "Light: income on card", "fg": "#00834c", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: incomeBadgeText on incomeSubtle", "fg": "#006b33", "bg": "#ebffff", "size": "normal" },
+    { "name": "Light: transfer on card", "fg": "#0067b2", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: transferBadgeText on transferSubtle", "fg": "#00266b", "bg": "#ebffff", "size": "normal" },
+    { "name": "Light: warning on card", "fg": "#a54100", "bg": "#ffffff", "size": "normal" },
+    { "name": "Light: warningBadgeText on warningSubtle", "fg": "#6b1c00", "bg": "#fffceb", "size": "normal" },
+
+    { "name": "Dark: text on page", "fg": "#fafdff", "bg": "#11121f", "size": "normal" },
+    { "name": "Dark: text on card", "fg": "#fafdff", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: textSecondary on card", "fg": "#d3dee4", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: textMuted on card", "fg": "#b1c0c8", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: textMuted on page", "fg": "#919eac", "bg": "#11121f", "size": "normal" },
+    { "name": "Dark: onAction on action", "fg": "#11121f", "bg": "#28cbc0", "size": "normal" },
+    { "name": "Dark: actionText on actionSubtle", "fg": "#98fffc", "bg": "#00522f", "size": "normal" },
+    { "name": "Dark: heroText on heroBg", "fg": "#fafdff", "bg": "#00522f", "size": "normal" },
+    { "name": "Dark: heroSubtext on heroBg", "fg": "#98fffc", "bg": "#00522f", "size": "normal" },
+    { "name": "Dark: expense on card", "fg": "#ff75c1", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: expenseBadgeText on expenseSubtle", "fg": "#ffebf6", "bg": "#6b000a", "size": "normal" },
+    { "name": "Dark: income on card", "fg": "#52f0d6", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: incomeBadgeText on incomeSubtle", "fg": "#ebffff", "bg": "#006b33", "size": "normal" },
+    { "name": "Dark: transfer on card", "fg": "#5ae1ff", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: transferBadgeText on transferSubtle", "fg": "#ebffff", "bg": "#00266b", "size": "normal" },
+    { "name": "Dark: warning on card", "fg": "#ffd965", "bg": "#222435", "size": "normal" },
+    { "name": "Dark: warningBadgeText on warningSubtle", "fg": "#fffceb", "bg": "#6b1c00", "size": "normal" }
+  ]
+}

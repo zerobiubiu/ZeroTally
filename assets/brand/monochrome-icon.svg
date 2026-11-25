@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- 单色遮罩：保留纯白账本轮廓，镂空书脊线、书签与 ¥ 徽标（供 Android 13+ 主题图标着色） -->
+    <mask id="monoMask">
+      <rect width="1024" height="1024" fill="#000000" />
+      <g transform="translate(512 512) scale(0.76) translate(-512 -512)">
+        <rect x="242" y="218" width="516" height="588" rx="84" fill="#FFFFFF" />
+        <line x1="308" y1="218" x2="308" y2="806" stroke="#000000" stroke-width="20" />
+        <path
+          d="M614 218 H684 V344 C684 350 677 354 672 350 L649 331 L626 350 C621 354 614 350 614 344 Z"
+          fill="#000000"
+        />
+        <path
+          d="M430 416 L530 538 L630 416 M530 538 V706 M444 580 H616 M444 648 H616"
+          fill="none"
+          stroke="#000000"
+          stroke-width="50"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" fill="#FFFFFF" mask="url(#monoMask)" />
+</svg>

@@ -1,0 +1,173 @@
+name: Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      abis:
+        description: 'Android ABI 列表（逗号分隔）'
+        required: false
+        default: 'arm64-v8a,x86_64'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('bun.lock', 'app.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify version, types, lint, and tests
+        run: bun run verify
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null || true
+          fi
+
+      - name: Prebuild Android native project
+        run: bun x expo prebuild --platform android --clean --no-install
+
+      - name: Build Android Release APK
+        env:
+          TARGET_ABIS: ${{ github.event.inputs.abis || 'arm64-v8a,x86_64' }}
+        shell: bash
+        run: |
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease "-PreactNativeArchitectures=${TARGET_ABIS}" --no-daemon
+
+      - name: Package APK artifact and optional production signing
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          IS_TAG_PUSH: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-apk
+          SRC_APK="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$SRC_APK" ]; then
+            echo "未找到编译产物：$SRC_APK" >&2
+            exit 1
+          fi
+
+          if [ "$IS_TAG_PUSH" = "true" ]; then
+            ARTIFACT_LABEL="$RELEASE_TAG"
+          else
+            ARTIFACT_LABEL="manual-${GITHUB_RUN_NUMBER}"
+          fi
+
+          OUT_APK="dist-apk/ZeroTally-${ARTIFACT_LABEL}-android.apk"
+          cp "$SRC_APK" "$OUT_APK"
+
+          SIGN_MODE="本地调试签名（未配置正式发布 Keystore Secrets）"
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            trap 'rm -f release.keystore' EXIT
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
+            APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+            "$APKSIGNER" sign \
+              --ks release.keystore \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+              --key-pass env:ANDROID_KEY_PASSWORD \
+              "$OUT_APK"
+            rm -f release.keystore
+            SIGN_MODE="正式发布签名"
+          fi
+
+          (cd dist-apk && sha256sum "$(basename "$OUT_APK")" > "$(basename "$OUT_APK").sha256")
+          echo "OUT_APK=$OUT_APK" >> "$GITHUB_ENV"
+          echo "OUT_SHA=${OUT_APK}.sha256" >> "$GITHUB_ENV"
+          echo "SIGN_MODE=$SIGN_MODE" >> "$GITHUB_ENV"
+
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZeroTally-android-apk
+          path: dist-apk/*
+          retention-days: 30
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          TARGET_ABIS: ${{ github.event.inputs.abis || 'arm64-v8a,x86_64' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_FILE="dist-apk/release-notes.md"
+          VERSION_NUM="${RELEASE_TAG#v}"
+
+          node -e '
+            const fs = require("node:fs");
+            const ver = process.argv[1];
+            const changelog = fs.readFileSync("CHANGELOG.md", "utf8");
+            const header = "## [" + ver + "]";
+            const start = changelog.indexOf(header);
+            let section = "";
+            if (start !== -1) {
+              const bodyStart = changelog.indexOf("\n", start);
+              const nextHeader = changelog.indexOf("\n## [", bodyStart + 1);
+              section = (nextHeader === -1 ? changelog.slice(bodyStart) : changelog.slice(bodyStart, nextHeader)).trim();
+            }
+            const lines = [
+              section || "发布版本 " + process.argv[2],
+              "",
+              "### 安装包说明",
+              "- 架构（ABI）：`" + process.argv[3] + "`",
+              "- 签名方式：" + process.argv[4],
+              "- 附带 `.sha256` 校验文件供核对完整性"
+            ];
+            fs.writeFileSync(process.argv[5], lines.join("\n") + "\n", "utf8");
+          ' "$VERSION_NUM" "$RELEASE_TAG" "$TARGET_ABIS" "$SIGN_MODE" "$NOTES_FILE"
+
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$OUT_APK" "$OUT_SHA" --clobber
+            gh release edit "$RELEASE_TAG" --notes-file "$NOTES_FILE"
+          else
+            gh release create "$RELEASE_TAG" "$OUT_APK" "$OUT_SHA" \
+              --title "ZeroTally $RELEASE_TAG" \
+              --notes-file "$NOTES_FILE"
+          fi

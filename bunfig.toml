@@ -1,0 +1,3 @@
+[install]
+# 使用扁平 hoisted 依赖结构，适配 React Native / Expo（Metro、Babel 与 Android CMake 路径要求）
+linker = "hoisted"

@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "简记",
+    "slug": "keep-accounts",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "keep-accounts",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F6FBFD"
+    },
+    "android": {
+      "package": "com.keepaccounts.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#017853"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "./plugins/with-windows-cmake-path-fix"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

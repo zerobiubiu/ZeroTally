@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bgGrad" x1="12%" y1="6%" x2="88%" y2="94%">
+      <stop offset="0%" stop-color="#10998D" />
+      <stop offset="52%" stop-color="#017853" />
+      <stop offset="100%" stop-color="#004929" />
+    </linearGradient>
+    <radialGradient id="topGlow" cx="24%" cy="18%" r="62%">
+      <stop offset="0%" stop-color="#5BEAE4" stop-opacity="0.30" />
+      <stop offset="60%" stop-color="#28CBC0" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#004929" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="cardGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#ECFBF8" />
+    </linearGradient>
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3AE2D6" />
+      <stop offset="100%" stop-color="#0D9488" />
+    </linearGradient>
+    <linearGradient id="yenGrad" gradientUnits="userSpaceOnUse" x1="430" y1="410" x2="630" y2="710">
+      <stop offset="0%" stop-color="#0D9488" />
+      <stop offset="55%" stop-color="#017853" />
+      <stop offset="100%" stop-color="#00522F" />
+    </linearGradient>
+    <filter id="tileShadow" x="-20%" y="-15%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#004929" flood-opacity="0.22" />
+    </filter>
+    <filter id="cardShadow" x="-15%" y="-12%" width="134%" height="134%">
+      <feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#002616" flood-opacity="0.34" />
+    </filter>
+    <clipPath id="tileClip">
+      <rect width="1024" height="1024" rx="224" />
+    </clipPath>
+    <clipPath id="cardClip">
+      <rect x="242" y="218" width="516" height="588" rx="84" />
+    </clipPath>
+  </defs>
+
+  <!-- 启动页透明背景，居中放置圆角品牌图标块，兼容 Android 12+ SplashScreen 安全圆 -->
+  <g filter="url(#tileShadow)" transform="translate(512 512) scale(0.46) translate(-512 -512)">
+    <g clip-path="url(#tileClip)">
+      <rect width="1024" height="1024" fill="url(#bgGrad)" />
+      <rect width="1024" height="1024" fill="url(#topGlow)" />
+
+      <g transform="rotate(7 540 490)">
+        <rect
+          x="284"
+          y="188"
+          width="490"
+          height="564"
+          rx="78"
+          fill="#98FFFC"
+          fill-opacity="0.22"
+          stroke="#EBFFFF"
+          stroke-opacity="0.32"
+          stroke-width="3"
+        />
+      </g>
+
+      <g filter="url(#cardShadow)">
+        <rect x="242" y="218" width="516" height="588" rx="84" fill="url(#cardGrad)" />
+        <g clip-path="url(#cardClip)">
+          <rect x="242" y="218" width="60" height="588" fill="#D5F6F2" />
+          <line x1="302" y1="218" x2="302" y2="806" stroke="#B7ECE5" stroke-width="3" />
+          <path
+            d="M614 218 H684 V344 C684 350 677 354 672 350 L649 331 L626 350 C621 354 614 350 614 344 Z"
+            fill="url(#ribbonGrad)"
+          />
+        </g>
+        <path
+          d="M430 416 L530 538 L630 416 M530 538 V706 M444 580 H616 M444 648 H616"
+          fill="none"
+          stroke="url(#yenGrad)"
+          stroke-width="46"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+    </g>
+  </g>
+</svg>

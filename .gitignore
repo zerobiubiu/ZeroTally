@@ -1,0 +1,38 @@
+# 依赖与构建缓存
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.tsbuildinfo
+
+# 原生构建产物
+/android
+/ios
+/.c
+*.apk
+*.aab
+*.jks
+*.keystore
+/dist-apk
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# 密钥与本地环境变量
+.env
+.env.local
+.env.*.local
+
+# 测试与工具缓存
+coverage/
+.vitest/
+.markindex/
+
+# 系统与编辑器文件
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.*
+pnpm-debug.*
