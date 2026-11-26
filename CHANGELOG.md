@@ -2,6 +2,19 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.1.1] - 2026-11-26
+
+### 修复与优化
+
+- **修复长按手势误触发单击问题**（`app/(tabs)/_layout.tsx`、`QuickRecordTile.tsx`、`SlidingSegmentedControl.tsx`）：
+  - 根因定位：RNGH v3 `PanGestureHandler` 同时配置 `activateAfterLongPress` 与 `minDistance: 0` 时，单击时的 1px 触控微抖会在长按未满前满足 `distSq >= 0` 立即激活拖拽手势，从而覆盖单击事件。
+  - 修复方案：将全仓三处长按拖拽手势调整为 `minDistance: 99999` 配合 `activateAfterLongPress`（`+` 扇形 300ms、快捷卡 280ms、分段滑块 160ms），彻底恢复**单击「+」进入完整记一笔 / 长按「+」展开扇形快捷选项**、**单击快捷卡轻震动记账并变身 3 秒倒计时撤销卡（3 秒内再点长震动撤回） / 长按快捷卡进入微调或松手编辑**。
+- **加固快捷卡片 3 秒原地撤销稳定性**（`repository.ts`、`QuickRecordTile.tsx`、`QuickRecordSheet.tsx`）：
+  - 推荐快捷项 ID 去除排名下标改为业务四元组稳定键，3 秒倒计时窗口内暂缓推荐列表重排防止撤销卡跳离指尖；复用单一手势外壳并按 `txId` 重置倒计时秒数。
+- **长按调金额/切账户升级为最上层半透明悬浮 HUD**（`QuickScrubOverlay.tsx`）：
+  - 移除快捷记账面板内部挤压布局的横条，改为独立浮于全屏最上层（`zIndex: 120`）的半透明毛玻璃悬浮卡片（实时显示步进金额、横向高亮账户与方向速览），面板卡片零跳动且不被拇指遮挡。
+- **极简设置顶栏与「关于」入口迁移**（`SettingsPanel.tsx`、`app/settings.tsx`）：移除设置抽屉顶栏右上角「×」关闭按钮（保留遮罩点击、左滑收起与返回键关闭），并将列表中的「关于」条目迁移至顶栏右上角，以纯 `i` 图标（`information-circle-outline`）呈现且不保留文字；独立设置页顶栏同步对齐。
+
 ## [1.1.0] - 2026-11-26
 
 ### 新增与优化

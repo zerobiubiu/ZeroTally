@@ -32,3 +32,4 @@
 | [0024-v1-settings-categories-portability-and-quick-record.md](0024-v1-settings-categories-portability-and-quick-record.md) | 变更记录 | 已执行 | v1.0.0 | 设置重构与完整 JSON 校验导入导出、验证码清空账本、分类管理全面升级、快捷记账半屏窗、明细手势与全应用震动反馈 |
 | [0025-unified-segmented-control-and-ui-polish.md](0025-unified-segmented-control-and-ui-polish.md) | 变更记录 | 已执行 | v1.0.1 | 全仓 7 处分段切换统一为滑动分段组件、设置「关于」置底与 database 图标、分类管理圆润卡片重构、清空账本二次确认与快捷记账全区上下滑/横向分页 |
 | [0026-quick-record-radial-scrub-undo-ring.md](0026-quick-record-radial-scrub-undo-ring.md) | 变更记录 | 已执行 | v1.1.0 | 底栏长按 `+` 扇形极速记账、快捷卡片原地 3 秒圆环倒计时撤销与轻/长震动区分、单卡长按调金额/切账户、内嵌复用记一笔 UI 编辑及顶栏精简 |
+| [0027-fix-longpress-gestures-floating-hud-and-settings-about.md](0027-fix-longpress-gestures-floating-hud-and-settings-about.md) | 变更记录 | 已执行 | v1.1.1 | 修复全仓 `activateAfterLongPress + minDistance: 0` 导致单击被长按手势误拦截问题、加固 3 秒原地撤销稳定性、微调 HUD 重构为顶层半透明悬浮卡片及设置顶栏右上角改置纯 `i` 关于图标 |

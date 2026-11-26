@@ -131,8 +131,8 @@ export async function findRecommendedQuickButtons(
     [sinceIsoDate, limit]
   );
 
-  return rows.map((row, index) => ({
-    id: `rec_${index}_${row.category_id}_${row.amount_cents}`,
+  return rows.map((row) => ({
+    id: `rec_${row.type}_${row.category_id}_${row.amount_cents}_${row.account_id}`,
     source: 'recommended',
     name: row.category_name,
     type: row.type,

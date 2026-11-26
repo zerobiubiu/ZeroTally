@@ -1,7 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
  * - 架构选型：叠加于主 Tab 容器顶层（非原生 Modal），避免 Android 双层 Modal 叠加导致抽屉内 ActionSheet / ConfirmDialog 错层或闪屏
- * - 交互闭环：支持外部跟手向右滑拉出（共享 Animated.Value progress）、点击页面标题展开、遮罩点击关闭、关闭按钮关闭、跟手向左滑动收起与 Android 硬件/手势返回键拦截关闭；完全收起后卸载子树零常驻开销
+ * - 交互闭环：支持外部跟手向右滑拉出（共享 Animated.Value progress）、点击页面标题展开、遮罩点击关闭、跟手向左滑动收起与 Android 硬件/手势返回键拦截关闭；完全收起后卸载子树零常驻开销
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {

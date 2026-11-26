@@ -155,13 +155,14 @@ export function SlidingSegmentedControl<T extends string>({
     [thumbX]
   );
 
-  // 长按 140ms 触发轻震动与滑块浮起放大，随后 1:1 跟手左右滑动切档
+  // 长按 160ms 触发轻震动与滑块浮起放大，随后 1:1 跟手左右滑动切档
+  // 注意：minDistance 设为超大值确保短按单击不会因微抖提前激活 Pan，仅在长按达标后进入拖拽态
   const slidePanGesture = usePanGesture({
     enabled: !disabled && options.length > 1,
     disableReanimated: true,
     runOnJS: true,
-    activateAfterLongPress: 140,
-    minDistance: 0,
+    activateAfterLongPress: 160,
+    minDistance: 99999,
     onActivate: (event) => {
       draggingRef.current = true;
       hapticLight();

@@ -78,7 +78,10 @@ export function QuickRecordTile({
   const isUndoMode = undoState !== null;
 
   const [scale] = useState(() => new Animated.Value(1));
-  const [remainingSec, setRemainingSec] = useState(3);
+  const [countdownState, setCountdownState] = useState<{ txId: string; sec: number } | null>(null);
+  const defaultUndoSec = Math.ceil(QUICK_UNDO_DURATION_MS / 1000);
+  const remainingSec =
+    undoState && countdownState?.txId === undoState.txId ? countdownState.sec : defaultUndoSec;
 
   const itemRef = useRef(item);
   const accountsRef = useRef(accounts);
@@ -104,17 +107,18 @@ export function QuickRecordTile({
     onScrubEndRef.current = onScrubEnd;
   }, [accounts, item, onOpenEdit, onScrubChange, onScrubEnd, onScrubStart]);
 
-  // 撤销态 3 秒倒计时秒数跳动（仅在撤销态运行）
+  // 撤销态 3 秒倒计时秒数跳动（按 txId 绑定，再次点击必定从 3s 起步）
   useEffect(() => {
     if (!undoState) {
       return;
     }
+    const { txId, startedAt } = undoState;
     const tick = () => {
-      const elapsed = Date.now() - undoState.startedAt;
+      const elapsed = Date.now() - startedAt;
       const left = Math.max(1, Math.ceil((QUICK_UNDO_DURATION_MS - elapsed) / 1000));
-      setRemainingSec(left);
+      setCountdownState({ txId, sec: left });
     };
-    const timer = setInterval(tick, 200);
+    const timer = setInterval(tick, 180);
     return () => {
       clearInterval(timer);
     };
@@ -130,7 +134,7 @@ export function QuickRecordTile({
     }).start();
   };
 
-  const finishScrub = () => {
+  const finishScrub = (commit: boolean) => {
     if (!scrubbingRef.current) {
       return;
     }
@@ -139,7 +143,7 @@ export function QuickRecordTile({
 
     const curItem = itemRef.current;
     const accs = accountsRef.current;
-    const finalAxis = axisRef.current;
+    const finalAxis = commit ? axisRef.current : 'none';
     const finalAmount = currentAmountRef.current;
     const finalAcc = accs[currentAccountIdxRef.current];
     const finalAccountId = finalAcc?.id ?? curItem.accountId;
@@ -150,7 +154,7 @@ export function QuickRecordTile({
       accountId: finalAccountId,
     });
 
-    if (finalAxis === 'none') {
+    if (commit && finalAxis === 'none') {
       onOpenEditRef.current(curItem);
     }
 
@@ -159,12 +163,13 @@ export function QuickRecordTile({
     }, 80);
   };
 
+  // 注意：minDistance 必须设为超大值（绝不能设 0），防止单击时因 1px 触控微抖在长按未满前误激活 Pan 覆盖单击记账
   const scrubPanGesture = usePanGesture({
     enabled: !disabled && !isUndoMode,
     disableReanimated: true,
     runOnJS: true,
-    activateAfterLongPress: 260,
-    minDistance: 0,
+    activateAfterLongPress: 280,
+    minDistance: 99999,
     onActivate: () => {
       const curItem = itemRef.current;
       const accs = accountsRef.current;
@@ -243,87 +248,24 @@ export function QuickRecordTile({
       }
     },
     onDeactivate: () => {
-      finishScrub();
+      finishScrub(true);
     },
     onFinalize: () => {
-      finishScrub();
+      finishScrub(false);
     },
   });
 
-  // ========== 原地变身「3 秒圆环倒计时撤销卡片」==========
-  if (undoState) {
-    const signedUndoAmount = `${undoState.type === 'expense' ? '-' : '+'}${formatCentsToYuan(undoState.amountCents)}`;
-    return (
-      <View style={styles.tileWrap}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`撤销刚才记入的 ${item.name} ${signedUndoAmount}，剩余 ${remainingSec} 秒`}
-          disabled={busy}
-          onPress={() => onUndoTap(item, undoState.txId)}
-          style={({ pressed }) => [
-            styles.quickTile,
-            {
-              backgroundColor: theme.colors.warningSubtle,
-              borderColor: theme.colors.warning,
-              borderWidth: theme.borderWidth.focus,
-              borderRadius: theme.radius.lg,
-              opacity: busy ? theme.opacity.disabled : 1,
-            },
-            pressed && { transform: [{ scale: 0.95 }], opacity: 0.88 },
-          ]}
-        >
-          <CountdownRing
-            key={undoState.txId}
-            size={40}
-            strokeWidth={3}
-            durationMs={QUICK_UNDO_DURATION_MS}
-            activeColor={theme.colors.warning}
-            trackColor={theme.colors.border}
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={theme.colors.warningTextOnSubtle} />
-            ) : (
-              <AppIcon name="arrow-undo" size={18} color={theme.colors.warningTextOnSubtle} />
-            )}
-          </CountdownRing>
-
-          <Text
-            numberOfLines={1}
-            style={{
-              color: theme.colors.warningTextOnSubtle,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              marginTop: 6,
-            }}
-          >
-            点击撤销 ({remainingSec}s)
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.tabular,
-              {
-                color: theme.colors.textSecondary,
-                fontSize: 10,
-                marginTop: 2,
-              },
-            ]}
-          >
-            {item.name} {signedUndoAmount}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  // ========== 常规快捷卡片态（点击入账 + 长按上下调金额 / 左右切账户）==========
   const shownAmountCents =
     isScrubbingThis && scrubPreview ? scrubPreview.amountCents : item.amountCents;
   const shownAccountName =
     isScrubbingThis && scrubPreview ? scrubPreview.accountName : item.accountName;
   const amountColor = item.type === 'expense' ? theme.colors.expense : theme.colors.income;
   const signedAmount = `${item.type === 'expense' ? '-' : '+'}${formatCentsToYuan(shownAmountCents)}`;
+  const signedUndoAmount = undoState
+    ? `${undoState.type === 'expense' ? '-' : '+'}${formatCentsToYuan(undoState.amountCents)}`
+    : '';
 
+  // 始终复用同一 GestureDetector 外壳（撤销态时 enabled=false），避免点击切换撤销卡时销毁重建原生手势节点
   return (
     <GestureDetector gesture={scrubPanGesture}>
       <Animated.View
@@ -335,90 +277,152 @@ export function QuickRecordTile({
           },
         ]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`快捷记账 ${item.name} ${signedAmount}，账户 ${shownAccountName}`}
-          accessibilityHint="点击立即入账；长按上下滑调金额，左右滑切账户，长按不动松手编辑"
-          disabled={disabled}
-          onPress={() => {
-            if (suppressTapRef.current || scrubbingRef.current) {
-              return;
-            }
-            onQuickTap(item);
-          }}
-          style={({ pressed }) => [
-            styles.quickTile,
-            isScrubbingThis && theme.elevation.card,
-            {
-              backgroundColor: isScrubbingThis ? theme.colors.surfaceRaised : theme.colors.surface,
-              borderColor: isScrubbingThis ? theme.colors.action : theme.colors.border,
-              borderWidth: isScrubbingThis
-                ? theme.borderWidth.focus
-                : theme.borderWidth.hairline,
-              borderRadius: theme.radius.lg,
-              opacity: busy ? theme.opacity.disabled : 1,
-            },
-            pressed && !isScrubbingThis && { transform: [{ scale: 0.96 }], opacity: 0.85 },
-          ]}
-        >
-          <View
-            style={[
-              styles.tileIconCircle,
+        {undoState ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`撤销刚才记入的 ${item.name} ${signedUndoAmount}，剩余 ${remainingSec} 秒`}
+            disabled={busy}
+            onPress={() => onUndoTap(item, undoState.txId)}
+            style={({ pressed }) => [
+              styles.quickTile,
               {
-                backgroundColor: `${item.categoryColor}20`,
-                borderRadius: theme.radius.full,
+                backgroundColor: theme.colors.warningSubtle,
+                borderColor: theme.colors.warning,
+                borderWidth: theme.borderWidth.focus,
+                borderRadius: theme.radius.lg,
+                opacity: busy ? theme.opacity.disabled : 1,
               },
+              pressed && { transform: [{ scale: 0.95 }], opacity: 0.88 },
             ]}
           >
-            {busy ? (
-              <ActivityIndicator size="small" color={item.categoryColor} />
-            ) : (
-              <AppIcon name={item.categoryIcon} size={20} color={item.categoryColor} />
-            )}
-          </View>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              marginTop: 6,
-            }}
-          >
-            {item.name}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.tabular,
-              {
-                color: amountColor,
+            <CountdownRing
+              key={undoState.txId}
+              size={40}
+              strokeWidth={3}
+              durationMs={QUICK_UNDO_DURATION_MS}
+              activeColor={theme.colors.warning}
+              trackColor={theme.colors.border}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={theme.colors.warningTextOnSubtle} />
+              ) : (
+                <AppIcon name="arrow-undo" size={18} color={theme.colors.warningTextOnSubtle} />
+              )}
+            </CountdownRing>
+
+            <Text
+              numberOfLines={1}
+              style={{
+                color: theme.colors.warningTextOnSubtle,
                 fontSize: theme.fontSize.xs,
                 fontWeight: theme.fontWeight.semibold,
-                marginTop: 2,
+                marginTop: 6,
+              }}
+            >
+              点击撤销 ({remainingSec}s)
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.tabular,
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: 10,
+                  marginTop: 2,
+                },
+              ]}
+            >
+              {item.name} {signedUndoAmount}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`快捷记账 ${item.name} ${signedAmount}，账户 ${shownAccountName}`}
+            accessibilityHint="点击立即入账；长按上下滑调金额，左右滑切账户，长按不动松手编辑"
+            disabled={disabled}
+            onPress={() => {
+              if (suppressTapRef.current || scrubbingRef.current) {
+                return;
+              }
+              onQuickTap(item);
+            }}
+            style={({ pressed }) => [
+              styles.quickTile,
+              isScrubbingThis && theme.elevation.card,
+              {
+                backgroundColor: isScrubbingThis
+                  ? theme.colors.surfaceRaised
+                  : theme.colors.surface,
+                borderColor: isScrubbingThis ? theme.colors.action : theme.colors.border,
+                borderWidth: isScrubbingThis
+                  ? theme.borderWidth.focus
+                  : theme.borderWidth.hairline,
+                borderRadius: theme.radius.lg,
+                opacity: busy ? theme.opacity.disabled : 1,
               },
+              pressed && !isScrubbingThis && { transform: [{ scale: 0.96 }], opacity: 0.85 },
             ]}
           >
-            {signedAmount}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              color:
-                isScrubbingThis && scrubPreview?.axis === 'account'
-                  ? theme.colors.action
-                  : theme.colors.textMuted,
-              fontSize: 10,
-              fontWeight:
-                isScrubbingThis && scrubPreview?.axis === 'account'
-                  ? theme.fontWeight.semibold
-                  : theme.fontWeight.regular,
-              marginTop: 1,
-            }}
-          >
-            {shownAccountName}
-          </Text>
-        </Pressable>
+            <View
+              style={[
+                styles.tileIconCircle,
+                {
+                  backgroundColor: `${item.categoryColor}20`,
+                  borderRadius: theme.radius.full,
+                },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={item.categoryColor} />
+              ) : (
+                <AppIcon name={item.categoryIcon} size={20} color={item.categoryColor} />
+              )}
+            </View>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: theme.colors.text,
+                fontSize: theme.fontSize.xs,
+                fontWeight: theme.fontWeight.semibold,
+                marginTop: 6,
+              }}
+            >
+              {item.name}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.tabular,
+                {
+                  color: amountColor,
+                  fontSize: theme.fontSize.xs,
+                  fontWeight: theme.fontWeight.semibold,
+                  marginTop: 2,
+                },
+              ]}
+            >
+              {signedAmount}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{
+                color:
+                  isScrubbingThis && scrubPreview?.axis === 'account'
+                    ? theme.colors.action
+                    : theme.colors.textMuted,
+                fontSize: 10,
+                fontWeight:
+                  isScrubbingThis && scrubPreview?.axis === 'account'
+                    ? theme.fontWeight.semibold
+                    : theme.fontWeight.regular,
+                marginTop: 1,
+              }}
+            >
+              {shownAccountName}
+            </Text>
+          </Pressable>
+        )}
       </Animated.View>
     </GestureDetector>
   );

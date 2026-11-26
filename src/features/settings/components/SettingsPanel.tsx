@@ -1,7 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
  * - 极简无分组布局：彻底去除统计头、「配置/数据导出/系统」二级分组标题、存储行与独立版本条目
- * - 信息顺序（严格按用户设计）：外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 高级设置 -> 关于 -> 最底部居中版本号
+ * - 信息顺序（严格按用户设计）：顶栏右侧「i」图标直达关于（移除右上角 X）-> 外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 高级设置 -> 最底部居中版本号
  * - 复用形态：同时支持左侧抽屉（variant="drawer"）与独立设置页（variant="page"），外观切换即时落盘 SQLite
  */
 import Constants from 'expo-constants';
@@ -77,12 +77,6 @@ export function SettingsPanel({
       icon: 'construct-outline',
       onPress: () => navigateTo('/advanced-settings'),
     },
-    {
-      key: 'about',
-      label: '关于',
-      icon: 'information-circle-outline',
-      onPress: () => navigateTo('/about'),
-    },
   ];
 
   return (
@@ -112,23 +106,22 @@ export function SettingsPanel({
             ZeroTally
           </Text>
 
-          {onClose ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="关闭设置抽屉"
-              onPress={() => {
-                hapticLight();
-                onClose();
-              }}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.drawerCloseBtn,
-                pressed && { opacity: theme.opacity.pressed },
-              ]}
-            >
-              <AppIcon name="close" size={22} color={theme.colors.heroText} />
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="关于"
+            onPress={() => navigateTo('/about')}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.drawerHeaderActionBtn,
+              pressed && { opacity: theme.opacity.pressed },
+            ]}
+          >
+            <AppIcon
+              name="information-circle-outline"
+              size={24}
+              color={theme.colors.heroText}
+            />
+          </Pressable>
         </View>
       ) : null}
 
@@ -178,7 +171,7 @@ export function SettingsPanel({
             />
           </View>
 
-          {/* 同级独立功能按钮：分类管理 -> 高级设置 -> 关于 */}
+          {/* 同级独立功能按钮：分类管理 -> 高级设置 */}
           {menuItems.map((item) => (
             <Pressable
               key={item.key}
@@ -251,7 +244,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  drawerCloseBtn: {
+  drawerHeaderActionBtn: {
     width: 36,
     height: 36,
     alignItems: 'center',

@@ -435,13 +435,14 @@ function SwipeTabsContent({
     },
   });
 
-  // 长按居中「+ 记一笔」260ms 绽放扇形快捷选项，手指顺势滑向对应项松手即刻记账（无撤回）
+  // 长按居中「+ 记一笔」300ms 绽放扇形快捷选项，手指顺势滑向对应项松手即刻记账（无撤回）
+  // 注意：minDistance 必须设为超大值（禁止设为 0），防止 RNGH 在长按未满时被微抖提前激活从而拦截单击进入记一笔
   const fabRadialPanGesture = usePanGesture({
     enabled: !isDrawerOpen && !isQuickSheetOpen && Boolean(drawerBridge),
     disableReanimated: true,
     runOnJS: true,
-    activateAfterLongPress: 260,
-    minDistance: 0,
+    activateAfterLongPress: 300,
+    minDistance: 99999,
     onActivate: () => {
       if (!drawerBridge) {
         return;

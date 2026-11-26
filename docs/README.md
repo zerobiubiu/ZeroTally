@@ -45,6 +45,7 @@
 | [changes/0024-v1-settings-categories-portability-and-quick-record.md](changes/0024-v1-settings-categories-portability-and-quick-record.md) | 变更记录 | 已执行 | 设置抽屉极简重构、完整与分类 JSON 校验导入导出、备份警示+验证码清空、分类拖拽迁移、快捷记账半屏窗与明细手势增强（v1.0.0） |
 | [changes/0025-unified-segmented-control-and-ui-polish.md](changes/0025-unified-segmented-control-and-ui-polish.md) | 变更记录 | 已执行 | 全仓 7 处分段切换统一为滑动分段组件、设置「关于」置底与 database 图标、分类圆润卡片化、清空二次确认菜单及快捷记账全区上下滑与左右分页（v1.0.1） |
 | [changes/0026-quick-record-radial-scrub-undo-ring.md](changes/0026-quick-record-radial-scrub-undo-ring.md) | 变更记录 | 已执行 | 底栏长按 `+` 扇形极速记账、快捷卡片原地 3 秒圆环倒计时撤销与轻/长震动区分、单卡长按调金额/切账户、内嵌复用记一笔 UI 编辑及顶栏精简（v1.1.0） |
+| [changes/0027-fix-longpress-gestures-floating-hud-and-settings-about.md](changes/0027-fix-longpress-gestures-floating-hud-and-settings-about.md) | 变更记录 | 已执行 | 修复长按手势误拦截单击、加固快捷卡 3 秒原地撤销、微调升级为顶层半透明悬浮 HUD 及设置顶栏纯 `i` 关于图标（v1.1.1） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

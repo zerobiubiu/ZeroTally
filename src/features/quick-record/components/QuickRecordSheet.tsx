@@ -4,7 +4,7 @@
  * - 网格态（约 52% 屏高）：
  *   1. 全区任意位置均支持向下滑关、向上滑跨越阈值无缝二次展开完整「记一笔」；
  *   2. 快捷选项 3×2（每页 6 格）横向左右分页滑动，配底部圆点分页指示；
- *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（顶部同步浮现高清实时调节 HUD），长按不动松手切入编辑态。
+ *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（最上层半透明悬浮 QuickScrubOverlay 实时回显，面板零跳动），长按不动松手切入编辑态。
  * - 新增/编辑态（约 80% 屏高，上方保留暗罩透出底页绝不全屏铺满）：直接内嵌 QuickTemplateComposer 复用完整记一笔的二级分类选择器与计算键盘，原备注位改为「快捷卡片名称」且隐藏日期。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,7 +16,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -40,7 +39,7 @@ import type { Account } from '../../accounts/types';
 import { listCategories } from '../../categories/service';
 import type { Category } from '../../categories/types';
 import { deleteTransaction } from '../../transactions/service';
-import { resolveAmountScrubStepCents, type QuickScrubAxis } from '../scrub-rules';
+import type { QuickScrubAxis } from '../scrub-rules';
 import {
   createQuickTemplate,
   deleteQuickTemplate,
@@ -55,6 +54,7 @@ import {
   type ActiveQuickScrubState,
   type QuickCardUndoState,
 } from './QuickRecordTile';
+import { QuickScrubOverlay } from './QuickScrubOverlay';
 import {
   QuickTemplateComposer,
   type QuickTemplateComposerInitialValue,
@@ -191,6 +191,7 @@ export function QuickRecordSheet({
   const expandHintFiredRef = useRef(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const undoTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingReloadAfterUndoRef = useRef(false);
 
   useEffect(() => {
     openRef.current = open;
@@ -226,6 +227,11 @@ export function QuickRecordSheet({
     if (!mounted) {
       return;
     }
+    // 3 秒原地撤销倒计时期间暂缓重排推荐卡片顺序，避免目标撤销卡从用户指尖跳走
+    if (Object.keys(undoTimersRef.current).length > 0) {
+      pendingReloadAfterUndoRef.current = true;
+      return;
+    }
     let active = true;
     void (async () => {
       const [buttonData, allCats, allAccs] = await Promise.all([
@@ -236,6 +242,7 @@ export function QuickRecordSheet({
       if (!active) {
         return;
       }
+      pendingReloadAfterUndoRef.current = false;
       setMode(buttonData.mode);
       setItems(buttonData.items);
       setCategories(allCats);
@@ -591,22 +598,10 @@ export function QuickRecordSheet({
       setActionError(null);
       try {
         const created = await executeQuickRecord(db, item);
-        // 输入轻震动，原卡片原地变身为 3 秒圆环倒计时撤销卡片
-        hapticLight();
-        notifyChange();
-
+        // 先登记撤销计时器再通知刷新，确保 3 秒撤销窗口内不会重排推荐卡片位置
         if (undoTimersRef.current[item.id]) {
           clearTimeout(undoTimersRef.current[item.id]);
         }
-        setUndoCards((prev) => ({
-          ...prev,
-          [item.id]: {
-            txId: created.id,
-            startedAt: Date.now(),
-            amountCents: item.amountCents,
-            type: item.type,
-          },
-        }));
         undoTimersRef.current[item.id] = setTimeout(() => {
           delete undoTimersRef.current[item.id];
           setUndoCards((prev) => {
@@ -617,7 +612,27 @@ export function QuickRecordSheet({
             delete next[item.id];
             return next;
           });
+          if (
+            pendingReloadAfterUndoRef.current &&
+            Object.keys(undoTimersRef.current).length === 0
+          ) {
+            pendingReloadAfterUndoRef.current = false;
+            void reloadData();
+          }
         }, QUICK_UNDO_DURATION_MS);
+
+        // 输入轻震动，原卡片原地变身为 3 秒圆环倒计时撤销卡片
+        hapticLight();
+        setUndoCards((prev) => ({
+          ...prev,
+          [item.id]: {
+            txId: created.id,
+            startedAt: Date.now(),
+            amountCents: item.amountCents,
+            type: item.type,
+          },
+        }));
+        notifyChange();
       } catch (err) {
         hapticWarning();
         setActionError(err instanceof Error ? err.message : '快捷记账失败');
@@ -625,7 +640,7 @@ export function QuickRecordSheet({
         setRecordingId(null);
       }
     },
-    [db, notifyChange, recordingId]
+    [db, notifyChange, recordingId, reloadData]
   );
 
   const handleUndoCardTap = useCallback(
@@ -763,10 +778,6 @@ export function QuickRecordSheet({
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
-
-  const scrubStepYuan = activeScrub
-    ? formatCentsToYuan(resolveAmountScrubStepCents(activeScrub.item.amountCents))
-    : '';
 
   const sheetCard = (
     <Animated.View
@@ -914,199 +925,6 @@ export function QuickRecordSheet({
               </Pressable>
             </View>
           </View>
-
-          {/* 实时微调 HUD / 一键入账反馈 / 错误提示 */}
-          {activeScrub ? (
-            <View
-              style={[
-                styles.scrubHud,
-                {
-                  marginHorizontal: theme.spacing.lg,
-                  marginTop: theme.spacing.sm,
-                  backgroundColor: theme.colors.actionSubtle,
-                  borderRadius: theme.radius.md,
-                  paddingHorizontal: theme.spacing.md,
-                  paddingVertical: theme.spacing.xs + 2,
-                },
-              ]}
-            >
-              {activeScrub.axis === 'amount' ? (
-                <View style={styles.scrubRow}>
-                  <View style={styles.scrubTitleLeft}>
-                    <AppIcon
-                      name="swap-vertical"
-                      size={15}
-                      color={theme.colors.actionTextOnSubtle}
-                    />
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        color: theme.colors.actionTextOnSubtle,
-                        fontSize: theme.fontSize.xs,
-                        fontWeight: theme.fontWeight.semibold,
-                        marginLeft: 5,
-                      }}
-                    >
-                      {activeScrub.item.name} · 上下调金额（步长 {scrubStepYuan}）
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.tabular,
-                      {
-                        color:
-                          activeScrub.item.type === 'expense'
-                            ? theme.colors.expense
-                            : theme.colors.income,
-                        fontSize: theme.fontSize.base,
-                        fontWeight: theme.fontWeight.semibold,
-                      },
-                    ]}
-                  >
-                    {activeScrub.item.type === 'expense' ? '-' : '+'}
-                    {formatCentsToYuan(activeScrub.amountCents)}
-                  </Text>
-                </View>
-              ) : activeScrub.axis === 'account' ? (
-                <View style={styles.scrubAccountWrap}>
-                  <View style={styles.scrubTitleLeft}>
-                    <AppIcon
-                      name="swap-horizontal"
-                      size={15}
-                      color={theme.colors.actionTextOnSubtle}
-                    />
-                    <Text
-                      style={{
-                        color: theme.colors.actionTextOnSubtle,
-                        fontSize: theme.fontSize.xs,
-                        fontWeight: theme.fontWeight.semibold,
-                        marginLeft: 5,
-                      }}
-                    >
-                      {activeAccounts.length > 1 ? '左右切换账户' : '当前仅 1 个可用账户'}
-                    </Text>
-                  </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.scrubAccountsRow}
-                  >
-                    {activeAccounts.map((acc) => {
-                      const active = acc.id === activeScrub.accountId;
-                      return (
-                        <View
-                          key={acc.id}
-                          style={[
-                            styles.scrubAccChip,
-                            {
-                              backgroundColor: active
-                                ? theme.colors.action
-                                : theme.colors.surfaceRaised,
-                              borderRadius: theme.radius.full,
-                            },
-                          ]}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            style={{
-                              color: active ? theme.colors.onAction : theme.colors.textSecondary,
-                              fontSize: 11,
-                              fontWeight: active
-                                ? theme.fontWeight.semibold
-                                : theme.fontWeight.regular,
-                            }}
-                          >
-                            {acc.name}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              ) : (
-                <View style={styles.scrubRow}>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flex: 1,
-                      color: theme.colors.actionTextOnSubtle,
-                      fontSize: theme.fontSize.xs,
-                      fontWeight: theme.fontWeight.semibold,
-                    }}
-                  >
-                    ↑↓ 滑动调金额 · ←→ 滑动切账户 · 直接松手编辑
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : bannerToast ? (
-            <View
-              style={[
-                styles.toastBanner,
-                {
-                  marginHorizontal: theme.spacing.lg,
-                  marginTop: theme.spacing.sm,
-                  backgroundColor: theme.colors.actionSubtle,
-                  borderRadius: theme.radius.md,
-                  paddingHorizontal: theme.spacing.md,
-                  paddingVertical: theme.spacing.xs,
-                },
-              ]}
-            >
-              <AppIcon
-                name="checkmark-circle"
-                size={16}
-                color={theme.colors.actionTextOnSubtle}
-              />
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.tabular,
-                  {
-                    flex: 1,
-                    color: theme.colors.actionTextOnSubtle,
-                    fontSize: theme.fontSize.xs,
-                    fontWeight: theme.fontWeight.semibold,
-                    marginLeft: 6,
-                  },
-                ]}
-              >
-                {bannerToast.text}
-              </Text>
-            </View>
-          ) : actionError ? (
-            <View
-              style={[
-                styles.toastBanner,
-                {
-                  marginHorizontal: theme.spacing.lg,
-                  marginTop: theme.spacing.sm,
-                  backgroundColor: theme.colors.expenseSubtle,
-                  borderRadius: theme.radius.md,
-                  paddingHorizontal: theme.spacing.md,
-                  paddingVertical: theme.spacing.xs,
-                },
-              ]}
-            >
-              <AppIcon
-                name="alert-circle-outline"
-                size={16}
-                color={theme.colors.expenseTextOnSubtle}
-              />
-              <Text
-                numberOfLines={1}
-                style={{
-                  flex: 1,
-                  color: theme.colors.expenseTextOnSubtle,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                  marginLeft: 6,
-                }}
-              >
-                {actionError}
-              </Text>
-            </View>
-          ) : null}
 
           {/* 快捷图标按钮横向左右分页网格（每页 3×2 = 6 格） */}
           {loading && items.length === 0 ? (
@@ -1357,6 +1175,56 @@ export function QuickRecordSheet({
       ) : (
         <GestureDetector gesture={gridVerticalPanGesture}>{sheetCard}</GestureDetector>
       )}
+
+      {/* 最上层半透明悬浮交互 HUD：长按上下调金额 / 左右切账户时独立浮于最顶层，零面板跳动 */}
+      <QuickScrubOverlay
+        scrub={composing ? null : activeScrub}
+        accounts={activeAccounts}
+        anchorBottom={gridSheetHeight + 24}
+      />
+
+      {/* 顶层悬浮轻提示胶囊（微调保存或错误反馈，独立于面板流式布局不挤压卡片） */}
+      {!composing && !activeScrub && (bannerToast || actionError) ? (
+        <View
+          pointerEvents="none"
+          style={[styles.floatingToastWrap, { bottom: gridSheetHeight + 20 }]}
+        >
+          <View
+            style={[
+              styles.floatingToastPill,
+              theme.elevation.floating,
+              {
+                backgroundColor: actionError
+                  ? theme.colors.expense
+                  : theme.mode === 'dark'
+                    ? 'rgba(20, 32, 29, 0.90)'
+                    : 'rgba(18, 28, 25, 0.86)',
+                borderRadius: theme.radius.full,
+              },
+            ]}
+          >
+            <AppIcon
+              name={actionError ? 'alert-circle' : 'checkmark-circle'}
+              size={15}
+              color={theme.colors.onAction}
+            />
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.tabular,
+                {
+                  color: theme.colors.onAction,
+                  fontSize: theme.fontSize.xs,
+                  fontWeight: theme.fontWeight.semibold,
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              {actionError ?? bannerToast?.text}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1422,32 +1290,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrubHud: {},
-  scrubRow: {
+  floatingToastWrap: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    alignItems: 'center',
+    zIndex: 118,
+    elevation: 26,
+  },
+  floatingToastPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  scrubTitleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 1,
-  },
-  scrubAccountWrap: {
-    gap: 6,
-  },
-  scrubAccountsRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  scrubAccChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  toastBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    maxWidth: 320,
   },
   pagerSection: {
     flex: 1,

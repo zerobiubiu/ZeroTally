@@ -67,6 +67,13 @@ describe('quick-record 快捷记账服务层（真实 SQLite）', () => {
       categoryId: 'cat_exp_transport_metro',
       amountCents: 500,
     });
+
+    // 推荐项被快速点击记账导致排名变化后，其 ID 必须保持稳定（确保 3 秒原地撤销卡片不丢失状态）
+    const coffeeBefore = result.items[1]!;
+    await executeQuickRecord(db, coffeeBefore, '2026-11-26');
+    await executeQuickRecord(db, coffeeBefore, '2026-11-26');
+    const reordered = await listQuickRecordButtons(db, '2026-11-26');
+    expect(reordered.items[0]?.id).toBe(coffeeBefore.id);
   });
 
   it('支持自定义快捷模板增改删，存在自定义时优先展示自定义，并可一键入账联动余额', async () => {
