@@ -1,4 +1,4 @@
-# 简记（keep-accounts）项目执行规则
+# ZeroTally（keep-accounts）项目执行规则
 
 本文件只记录面向 Agent 的固定执行规则；架构说明、决策记录与变更详情归入 `docs/`，见 `docs/README.md`。
 
@@ -35,3 +35,4 @@
 - 包管理器固定为 `bun`（已通过 `bunfig.toml` 开启 `linker = "hoisted"` 适配 React Native / Expo 与 Android CMake 路径长度限制）。
 - 在本机安装新全局工具、JDK 或 Android SDK 组件前，必须先向用户确认。
 - 代码改动完成后默认执行验证：`bun run verify`（包含版本校验、TypeScript 类型检查、ESLint 检查与 Vitest 单元测试）。
+- **应用更新自动打包规则**：凡涉及应用功能、界面或行为的更新任务，在通过 `bun run verify` 后默认直接执行 `bun x expo prebuild --platform android --no-install && bun run build:apk` 打包最新 Android Release APK，并使用 `aapt2`、`apksigner` 与 SHA-256 完成产物校验后再交付，无需等待用户再次要求（纯文档、注释或规则配置改动除外）。

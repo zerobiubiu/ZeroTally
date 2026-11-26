@@ -1,36 +1,138 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 信息层级：主（当月支出 30px/600）、次（月份切换 + 收入/结余 18px/600）、弱（标签 heroSubtext 12px/400）
- * - 交互意图：点击卡片数据区直接跳转「账务分析」，右上保留紧凑「分析 ›」信号，不堆叠说明文案
+ * - 信息层级：主（当期支出 30px/600）、次（周期标题点击弹出选择器 + 左右翻期/整行左右滑动切期 + 收入/结余 18px/600）、弱（标签 heroSubtext 12px/400）
+ * - 交互意图：顶部日期行支持左右滑动切换上/下一月或上/下一年（等效左右箭头并带跟手位移过渡与马达震动），activeOffsetX 8px 优先接管防与外层翻页/抽屉冲突
  * - 彩色底禁止灰字：标签统一使用同色相浅阶 heroSubtext；数字使用 tabular-nums 对齐
  */
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatMonthTitle, getCurrentMonthKey } from '../../../shared/date/date';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { hapticLight, hapticSelection } from '../../../shared/haptics/haptics';
 import { formatCentsToYuan } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
-import type { MonthlySummary } from '../types';
+import type { LedgerPeriodMode, MonthlySummary } from '../types';
 
 interface MonthlySummaryHeaderProps {
-  monthKey: string;
+  mode: LedgerPeriodMode;
+  periodLabel: string;
   summary: MonthlySummary;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-  onResetCurrentMonth: () => void;
+  onPrevPeriod: () => void;
+  onNextPeriod: () => void;
+  onPressPeriod: () => void;
   onPressAnalytics?: () => void;
 }
 
+const MAX_SWIPE_PREVIEW = 48;
+const SWIPE_TRIGGER_THRESHOLD = 30;
+
 export function MonthlySummaryHeader({
-  monthKey,
+  mode,
+  periodLabel,
   summary,
-  onPrevMonth,
-  onNextMonth,
-  onResetCurrentMonth,
+  onPrevPeriod,
+  onNextPeriod,
+  onPressPeriod,
   onPressAnalytics,
 }: MonthlySummaryHeaderProps): React.JSX.Element {
   const { theme } = useTheme();
-  const isCurrentMonth = monthKey === getCurrentMonthKey();
+  const [labelTranslateX] = useState(() => new Animated.Value(0));
+  const draggingRef = useRef(false);
+  const onPrevRef = useRef(onPrevPeriod);
+  const onNextRef = useRef(onNextPeriod);
+
+  useEffect(() => {
+    onPrevRef.current = onPrevPeriod;
+    onNextRef.current = onNextPeriod;
+  }, [onNextPeriod, onPrevPeriod]);
+
+  const animateStepTransition = useCallback(
+    (direction: 'prev' | 'next') => {
+      // 切期后让新日期文字从切换反方向柔和滑入归零
+      labelTranslateX.setValue(direction === 'next' ? 24 : -24);
+      Animated.spring(labelTranslateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        stiffness: 340,
+        damping: 28,
+        mass: 0.8,
+      }).start();
+    },
+    [labelTranslateX]
+  );
+
+  const handleStepPrev = useCallback(() => {
+    hapticSelection();
+    onPrevRef.current();
+    animateStepTransition('prev');
+  }, [animateStepTransition]);
+
+  const handleStepNext = useCallback(() => {
+    hapticSelection();
+    onNextRef.current();
+    animateStepTransition('next');
+  }, [animateStepTransition]);
+
+  const springLabelBack = useCallback(() => {
+    Animated.spring(labelTranslateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      stiffness: 340,
+      damping: 28,
+      mass: 0.85,
+    }).start();
+  }, [labelTranslateX]);
+
+  // 顶部日期行左右滑动切换周期：activeOffsetX ±8px 比外层翻页/抽屉（±14px）更早抢占，彻底隔离冲突
+  const periodSwipeGesture = usePanGesture({
+    enabled: mode !== 'all',
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetX: [-8, 8],
+    failOffsetY: [-18, 18],
+    onActivate: () => {
+      draggingRef.current = true;
+    },
+    onUpdate: (event) => {
+      if (!draggingRef.current) {
+        return;
+      }
+      const damped = Math.max(
+        -MAX_SWIPE_PREVIEW,
+        Math.min(MAX_SWIPE_PREVIEW, event.translationX * 0.55)
+      );
+      labelTranslateX.setValue(damped);
+    },
+    onDeactivate: (event) => {
+      if (!draggingRef.current) {
+        return;
+      }
+      draggingRef.current = false;
+      const projected = event.translationX + event.velocityX * 0.12;
+      if (projected < -SWIPE_TRIGGER_THRESHOLD || (event.velocityX < -420 && event.translationX < -12)) {
+        handleStepNext();
+      } else if (
+        projected > SWIPE_TRIGGER_THRESHOLD ||
+        (event.velocityX > 420 && event.translationX > 12)
+      ) {
+        handleStepPrev();
+      } else {
+        springLabelBack();
+      }
+    },
+    onFinalize: () => {
+      if (draggingRef.current) {
+        draggingRef.current = false;
+        springLabelBack();
+      }
+    },
+  });
+
+  const labelOpacity = labelTranslateX.interpolate({
+    inputRange: [-MAX_SWIPE_PREVIEW, 0, MAX_SWIPE_PREVIEW],
+    outputRange: [0.58, 1, 0.58],
+    extrapolate: 'clamp',
+  });
 
   return (
     <View
@@ -43,70 +145,106 @@ export function MonthlySummaryHeader({
         },
       ]}
     >
-      <View style={styles.monthRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="上一个月"
-          onPress={onPrevMonth}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.monthArrow,
-            pressed && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <AppIcon name="chevron-back" size={20} color={theme.colors.heroText} />
-        </Pressable>
-
-        <View style={styles.monthCenter}>
-          <Text
-            style={{
-              color: theme.colors.heroText,
-              fontSize: theme.fontSize.lg,
-              fontWeight: theme.fontWeight.semibold,
-            }}
-          >
-            {formatMonthTitle(monthKey)}
-          </Text>
-          {!isCurrentMonth ? (
+      {mode === 'all' ? (
+        <View style={[styles.periodRow, styles.periodRowCenter]}>
+          <View style={styles.periodTitleBtn}>
+            <Text
+              style={[
+                styles.tabular,
+                {
+                  color: theme.colors.heroText,
+                  fontSize: theme.fontSize.lg,
+                  fontWeight: theme.fontWeight.semibold,
+                },
+              ]}
+            >
+              {periodLabel}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <GestureDetector gesture={periodSwipeGesture}>
+          <View style={styles.periodRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="回到本月"
-              onPress={onResetCurrentMonth}
+              accessibilityLabel={mode === 'month' ? '上一个月' : '上一年'}
+              onPress={handleStepPrev}
               hitSlop={8}
-              style={{ marginLeft: theme.spacing.sm }}
+              style={({ pressed }) => [
+                styles.periodArrow,
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
             >
-              <Text
-                style={{
-                  color: theme.colors.heroSubtext,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
-              >
-                本月
-              </Text>
+              <AppIcon name="chevron-back" size={20} color={theme.colors.heroText} />
             </Pressable>
-          ) : null}
-        </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="下一个月"
-          onPress={onNextMonth}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.monthArrow,
-            pressed && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <AppIcon name="chevron-forward" size={20} color={theme.colors.heroText} />
-        </Pressable>
-      </View>
+            <Animated.View
+              style={[
+                styles.periodTitleWrap,
+                {
+                  opacity: labelOpacity,
+                  transform: [{ translateX: labelTranslateX }],
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`选择${mode === 'month' ? '月份' : '年份'}，当前 ${periodLabel}`}
+                accessibilityHint="点击打开周期选择器，或左右滑动切换上下周期"
+                onPress={() => {
+                  hapticLight();
+                  onPressPeriod();
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.periodTitleBtn,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabular,
+                    {
+                      color: theme.colors.heroText,
+                      fontSize: theme.fontSize.lg,
+                      fontWeight: theme.fontWeight.semibold,
+                    },
+                  ]}
+                >
+                  {periodLabel}
+                </Text>
+                <AppIcon name="chevron-down" size={14} color={theme.colors.heroSubtext} />
+              </Pressable>
+            </Animated.View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={mode === 'month' ? '下一个月' : '下一年'}
+              onPress={handleStepNext}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.periodArrow,
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
+            >
+              <AppIcon name="chevron-forward" size={20} color={theme.colors.heroText} />
+            </Pressable>
+          </View>
+        </GestureDetector>
+      )}
 
       <Pressable
         accessibilityRole={onPressAnalytics ? 'button' : 'none'}
         accessibilityLabel={onPressAnalytics ? '进入账务分析' : undefined}
         disabled={!onPressAnalytics}
-        onPress={onPressAnalytics}
+        onPress={
+          onPressAnalytics
+            ? () => {
+                hapticLight();
+                onPressAnalytics();
+              }
+            : undefined
+        }
         style={({ pressed }) => [
           { marginTop: theme.spacing.md },
           pressed && onPressAnalytics ? { opacity: theme.opacity.pressed } : null,
@@ -121,7 +259,7 @@ export function MonthlySummaryHeader({
                 fontWeight: theme.fontWeight.regular,
               }}
             >
-              支出
+              {summary.transactionCount > 0 ? `支出 · ${summary.transactionCount} 笔` : '支出'}
             </Text>
             <Text
               numberOfLines={1}
@@ -228,20 +366,32 @@ export function MonthlySummaryHeader({
 
 const styles = StyleSheet.create({
   card: {},
-  monthRow: {
+  periodRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
-  monthArrow: {
+  periodRowCenter: {
+    justifyContent: 'center',
+  },
+  periodArrow: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthCenter: {
+  periodTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodTitleBtn: {
+    minHeight: 36,
+    paddingHorizontal: 10,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    gap: 5,
   },
   primaryRow: {
     flexDirection: 'row',

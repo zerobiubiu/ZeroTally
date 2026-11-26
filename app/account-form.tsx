@@ -7,7 +7,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -163,7 +162,8 @@ export default function AccountFormScreen(): React.JSX.Element {
     <SafeScreen edges={['left', 'right']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
+        keyboardVerticalOffset={insets.top + 56}
       >
         <Stack.Screen options={{ title: isEditing ? '编辑账户' : '新增账户' }} />
 
@@ -195,7 +195,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     onPress={() => handleSelectCategory(meta.value)}
-                    style={[
+                    style={({ pressed }) => [
                       styles.tagChip,
                       {
                         backgroundColor: selected
@@ -205,8 +205,10 @@ export default function AccountFormScreen(): React.JSX.Element {
                         borderWidth: selected
                           ? theme.borderWidth.focus
                           : theme.borderWidth.hairline,
+                        paddingHorizontal: selected ? 11 : 12,
                         borderRadius: theme.radius.md,
                       },
+                      pressed && { opacity: theme.opacity.pressed },
                     ]}
                   >
                     <AppIcon
@@ -253,7 +255,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     onPress={() => setKind(item)}
-                    style={[
+                    style={({ pressed }) => [
                       styles.kindBtn,
                       {
                         backgroundColor: selected
@@ -271,6 +273,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                           : theme.borderWidth.hairline,
                         borderRadius: theme.radius.md,
                       },
+                      pressed && { opacity: theme.opacity.pressed },
                     ]}
                   >
                     <Text
@@ -393,7 +396,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                         accessibilityRole="button"
                         accessibilityState={{ selected }}
                         onPress={() => setIcon(iconName)}
-                        style={[
+                        style={({ pressed }) => [
                           styles.iconOption,
                           {
                             backgroundColor: selected
@@ -405,6 +408,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                               : theme.borderWidth.hairline,
                             borderRadius: theme.radius.md,
                           },
+                          pressed && { opacity: theme.opacity.pressed },
                         ]}
                       >
                         <AppIcon
@@ -496,7 +500,19 @@ export default function AccountFormScreen(): React.JSX.Element {
                 },
               ]}
             >
-              <Text style={{ color: theme.colors.expenseTextOnSubtle, fontSize: theme.fontSize.sm }}>
+              <AppIcon
+                name="alert-circle-outline"
+                size={16}
+                color={theme.colors.expenseTextOnSubtle}
+              />
+              <Text
+                style={{
+                  color: theme.colors.expenseTextOnSubtle,
+                  fontSize: theme.fontSize.sm,
+                  marginLeft: theme.spacing.xs,
+                  flex: 1,
+                }}
+              >
                 {formError}
               </Text>
             </View>
@@ -524,7 +540,6 @@ const styles = StyleSheet.create({
     minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
   },
   kindRow: {
     flexDirection: 'row',
@@ -558,6 +573,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderLeftWidth: 4,
     padding: 12,
   },

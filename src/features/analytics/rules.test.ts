@@ -16,6 +16,7 @@ function makeItem(overrides: Partial<TransactionListItem>): TransactionListItem 
     categoryId: 'cat_exp_food',
     accountId: 'acc_wechat',
     toAccountId: null,
+    refundOfId: null,
     occurredOn: '2026-11-20',
     note: '',
     createdAt: '2026-11-20T10:00:00.000Z',
@@ -23,8 +24,13 @@ function makeItem(overrides: Partial<TransactionListItem>): TransactionListItem 
     categoryName: '餐饮美食',
     categoryIcon: 'restaurant-outline',
     categoryColor: '#D97706',
+    categoryParentId: null,
+    categoryParentName: null,
+    categoryParentIcon: null,
+    categoryParentColor: null,
     accountName: '微信零钱',
     toAccountName: null,
+    refundedCents: 0,
     ...overrides,
   };
 }
@@ -47,6 +53,57 @@ describe('analytics 账务分析纯规则', () => {
     const accs = buildAccountBreakdown(items, 'expense');
     expect(accs[0]?.name).toBe('支付宝');
     expect(accs[0]?.percentage).toBe(70);
+  });
+
+  it('将二级分类金额与笔数并入所属一级分类汇总', () => {
+    const items: TransactionListItem[] = [
+      makeItem({
+        id: '1',
+        categoryId: 'cat_exp_food_lunch',
+        categoryName: '午餐',
+        categoryIcon: 'fast-food-outline',
+        categoryParentId: 'cat_exp_food',
+        categoryParentName: '餐饮美食',
+        categoryParentIcon: 'restaurant-outline',
+        categoryParentColor: '#D97706',
+        amountCents: 3500,
+      }),
+      makeItem({
+        id: '2',
+        categoryId: 'cat_exp_food',
+        categoryName: '餐饮美食',
+        amountCents: 2500,
+      }),
+      makeItem({
+        id: '3',
+        categoryId: 'cat_exp_transport_metro',
+        categoryName: '公交地铁',
+        categoryIcon: 'subway-outline',
+        categoryParentId: 'cat_exp_transport',
+        categoryParentName: '交通出行',
+        categoryParentIcon: 'bus-outline',
+        categoryParentColor: '#0284C7',
+        amountCents: 4000,
+      }),
+    ];
+
+    const cats = buildCategoryBreakdown(items, 'expense');
+    expect(cats).toHaveLength(2);
+    expect(cats[0]).toMatchObject({
+      categoryId: 'cat_exp_food',
+      name: '餐饮美食',
+      icon: 'restaurant-outline',
+      totalCents: 6000,
+      count: 2,
+      percentage: 60,
+    });
+    expect(cats[1]).toMatchObject({
+      categoryId: 'cat_exp_transport',
+      name: '交通出行',
+      totalCents: 4000,
+      count: 1,
+      percentage: 40,
+    });
   });
 
   it('正确计算当月已过天数与历史整月日均支出及结余率', () => {

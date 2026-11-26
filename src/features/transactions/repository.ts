@@ -1,5 +1,10 @@
 import type { SqlExecutor } from '../../db/types';
-import type { Transaction, TransactionListItem, TransactionType } from './types';
+import type {
+  CategoryAccountMemory,
+  Transaction,
+  TransactionListItem,
+  TransactionType,
+} from './types';
 
 interface TransactionRow {
   id: string;
@@ -8,6 +13,7 @@ interface TransactionRow {
   category_id: string | null;
   account_id: string;
   to_account_id: string | null;
+  refund_of_id: string | null;
   occurred_on: string;
   note: string;
   created_at: string;
@@ -18,8 +24,24 @@ interface TransactionJoinRow extends TransactionRow {
   category_name: string | null;
   category_icon: string | null;
   category_color: string | null;
+  category_parent_id: string | null;
+  category_parent_name: string | null;
+  category_parent_icon: string | null;
+  category_parent_color: string | null;
   account_name: string;
   to_account_name: string | null;
+  refunded_cents: number;
+}
+
+interface SumRow {
+  total: number | null;
+}
+
+interface CategoryAccountMemoryRow {
+  type: 'expense' | 'income';
+  category_id: string;
+  root_category_id: string;
+  account_id: string;
 }
 
 function mapTransactionRow(row: TransactionRow): Transaction {
@@ -30,6 +52,7 @@ function mapTransactionRow(row: TransactionRow): Transaction {
     categoryId: row.category_id,
     accountId: row.account_id,
     toAccountId: row.to_account_id,
+    refundOfId: row.refund_of_id,
     occurredOn: row.occurred_on,
     note: row.note,
     createdAt: row.created_at,
@@ -43,8 +66,13 @@ function mapTransactionJoinRow(row: TransactionJoinRow): TransactionListItem {
     categoryName: row.category_name,
     categoryIcon: row.category_icon,
     categoryColor: row.category_color,
+    categoryParentId: row.category_parent_id,
+    categoryParentName: row.category_parent_name,
+    categoryParentIcon: row.category_parent_icon,
+    categoryParentColor: row.category_parent_color,
     accountName: row.account_name,
     toAccountName: row.to_account_name,
+    refundedCents: row.refunded_cents ?? 0,
   };
 }
 
@@ -56,6 +84,7 @@ SELECT
   t.category_id,
   t.account_id,
   t.to_account_id,
+  t.refund_of_id,
   t.occurred_on,
   t.note,
   t.created_at,
@@ -63,10 +92,19 @@ SELECT
   c.name AS category_name,
   c.icon AS category_icon,
   c.color AS category_color,
+  p.id AS category_parent_id,
+  p.name AS category_parent_name,
+  p.icon AS category_parent_icon,
+  p.color AS category_parent_color,
   a1.name AS account_name,
-  a2.name AS to_account_name
+  a2.name AS to_account_name,
+  COALESCE(
+    (SELECT SUM(r.amount_cents) FROM transactions r WHERE r.refund_of_id = t.id),
+    0
+  ) AS refunded_cents
 FROM transactions t
 LEFT JOIN categories c ON c.id = t.category_id
+LEFT JOIN categories p ON p.id = c.parent_id
 INNER JOIN accounts a1 ON a1.id = t.account_id
 LEFT JOIN accounts a2 ON a2.id = t.to_account_id
 `;
@@ -104,14 +142,18 @@ export async function findTransactionsByDateRange(
   return rows.map(mapTransactionJoinRow);
 }
 
-export async function findAllTransactionsForExport(
-  db: SqlExecutor
-): Promise<TransactionListItem[]> {
+export async function findAllTransactions(db: SqlExecutor): Promise<TransactionListItem[]> {
   const rows = await db.getAll<TransactionJoinRow>(
     `${TRANSACTION_LIST_SELECT}
      ORDER BY t.occurred_on DESC, t.created_at DESC`
   );
   return rows.map(mapTransactionJoinRow);
+}
+
+export async function findAllTransactionsForExport(
+  db: SqlExecutor
+): Promise<TransactionListItem[]> {
+  return findAllTransactions(db);
 }
 
 export async function findTransactionsByAccountId(
@@ -129,15 +171,58 @@ export async function findTransactionsByAccountId(
   return rows.map(mapTransactionJoinRow);
 }
 
+export async function findRefundRowsByOriginalId(
+  db: SqlExecutor,
+  originalTransactionId: string
+): Promise<Transaction[]> {
+  const rows = await db.getAll<TransactionRow>(
+    'SELECT * FROM transactions WHERE refund_of_id = ? ORDER BY occurred_on DESC, created_at DESC',
+    [originalTransactionId]
+  );
+  return rows.map(mapTransactionRow);
+}
+
+export async function findRefundDetailsByOriginalId(
+  db: SqlExecutor,
+  originalTransactionId: string
+): Promise<TransactionListItem[]> {
+  const rows = await db.getAll<TransactionJoinRow>(
+    `${TRANSACTION_LIST_SELECT}
+     WHERE t.refund_of_id = ?
+     ORDER BY t.occurred_on DESC, t.created_at DESC`,
+    [originalTransactionId]
+  );
+  return rows.map(mapTransactionJoinRow);
+}
+
+export async function sumRefundsByOriginalId(
+  db: SqlExecutor,
+  originalTransactionId: string,
+  excludeRefundId?: string
+): Promise<number> {
+  if (excludeRefundId) {
+    const row = await db.getFirst<SumRow>(
+      'SELECT SUM(amount_cents) AS total FROM transactions WHERE refund_of_id = ? AND id != ?',
+      [originalTransactionId, excludeRefundId]
+    );
+    return row?.total ?? 0;
+  }
+  const row = await db.getFirst<SumRow>(
+    'SELECT SUM(amount_cents) AS total FROM transactions WHERE refund_of_id = ?',
+    [originalTransactionId]
+  );
+  return row?.total ?? 0;
+}
+
 export async function insertTransactionRow(
   db: SqlExecutor,
   txRecord: Transaction
 ): Promise<void> {
   await db.run(
     `INSERT INTO transactions (
-      id, type, amount_cents, category_id, account_id, to_account_id,
+      id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
       occurred_on, note, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       txRecord.id,
       txRecord.type,
@@ -145,6 +230,7 @@ export async function insertTransactionRow(
       txRecord.categoryId,
       txRecord.accountId,
       txRecord.toAccountId,
+      txRecord.refundOfId,
       txRecord.occurredOn,
       txRecord.note,
       txRecord.createdAt,
@@ -160,7 +246,7 @@ export async function updateTransactionRow(
   const res = await db.run(
     `UPDATE transactions
      SET type = ?, amount_cents = ?, category_id = ?, account_id = ?, to_account_id = ?,
-         occurred_on = ?, note = ?, updated_at = ?
+         refund_of_id = ?, occurred_on = ?, note = ?, updated_at = ?
      WHERE id = ?`,
     [
       txRecord.type,
@@ -168,6 +254,7 @@ export async function updateTransactionRow(
       txRecord.categoryId,
       txRecord.accountId,
       txRecord.toAccountId,
+      txRecord.refundOfId,
       txRecord.occurredOn,
       txRecord.note,
       txRecord.updatedAt,
@@ -177,7 +264,83 @@ export async function updateTransactionRow(
   return res.changes;
 }
 
+export async function updateRefundsCategoryByOriginalId(
+  db: SqlExecutor,
+  originalTransactionId: string,
+  categoryId: string,
+  updatedAt: string
+): Promise<number> {
+  const res = await db.run(
+    'UPDATE transactions SET category_id = ?, updated_at = ? WHERE refund_of_id = ?',
+    [categoryId, updatedAt, originalTransactionId]
+  );
+  return res.changes;
+}
+
+export async function deleteRefundsByOriginalId(
+  db: SqlExecutor,
+  originalTransactionId: string
+): Promise<number> {
+  const res = await db.run('DELETE FROM transactions WHERE refund_of_id = ?', [
+    originalTransactionId,
+  ]);
+  return res.changes;
+}
+
 export async function deleteTransactionRow(db: SqlExecutor, id: string): Promise<number> {
   const res = await db.run('DELETE FROM transactions WHERE id = ?', [id]);
   return res.changes;
+}
+
+/**
+ * 从既有收支流水实时派生「分类 → 最近使用活跃账户」记忆快照：
+ * - 仅统计 expense / income（排除 transfer 与 refund，防止退款入账污染消费分类记忆）
+ * - 仅匹配当前未停用账户（is_archived = 0），停用旧账户后自动平滑退回历史活跃账户
+ * - 按操作时间 created_at DESC（同毫秒以 rowid DESC 决胜），而非账单日期 occurred_on
+ */
+export async function findCategoryAccountMemory(
+  db: SqlExecutor
+): Promise<CategoryAccountMemory> {
+  const rows = await db.getAll<CategoryAccountMemoryRow>(
+    `WITH ranked AS (
+      SELECT
+        t.type,
+        t.category_id,
+        COALESCE(c.parent_id, c.id) AS root_category_id,
+        t.account_id,
+        t.created_at,
+        t.rowid AS row_seq,
+        ROW_NUMBER() OVER (
+          PARTITION BY t.category_id
+          ORDER BY t.created_at DESC, t.rowid DESC
+        ) AS rn
+      FROM transactions t
+      INNER JOIN accounts a ON a.id = t.account_id
+      INNER JOIN categories c ON c.id = t.category_id
+      WHERE t.type IN ('expense', 'income')
+        AND a.is_archived = 0
+    )
+    SELECT type, category_id, root_category_id, account_id
+    FROM ranked
+    WHERE rn = 1
+    ORDER BY created_at DESC, row_seq DESC`
+  );
+
+  const byCategoryId: Record<string, string> = {};
+  const byRootCategoryId: Record<string, string> = {};
+  const byType: Partial<Record<'expense' | 'income', string>> = {};
+
+  for (const row of rows) {
+    if (!byCategoryId[row.category_id]) {
+      byCategoryId[row.category_id] = row.account_id;
+    }
+    if (!byRootCategoryId[row.root_category_id]) {
+      byRootCategoryId[row.root_category_id] = row.account_id;
+    }
+    if (!byType[row.type]) {
+      byType[row.type] = row.account_id;
+    }
+  }
+
+  return { byCategoryId, byRootCategoryId, byType };
 }

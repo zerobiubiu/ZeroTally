@@ -1,17 +1,49 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 信息层级：主（居中向上凸起的 56dp 实心圆形「+」记一笔主按钮，打开应用最高频主操作 §2.8）、
- *   次（左右对称的半高底栏导航：明细 / 资产，选中态主色 + 600 字重，未选态 textMuted §2.4）
- * - 深度与重叠：凸起圆按钮采用与页面底色一致的 4px 外环描边（§6.5.1）+ floating 投影
- * - 安卓触控保障：外层容器包含上方 26dp 透明凸出区（pointerEvents="box-none"），避免安卓父容器裁剪凸出按钮点击热区
+ * - 全局双壳层框架：顶部固定共享应用栏（AB 混合极简模式：彻底取消汉堡圆圈，标题左缘与下方大卡齐平，明细/资产双页点击标题均可展开左侧设置抽屉；右侧操作随滑动进度平滑交叉淡变）+ 底部固定半高双栏与居中凸起「+」记一笔主按钮
+ * - 连贯多向手势：[设置抽屉] ⇄ [明细页] ⇄ [资产页]（横向跟手）；底栏向上滑动零停顿拉出下半屏「快捷记账半屏窗」（二次向上滑无缝进入完整记一笔，下滑收起）；点击居中「+」直接自下向上滑入完整记一笔
+ * - 路由完整性保障：补齐 Expo Router SDK 58 TabRouter 占位描述符/状态合并与 preload，确保首屏底栏对称完整且双页即刻可滑切
  */
-import { Tabs, useRouter } from 'expo-router';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  createBaseTabProps,
+  createStandardRouterNavigator,
+  TabRouter,
+  useRouter,
+  type IntegrateWithRouterOptions,
+  type NavigatorContentProps,
+  type TabNavigationState,
+} from 'expo-router';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MainDrawerContext, useMainDrawer } from '../../src/features/navigation/drawer-context';
+import {
+  appendMissingPlaceholderDescriptors,
+  isPlaceholderTabDescriptor,
+  normalizeOrderedTabState,
+} from '../../src/features/navigation/tab-routes';
+import {
+  computeQuickSheetHeight,
+  QuickRecordSheet,
+} from '../../src/features/quick-record/components/QuickRecordSheet';
+import {
+  computeSettingsDrawerWidth,
+  SettingsDrawer,
+} from '../../src/features/settings/components/SettingsDrawer';
+import type { LedgerPeriodMode } from '../../src/features/transactions/types';
+import { hapticLight, hapticSelection } from '../../src/shared/haptics/haptics';
 import { AppIcon } from '../../src/shared/ui/AppIcon';
+import { SafeScreen } from '../../src/shared/ui/SafeScreen';
+import { SlidingSegmentedControl } from '../../src/shared/ui/SlidingSegmentedControl';
 import { useTheme } from '../../src/theme/theme-context';
-
-type CustomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 const BAR_BODY_HEIGHT = 54;
 const FAB_INNER_SIZE = 54;
@@ -19,6 +51,13 @@ const FAB_RING_WIDTH = 4;
 const FAB_OUTER_SIZE = FAB_INNER_SIZE + FAB_RING_WIDTH * 2;
 const FAB_LABEL_BLOCK_HEIGHT = 18;
 const FAB_PROTRUSION = FAB_OUTER_SIZE + FAB_LABEL_BLOCK_HEIGHT - BAR_BODY_HEIGHT;
+const EDGE_RESISTANCE = 0.2;
+
+const PERIOD_MODE_OPTIONS: readonly { value: LedgerPeriodMode; label: string }[] = [
+  { value: 'month', label: '按月' },
+  { value: 'year', label: '按年' },
+  { value: 'all', label: '全部' },
+];
 
 const TAB_ITEMS: Record<string, { label: string; icon: string; activeIcon: string }> = {
   index: {
@@ -33,47 +72,379 @@ const TAB_ITEMS: Record<string, { label: string; icon: string; activeIcon: strin
   },
 };
 
-function CustomTabBar({
+interface DrawerGestureBridgeValue {
+  drawerProgress: Animated.Value;
+  startDrawerPull: () => void;
+  endDrawerPull: () => void;
+  isQuickSheetOpen: boolean;
+  quickProgress: Animated.Value;
+  startQuickPull: () => void;
+  endQuickPull: () => void;
+  openQuickSheet: () => void;
+}
+
+const DrawerGestureBridgeContext = createContext<DrawerGestureBridgeValue | null>(null);
+
+type SwipeTabOptions = {
+  title?: string;
+};
+
+type SwipeTabEventMap = {
+  tabPress: { data: undefined; canPreventDefault: true };
+};
+
+type SwipeTabsCreateProps = ReturnType<typeof createBaseTabProps>;
+
+type SwipeTabsContentProps = NavigatorContentProps<
+  SwipeTabOptions,
+  SwipeTabEventMap,
+  object,
+  SwipeTabsCreateProps
+>;
+
+type BaseTabState = TabNavigationState<Record<string, object | undefined>>;
+
+type SwipeTabRouterOptions = IntegrateWithRouterOptions<
+  BaseTabState,
+  SwipeTabsCreateProps,
+  SwipeTabOptions,
+  SwipeTabEventMap
+>;
+
+type ProcessTabDescriptors = NonNullable<SwipeTabRouterOptions['processDescriptors']>;
+type ProcessTabState = NonNullable<SwipeTabRouterOptions['processState']>;
+
+/** 为尚未挂载的懒加载 Tab 补齐占位描述符（对齐 Expo Router TabsClient 实现） */
+const appendMissingTabDescriptors: ProcessTabDescriptors = (descriptors, state, describe) =>
+  appendMissingPlaceholderDescriptors(descriptors, state, describe);
+
+/** 按 routeNames 固定顺序补齐全部 Tab 路由，保证「明细(0) / 资产(1)」始终完整且顺序稳定 */
+const normalizeTabRoutesState: ProcessTabState = (state, descriptors) =>
+  normalizeOrderedTabState(state, descriptors);
+
+function SwipeTabsContent({
   state,
+  descriptors,
+  actions,
   emitter,
-  navigateToTab,
-  insets,
-}: CustomTabBarProps): React.JSX.Element {
+  preload,
+}: SwipeTabsContentProps): React.JSX.Element {
   const { theme } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { isDrawerOpen, openDrawer, ledgerPeriodMode, setLedgerPeriodMode } = useMainDrawer();
+  const drawerBridge = useContext(DrawerGestureBridgeContext);
+  const isQuickSheetOpen = drawerBridge?.isQuickSheetOpen ?? false;
+
+  const activeIndex = state.index;
+  const pageCount = state.routes.length;
+  const maxIndex = Math.max(0, pageCount - 1);
+  const drawerWidth = computeSettingsDrawerWidth(windowWidth);
+  const quickSheetHeight = computeQuickSheetHeight(windowHeight);
+
+  const [translateX] = useState(() => new Animated.Value(-activeIndex * windowWidth));
+  const activeIndexRef = useRef(activeIndex);
+  const animatedTargetIndexRef = useRef(activeIndex);
+  const windowWidthRef = useRef(windowWidth);
+  const drawerWidthRef = useRef(drawerWidth);
+  const quickSheetHeightRef = useRef(quickSheetHeight);
+  const maxIndexRef = useRef(maxIndex);
+  const routesRef = useRef(state.routes);
+  const isDraggingRef = useRef(false);
+  const isPullingDrawerRef = useRef(false);
+  const isPullingQuickRef = useRef(false);
+
+  // 首帧主动预挂载未激活的 Tab（如「资产」），并加短延迟兜底防 Expo Router 首帧 ROUTE_NAMES_CHANGED 竞态丢失
+  useEffect(() => {
+    const pendingNames = state.routes
+      .filter((route) => {
+        const descriptor = descriptors[route.key];
+        return descriptor && isPlaceholderTabDescriptor(descriptor);
+      })
+      .map((route) => route.name);
+
+    if (pendingNames.length === 0) {
+      return;
+    }
+
+    const triggerPreload = () => {
+      for (const name of pendingNames) {
+        preload(name);
+      }
+    };
+
+    triggerPreload();
+    const retryFast = setTimeout(triggerPreload, 80);
+    const retrySlow = setTimeout(triggerPreload, 260);
+    return () => {
+      clearTimeout(retryFast);
+      clearTimeout(retrySlow);
+    };
+  }, [descriptors, preload, state.routes]);
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+    maxIndexRef.current = maxIndex;
+    routesRef.current = state.routes;
+    drawerWidthRef.current = drawerWidth;
+    quickSheetHeightRef.current = quickSheetHeight;
+  }, [activeIndex, drawerWidth, maxIndex, quickSheetHeight, state.routes]);
+
+  const springToIndex = useCallback(
+    (targetIndex: number, velocityPxPerSec = 0) => {
+      animatedTargetIndexRef.current = targetIndex;
+      const clampedVelocity = Math.max(-3, Math.min(3, velocityPxPerSec / 1000));
+      Animated.spring(translateX, {
+        toValue: -targetIndex * windowWidthRef.current,
+        useNativeDriver: true,
+        stiffness: 260,
+        damping: 28,
+        mass: 0.9,
+        velocity: clampedVelocity,
+      }).start();
+    },
+    [translateX]
+  );
+
+  // 响应底栏点击、路由切换及窗口宽度变化
+  useEffect(() => {
+    if (windowWidthRef.current !== windowWidth) {
+      windowWidthRef.current = windowWidth;
+      animatedTargetIndexRef.current = activeIndex;
+      translateX.setValue(-activeIndex * windowWidth);
+      return;
+    }
+    if (animatedTargetIndexRef.current !== activeIndex) {
+      springToIndex(activeIndex);
+    }
+  }, [activeIndex, springToIndex, translateX, windowWidth]);
+
+  const navigateToIndex = useCallback(
+    (targetIndex: number, velocityPxPerSec = 0) => {
+      const targetRoute = routesRef.current[targetIndex];
+      if (!targetRoute) {
+        return;
+      }
+      springToIndex(targetIndex, velocityPxPerSec);
+      if (targetIndex !== activeIndexRef.current) {
+        actions.navigate(targetRoute.name);
+      }
+    },
+    [actions, springToIndex]
+  );
+
+  // 横向 14px 即跟手响应，纵向容差 22px 兼容拇指自然弧线横滑；
+  // 明细页（activeIndex === 0）向右滑 1:1 跟手拉出左侧设置抽屉；向左滑切至资产页；
+  // 账目行子级左滑阈值为 10px（更早激活并由 RNGH Orchestrator 自动取消父级翻页），互不干扰
+  const pagerPanGesture = usePanGesture({
+    enabled: !isDrawerOpen && !isQuickSheetOpen,
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetX: [-14, 14],
+    failOffsetY: [-22, 22],
+    onActivate: () => {
+      isDraggingRef.current = true;
+      isPullingDrawerRef.current = false;
+    },
+    onUpdate: (event) => {
+      const width = windowWidthRef.current;
+      const base = -activeIndexRef.current * width;
+      const minX = -maxIndexRef.current * width;
+      const raw = base + event.translationX;
+
+      // 明细页向右滑：顺势 1:1 跟手拉出左侧设置抽屉
+      if (activeIndexRef.current === 0 && raw > 0 && drawerBridge) {
+        if (!isPullingDrawerRef.current) {
+          isPullingDrawerRef.current = true;
+          drawerBridge.startDrawerPull();
+        }
+        translateX.setValue(0);
+        const progress = Math.min(1, raw / Math.max(1, drawerWidthRef.current));
+        drawerBridge.drawerProgress.setValue(progress);
+        return;
+      }
+
+      if (isPullingDrawerRef.current && drawerBridge) {
+        drawerBridge.drawerProgress.setValue(0);
+      }
+
+      let next: number;
+      if (raw > 0) {
+        next = raw * EDGE_RESISTANCE;
+      } else if (raw < minX) {
+        next = minX + (raw - minX) * EDGE_RESISTANCE;
+      } else {
+        next = raw;
+      }
+      translateX.setValue(next);
+    },
+    onDeactivate: (event) => {
+      isDraggingRef.current = false;
+
+      if (isPullingDrawerRef.current && drawerBridge) {
+        isPullingDrawerRef.current = false;
+        const dWidth = Math.max(1, drawerWidthRef.current);
+        const projected = event.translationX + event.velocityX * 0.14;
+        const shouldOpen =
+          event.translationX > 0 &&
+          (projected > dWidth * 0.24 || (event.velocityX > 650 && event.translationX > 24));
+
+        if (shouldOpen) {
+          hapticLight();
+          openDrawer();
+        }
+        drawerBridge.endDrawerPull();
+        if (event.translationX >= 0) {
+          springToIndex(0);
+          return;
+        }
+      }
+
+      const width = windowWidthRef.current;
+      const current = activeIndexRef.current;
+      const maxIdx = maxIndexRef.current;
+      const projectedDelta = event.translationX + event.velocityX * 0.16;
+
+      let target = current;
+      if (projectedDelta < -width * 0.22 && current < maxIdx) {
+        target = current + 1;
+      } else if (projectedDelta > width * 0.22 && current > 0) {
+        target = current - 1;
+      }
+      navigateToIndex(target, event.velocityX);
+    },
+    onFinalize: () => {
+      if (isPullingDrawerRef.current && drawerBridge) {
+        isPullingDrawerRef.current = false;
+        drawerBridge.endDrawerPull();
+      }
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        springToIndex(activeIndexRef.current);
+      }
+    },
+  });
 
   const bottomInset = Math.max(insets.bottom, theme.spacing.xs);
   const barTotalHeight = BAR_BODY_HEIGHT + bottomInset;
   const containerHeight = barTotalHeight + FAB_PROTRUSION;
 
-  const renderTab = (routeName: 'index' | 'assets'): React.JSX.Element | null => {
+  // 0 = 明细页，1 = 资产页（纯 GPU 插值驱动共享顶栏标题与右侧操作平滑过渡）
+  const safeWidth = Math.max(1, windowWidth);
+  const scrollProgress = translateX.interpolate({
+    inputRange: [-safeWidth, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const ledgerOpacity = scrollProgress.interpolate({
+    inputRange: [0, 0.55, 1],
+    outputRange: [1, 0, 0],
+    extrapolate: 'clamp',
+  });
+  const ledgerTranslateX = scrollProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -10],
+    extrapolate: 'clamp',
+  });
+
+  const assetsOpacity = scrollProgress.interpolate({
+    inputRange: [0, 0.45, 1],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp',
+  });
+  const assetsTranslateX = scrollProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [10, 0],
+    extrapolate: 'clamp',
+  });
+
+  // 底栏无停顿上滑手势：在底栏任意区域向上划 8px 即 1:1 跟手拉出下半屏「快捷记账半屏窗」
+  const bottomBarPullUpGesture = usePanGesture({
+    enabled: !isDrawerOpen && !isQuickSheetOpen && Boolean(drawerBridge),
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetY: [-8, 9999],
+    failOffsetX: [-18, 18],
+    onActivate: () => {
+      if (!drawerBridge) {
+        return;
+      }
+      isPullingQuickRef.current = true;
+      drawerBridge.quickProgress.setValue(0);
+      drawerBridge.startQuickPull();
+    },
+    onUpdate: (event) => {
+      if (!isPullingQuickRef.current || !drawerBridge) {
+        return;
+      }
+      const h = Math.max(1, quickSheetHeightRef.current);
+      const upDistance = Math.max(0, -event.translationY);
+      const nextProgress = Math.min(1, upDistance / h);
+      drawerBridge.quickProgress.setValue(nextProgress);
+    },
+    onDeactivate: (event) => {
+      if (!isPullingQuickRef.current || !drawerBridge) {
+        return;
+      }
+      isPullingQuickRef.current = false;
+      const h = Math.max(1, quickSheetHeightRef.current);
+      const upDistance = -event.translationY;
+      const projectedUp = upDistance - event.velocityY * 0.14;
+      const shouldOpen =
+        upDistance > 0 &&
+        (projectedUp > h * 0.16 || (event.velocityY < -420 && upDistance > 14));
+
+      if (shouldOpen) {
+        hapticLight();
+        drawerBridge.openQuickSheet();
+      }
+      drawerBridge.endQuickPull();
+    },
+    onFinalize: () => {
+      if (isPullingQuickRef.current && drawerBridge) {
+        isPullingQuickRef.current = false;
+        drawerBridge.endQuickPull();
+      }
+    },
+  });
+
+  const handlePressHeaderTitle = () => {
+    hapticLight();
+    openDrawer();
+  };
+
+  const renderTabButton = (routeName: 'index' | 'assets'): React.JSX.Element => {
     const routeIndex = state.routes.findIndex((r) => r.name === routeName);
-    if (routeIndex === -1) {
-      return null;
-    }
-    const route = state.routes[routeIndex]!;
-    const isFocused = state.index === routeIndex;
-    const meta = TAB_ITEMS[route.name] ?? {
-      label: route.name,
+    const route = routeIndex >= 0 ? state.routes[routeIndex] : undefined;
+    const isFocused = routeIndex >= 0 && state.index === routeIndex;
+    const meta = TAB_ITEMS[routeName] ?? {
+      label: routeName,
       icon: 'ellipse-outline',
       activeIcon: 'ellipse',
     };
     const color = isFocused ? theme.colors.action : theme.colors.textMuted;
 
     const onPress = () => {
+      if (!route || routeIndex < 0) {
+        actions.navigate(routeName);
+        return;
+      }
       const event = emitter.emit({
         type: 'tabPress',
         target: route.key,
         canPreventDefault: true,
       });
       if (!isFocused && !event.defaultPrevented) {
-        navigateToTab(route.key);
+        hapticSelection();
+        navigateToIndex(routeIndex);
       }
     };
 
     return (
       <Pressable
-        key={route.key}
+        key={route?.key ?? routeName}
         accessibilityRole="tab"
         accessibilityLabel={meta.label}
         accessibilityState={{ selected: isFocused }}
@@ -100,100 +471,427 @@ function CustomTabBar({
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.outerContainer, { height: containerHeight }]}>
-      {/* 半高底栏实体背景，沉在底部，让出上方凸出透明区域 */}
-      <View
-        style={[
-          styles.barBackdrop,
-          {
-            height: barTotalHeight,
-            backgroundColor: theme.colors.surfaceRaised,
-            borderTopColor: theme.colors.border,
-            borderTopWidth: theme.borderWidth.hairline,
-          },
-        ]}
-      />
-
-      {/* 三段对称交互行：左明细 · 中凸起「+」记一笔 · 右资产 */}
-      <View
-        pointerEvents="box-none"
-        style={[
-          styles.itemsRow,
-          {
-            paddingLeft: insets.left,
-            paddingRight: insets.right,
-            paddingBottom: bottomInset,
-            height: containerHeight,
-          },
-        ]}
-      >
-        {renderTab('index')}
-
-        <View pointerEvents="box-none" style={styles.centerSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="记一笔"
-            accessibilityHint="快速新增支出、收入或转账记录"
-            onPress={() => router.push('/record')}
-            style={({ pressed }) => [
-              styles.fabOuterRing,
+    <GestureDetector gesture={pagerPanGesture}>
+      <SafeScreen edges={['top', 'left', 'right']}>
+        <View style={[styles.viewport, { backgroundColor: theme.colors.surface }]}>
+          {/* 全局固定共享顶栏：彻底移除汉堡图标，标题左缘与下方大卡齐平，两页点击标题皆可打开设置抽屉 */}
+          <View
+            style={[
+              styles.sharedTopBar,
               {
-                width: FAB_OUTER_SIZE,
-                height: FAB_OUTER_SIZE,
-                borderRadius: theme.radius.full,
+                paddingHorizontal: theme.spacing.lg,
                 backgroundColor: theme.colors.surface,
               },
-              pressed && { transform: [{ scale: 0.96 }] },
             ]}
           >
-            <View
-              style={[
-                styles.fabInner,
-                theme.elevation.floating,
-                {
-                  width: FAB_INNER_SIZE,
-                  height: FAB_INNER_SIZE,
-                  borderRadius: theme.radius.full,
-                  backgroundColor: theme.colors.action,
-                },
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                activeIndex === 0 ? 'ZeroTally，点击打开设置菜单' : '资产，点击打开设置菜单'
+              }
+              accessibilityHint="点击或自左向右滑动打开侧边设置抽屉"
+              onPress={handlePressHeaderTitle}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 16 }}
+              style={({ pressed }) => [
+                styles.titleTrigger,
+                pressed && { opacity: theme.opacity.pressed },
               ]}
             >
-              <AppIcon name="add" size={30} color={theme.colors.onAction} />
-            </View>
-          </Pressable>
-          <Text
-            style={{
-              color: theme.colors.action,
-              fontSize: theme.fontSize.xs,
-              lineHeight: 14,
-              fontWeight: theme.fontWeight.semibold,
-              marginTop: 2,
-              marginBottom: 2,
-            }}
-          >
-            记一笔
-          </Text>
-        </View>
+              {/* 隐形撑高占位确保标题层垂直居中稳定 */}
+              <Text
+                aria-hidden
+                style={[
+                  styles.titleGhost,
+                  {
+                    fontSize: theme.fontSize.xxl,
+                    fontWeight: theme.fontWeight.semibold,
+                  },
+                ]}
+              >
+                ZeroTally
+              </Text>
 
-        {renderTab('assets')}
-      </View>
-    </View>
+              <Animated.Text
+                numberOfLines={1}
+                style={[
+                  styles.titleLayer,
+                  {
+                    color: theme.colors.text,
+                    fontSize: theme.fontSize.xxl,
+                    fontWeight: theme.fontWeight.semibold,
+                    letterSpacing: -0.4,
+                    opacity: ledgerOpacity,
+                    transform: [{ translateX: ledgerTranslateX }],
+                  },
+                ]}
+              >
+                ZeroTally
+              </Animated.Text>
+
+              <Animated.Text
+                numberOfLines={1}
+                style={[
+                  styles.titleLayer,
+                  {
+                    color: theme.colors.text,
+                    fontSize: theme.fontSize.xxl,
+                    fontWeight: theme.fontWeight.semibold,
+                    opacity: assetsOpacity,
+                    transform: [{ translateX: assetsTranslateX }],
+                  },
+                ]}
+              >
+                资产
+              </Animated.Text>
+            </Pressable>
+
+            <View style={styles.rightActionsSlot}>
+              {/* 明细页右侧：按月 / 按年 / 全部 iOS 风格长按震动滑动三段切换 */}
+              <Animated.View
+                pointerEvents={activeIndex === 0 ? 'auto' : 'none'}
+                style={[
+                  styles.rightActionLayer,
+                  {
+                    opacity: ledgerOpacity,
+                    transform: [{ translateX: ledgerTranslateX }],
+                  },
+                ]}
+              >
+                <SlidingSegmentedControl
+                  options={PERIOD_MODE_OPTIONS}
+                  value={ledgerPeriodMode}
+                  onChange={setLedgerPeriodMode}
+                  height={38}
+                  minSegmentWidth={50}
+                />
+              </Animated.View>
+
+              {/* 资产页右侧：+ 新增账户按钮 */}
+              <Animated.View
+                pointerEvents={activeIndex === 1 ? 'auto' : 'none'}
+                style={[
+                  styles.rightActionLayer,
+                  {
+                    opacity: assetsOpacity,
+                    transform: [{ translateX: assetsTranslateX }],
+                  },
+                ]}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="新增账户"
+                  onPress={() => {
+                    hapticLight();
+                    router.push('/account-form');
+                  }}
+                  hitSlop={4}
+                  style={({ pressed }) => [
+                    styles.addAccountBtn,
+                    {
+                      backgroundColor: theme.colors.surfaceRaised,
+                      borderColor: theme.colors.borderStrong,
+                      borderWidth: theme.borderWidth.hairline,
+                      borderRadius: theme.radius.full,
+                      paddingHorizontal: theme.spacing.md,
+                    },
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <AppIcon name="add" size={18} color={theme.colors.action} />
+                  <Text
+                    style={{
+                      color: theme.colors.text,
+                      fontSize: theme.fontSize.sm,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginLeft: theme.spacing.xs,
+                    }}
+                  >
+                    新增
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            </View>
+          </View>
+
+          {/* 双页横向滑动内容轨道：明细（左）+ 资产（右） */}
+          <Animated.View
+            style={[
+              styles.track,
+              {
+                width: windowWidth * Math.max(1, pageCount),
+                transform: [{ translateX }],
+              },
+            ]}
+          >
+            {state.routes.map((route) => {
+              const descriptor = descriptors[route.key];
+              const isMountedRoute = Boolean(descriptor && !isPlaceholderTabDescriptor(descriptor));
+              return (
+                <View key={route.name} style={[styles.page, { width: windowWidth }]}>
+                  {isMountedRoute ? descriptor?.render() : null}
+                </View>
+              );
+            })}
+          </Animated.View>
+
+          {/* 半高底栏 + 居中凸起「+ 记一笔」主按钮（整条底栏支持无停顿向上滑动呼出快捷记账半屏窗） */}
+          <GestureDetector gesture={bottomBarPullUpGesture}>
+            <View pointerEvents="box-none" style={[styles.outerContainer, { height: containerHeight }]}>
+              <View
+                style={[
+                  styles.barBackdrop,
+                  {
+                    height: barTotalHeight,
+                    backgroundColor: theme.colors.surfaceRaised,
+                    borderTopColor: theme.colors.border,
+                    borderTopWidth: theme.borderWidth.hairline,
+                  },
+                ]}
+              />
+
+              <View
+                pointerEvents="box-none"
+                style={[
+                  styles.itemsRow,
+                  {
+                    paddingLeft: insets.left,
+                    paddingRight: insets.right,
+                    paddingBottom: bottomInset,
+                    height: containerHeight,
+                  },
+                ]}
+              >
+                {renderTabButton('index')}
+
+                <View pointerEvents="box-none" style={styles.centerSlot}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="记一笔"
+                    accessibilityHint="点击进入完整记一笔，向上滑动呼出快捷记账面板"
+                    onPress={() => {
+                      hapticLight();
+                      router.push('/record');
+                    }}
+                    style={({ pressed }) => [
+                      styles.fabOuterRing,
+                      {
+                        width: FAB_OUTER_SIZE,
+                        height: FAB_OUTER_SIZE,
+                        borderRadius: theme.radius.full,
+                        backgroundColor: theme.colors.surface,
+                      },
+                      pressed && { transform: [{ scale: 0.96 }] },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.fabInner,
+                        theme.elevation.floating,
+                        {
+                          width: FAB_INNER_SIZE,
+                          height: FAB_INNER_SIZE,
+                          borderRadius: theme.radius.full,
+                          backgroundColor: theme.colors.action,
+                        },
+                      ]}
+                    >
+                      <AppIcon name="add" size={30} color={theme.colors.onAction} />
+                    </View>
+                  </Pressable>
+                  <Text
+                    style={{
+                      color: theme.colors.action,
+                      fontSize: theme.fontSize.xs,
+                      lineHeight: 14,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginTop: 2,
+                      marginBottom: 2,
+                    }}
+                  >
+                    记一笔
+                  </Text>
+                </View>
+
+                {renderTabButton('assets')}
+              </View>
+            </View>
+          </GestureDetector>
+        </View>
+      </SafeScreen>
+    </GestureDetector>
   );
 }
 
+const SwipeTabs = createStandardRouterNavigator(SwipeTabsContent, TabRouter, {
+  activityDefaultThreshold: 2,
+  processDescriptors: appendMissingTabDescriptors,
+  processState: normalizeTabRoutesState,
+  createProps: createBaseTabProps,
+});
+
 export default function TabsLayout(): React.JSX.Element {
+  const router = useRouter();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isPullingDrawer, setIsPullingDrawer] = useState(false);
+  const [isQuickSheetOpen, setIsQuickSheetOpen] = useState(false);
+  const [isPullingQuickSheet, setIsPullingQuickSheet] = useState(false);
+  const [ledgerPeriodMode, setLedgerPeriodMode] = useState<LedgerPeriodMode>('month');
+  const [drawerProgress] = useState(() => new Animated.Value(0));
+  const [quickProgress] = useState(() => new Animated.Value(0));
+
+  const openDrawer = useCallback(() => {
+    setIsQuickSheetOpen(false);
+    setIsDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setIsDrawerOpen(false);
+  }, []);
+
+  const startDrawerPull = useCallback(() => {
+    setIsPullingDrawer(true);
+  }, []);
+
+  const endDrawerPull = useCallback(() => {
+    setIsPullingDrawer(false);
+  }, []);
+
+  const openQuickSheet = useCallback(() => {
+    setIsDrawerOpen(false);
+    setIsQuickSheetOpen(true);
+  }, []);
+
+  const closeQuickSheet = useCallback(() => {
+    setIsQuickSheetOpen(false);
+  }, []);
+
+  const startQuickPull = useCallback(() => {
+    setIsPullingQuickSheet(true);
+  }, []);
+
+  const endQuickPull = useCallback(() => {
+    setIsPullingQuickSheet(false);
+  }, []);
+
+  const handleExpandFullRecord = useCallback(() => {
+    setIsQuickSheetOpen(false);
+    setIsPullingQuickSheet(false);
+    quickProgress.setValue(0);
+    router.push('/record');
+  }, [quickProgress, router]);
+
+  const drawerContextValue = useMemo(
+    () => ({
+      isDrawerOpen,
+      openDrawer,
+      closeDrawer,
+      ledgerPeriodMode,
+      setLedgerPeriodMode,
+    }),
+    [closeDrawer, isDrawerOpen, ledgerPeriodMode, openDrawer]
+  );
+
+  const drawerBridgeValue = useMemo(
+    () => ({
+      drawerProgress,
+      startDrawerPull,
+      endDrawerPull,
+      isQuickSheetOpen,
+      quickProgress,
+      startQuickPull,
+      endQuickPull,
+      openQuickSheet,
+    }),
+    [
+      drawerProgress,
+      endDrawerPull,
+      endQuickPull,
+      isQuickSheetOpen,
+      openQuickSheet,
+      quickProgress,
+      startDrawerPull,
+      startQuickPull,
+    ]
+  );
+
   return (
-    <Tabs
-      screenOptions={{ headerShown: false }}
-      tabBar={(props) => <CustomTabBar {...props} />}
-    >
-      <Tabs.Screen name="index" options={{ title: '明细' }} />
-      <Tabs.Screen name="assets" options={{ title: '资产' }} />
-    </Tabs>
+    <MainDrawerContext.Provider value={drawerContextValue}>
+      <DrawerGestureBridgeContext.Provider value={drawerBridgeValue}>
+        <View style={styles.root}>
+          <SwipeTabs activityEnabled={false}>
+            <SwipeTabs.Screen name="index" options={{ title: '明细' }} />
+            <SwipeTabs.Screen name="assets" options={{ title: '资产' }} />
+          </SwipeTabs>
+
+          <QuickRecordSheet
+            open={isQuickSheetOpen}
+            onClose={closeQuickSheet}
+            onExpandFullRecord={handleExpandFullRecord}
+            pullProgress={quickProgress}
+            pullingOpen={isPullingQuickSheet}
+          />
+
+          <SettingsDrawer
+            open={isDrawerOpen}
+            onClose={closeDrawer}
+            dragProgress={drawerProgress}
+            draggingOpen={isPullingDrawer}
+          />
+        </View>
+      </DrawerGestureBridgeContext.Provider>
+    </MainDrawerContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  viewport: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  sharedTopBar: {
+    height: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  titleTrigger: {
+    minHeight: 44,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  titleGhost: {
+    opacity: 0,
+  },
+  titleLayer: {
+    position: 'absolute',
+    left: 0,
+  },
+  rightActionsSlot: {
+    height: 40,
+    minWidth: 164,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    position: 'relative',
+  },
+  rightActionLayer: {
+    position: 'absolute',
+    right: 0,
+  },
+  addAccountBtn: {
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  track: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  page: {
+    flex: 1,
+  },
   outerContainer: {
     position: 'absolute',
     left: 0,

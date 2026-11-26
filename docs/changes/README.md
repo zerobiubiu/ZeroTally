@@ -13,3 +13,20 @@
 | [0005-refine-bottom-nav-and-settings-entry.md](0005-refine-bottom-nav-and-settings-entry.md) | 变更记录 | 已执行 | v0.1.0 | 底栏改版为半高双栏（明细 / 资产）+ 居中凸起「+」记一笔，设置移至右上角 |
 | [0006-ui-cutout-copy-analytics-export.md](0006-ui-cutout-copy-analytics-export.md) | 变更记录 | 已执行 | v0.1.0 | 异形屏安全区适配、全页布局与文案精修、新增账务分析页及 JSON/CSV 结构化导出 |
 | [0007-open-source-zerotally-and-github-actions.md](0007-open-source-zerotally-and-github-actions.md) | 变更记录 | 已执行 | v0.1.0 | 以 MIT 协议开源发布至 GitHub（ZeroTally）并配置 Actions 自动构建发布 APK |
+| [0008-two-level-categories-and-custom-keypad.md](0008-two-level-categories-and-custom-keypad.md) | 变更记录 | 已执行 | v0.2.0 | 记一笔页面重构为上方二级分类 + 下方输入栏与自制数字计算键盘，配套底部选择面板与一级汇总分析 |
+| [0009-ledger-swipe-detail-sheet-and-refund.md](0009-ledger-swipe-detail-sheet-and-refund.md) | 变更记录 | 已执行 | v0.3.0 | 明细与账户流水支持左滑二级菜单、下半屏浮出详情窗及关联抵扣式退款（Schema v3） |
+| [0010-ios-style-swipe-action-animation.md](0010-ios-style-swipe-action-animation.md) | 变更记录 | 已执行 | v0.3.1 | 明细左滑重构为 iOS 风格按钮随行自右缘等比平推带出与阻尼橡皮筋回弹动效 |
+| [0011-compact-record-category-grid.md](0011-compact-record-category-grid.md) | 变更记录 | 已执行 | v0.3.2 | 记一笔页面一级与二级分类图标尺寸调小，单行显示由 4 列提升至 5 列 |
+| [0012-swipeable-main-tabs.md](0012-swipeable-main-tabs.md) | 变更记录 | 已执行 | v0.4.0 | 主界面支持左右跟手滑动平滑切换「明细」与「资产」，并与单行左滑菜单隔离 |
+| [0013-direct-account-strip-calendar-drilldown-and-multi-period.md](0013-direct-account-strip-calendar-drilldown-and-multi-period.md) | 变更记录 | 已执行 | v0.5.0 | 记一笔融合横向直选账户卡片、三层钻取滑动日历/周期弹窗、明细按月按年与分析按月按年全部 |
+| [0014-fix-tabs-structure-and-record-keypad-order.md](0014-fix-tabs-structure-and-record-keypad-order.md) | 变更记录 | 已执行 | v0.5.1 | 修复主界面缺失资产 Tab 与底栏偏移、5 处常驻 Modal 及布局细节，调换记一笔账户/日期位置 |
+| [0015-keyboard-avoidance-delete-dialog-all-ledger-and-swipe-tabs.md](0015-keyboard-avoidance-delete-dialog-all-ledger-and-swipe-tabs.md) | 变更记录 | 已执行 | v0.6.0 | 修复备注软键盘遮挡、美化删除账目确认弹窗、精简周期单按钮、补齐明细全部模式并打通双页滑动手势协同 |
+| [0016-rename-app-to-zerotally.md](0016-rename-app-to-zerotally.md) | 变更记录 | 已执行 | v0.6.1 | 弃用中文名「简记」，应用名称与全仓现状文档统一更名为 ZeroTally |
+| [0017-full-ui-consistency-audit-and-app-name-cleanup.md](0017-full-ui-consistency-audit-and-app-name-cleanup.md) | 变更记录 | 已执行 | v0.6.2 | 全量 UI 一致性审计修复（清零 12 处原生 Alert、统一表单/弹窗/按压态）与导出/版本品牌名统一为 ZeroTally |
+| [0018-side-drawer-hamburger-settings-menu.md](0018-side-drawer-hamburger-settings-menu.md) | 变更记录 | 已执行 | v0.7.0 | 新增左上角汉堡菜单与可手势关闭的左侧设置抽屉，取消明细与资产页右上角设置按钮 |
+| [0019-redesign-transfer-route-panel.md](0019-redesign-transfer-route-panel.md) | 变更记录 | 已执行 | v0.7.1 | 优化转账界面：并排聚焦双卡 + 悬浮互换、转后余额/欠款实时预览、2 列内联直选网格与底部路径融合条 |
+| [0020-category-account-memory.md](0020-category-account-memory.md) | 变更记录 | 已执行 | v0.8.0 | 收支记账新增分类记忆上次使用账户（零 Schema 派生 + 四层回退 + 单次手动锁定 + 账户条自动滚入视野） |
+| [0021-account-strip-edge-fade-mask.md](0021-account-strip-edge-fade-mask.md) | 变更记录 | 已执行 | v0.8.1 | 记账页横向账户条移除生硬分隔竖线，改用 RN 原生动态左右缓动渐变遮罩柔和过渡 |
+| [0022-draggable-bottom-sheet.md](0022-draggable-bottom-sheet.md) | 变更记录 | 已执行 | v0.9.0 | 统一重构全应用 6 个底部半屏弹窗为真实可拖拽 BottomSheet（支持下滑关闭与账目详情半屏/全屏两段展开） |
+| [0023-unified-header-and-swipe-drawer.md](0023-unified-header-and-swipe-drawer.md) | 变更记录 | 已执行 | v0.9.1 | 重构主界面为全局固定共享极简顶栏（移除汉堡图标、双页点击标题及明细页跟手右滑拉出设置抽屉） |
+| [0024-v1-settings-categories-portability-and-quick-record.md](0024-v1-settings-categories-portability-and-quick-record.md) | 变更记录 | 已执行 | v1.0.0 | 设置重构与完整 JSON 校验导入导出、验证码清空账本、分类管理全面升级、快捷记账半屏窗、明细手势与全应用震动反馈 |

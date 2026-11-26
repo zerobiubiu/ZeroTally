@@ -1,0 +1,326 @@
+/**
+ * 约束简报（Workflow B / C）：
+ * - 极简无分组布局：彻底去除统计头、「配置/数据导出/系统」二级分组标题、存储行与独立版本条目
+ * - 信息顺序（严格按用户设计）：外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 关于 -> 高级设置 -> 最底部居中版本号
+ * - 复用形态：同时支持左侧抽屉（variant="drawer"）与独立设置页（variant="page"），外观切换即时落盘 SQLite
+ */
+import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDatabase } from '../../../db/database-context';
+import { hapticLight, hapticSelection } from '../../../shared/haptics/haptics';
+import { AppIcon } from '../../../shared/ui/AppIcon';
+import { useTheme, type ThemePreference } from '../../../theme/theme-context';
+import { setThemePreferenceSetting } from '../repository';
+
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: '系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+];
+
+export interface SettingsPanelProps {
+  variant?: 'drawer' | 'page';
+  onClose?: () => void;
+}
+
+export function SettingsPanel({
+  variant = 'page',
+  onClose,
+}: SettingsPanelProps): React.JSX.Element {
+  const { theme, preference, setPreference } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { db } = useDatabase();
+
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  const isDrawer = variant === 'drawer';
+  const topInset = isDrawer
+    ? Platform.OS === 'android'
+      ? Math.max(insets.top, RNStatusBar.currentHeight ?? 0)
+      : insets.top
+    : 0;
+
+  const handleSelectTheme = (next: ThemePreference) => {
+    if (next === preference) {
+      return;
+    }
+    hapticSelection();
+    setPreference(next);
+    void setThemePreferenceSetting(db, next).catch(() => {});
+  };
+
+  const navigateTo = (pathname: '/categories' | '/about' | '/advanced-settings') => {
+    hapticLight();
+    onClose?.();
+    router.push(pathname);
+  };
+
+  const menuItems: readonly {
+    key: string;
+    label: string;
+    icon: string;
+    onPress: () => void;
+  }[] = [
+    {
+      key: 'categories',
+      label: '分类管理',
+      icon: 'pricetags-outline',
+      onPress: () => navigateTo('/categories'),
+    },
+    {
+      key: 'about',
+      label: '关于',
+      icon: 'information-circle-outline',
+      onPress: () => navigateTo('/about'),
+    },
+    {
+      key: 'advanced',
+      label: '高级设置',
+      icon: 'construct-outline',
+      onPress: () => navigateTo('/advanced-settings'),
+    },
+  ];
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+      {isDrawer ? (
+        <View
+          style={[
+            styles.drawerHeader,
+            {
+              backgroundColor: theme.colors.heroBg,
+              paddingTop: topInset + theme.spacing.md,
+              paddingHorizontal: theme.spacing.lg,
+              paddingBottom: theme.spacing.lg,
+            },
+          ]}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              color: theme.colors.heroText,
+              fontSize: theme.fontSize.xxl,
+              fontWeight: theme.fontWeight.semibold,
+              letterSpacing: -0.4,
+            }}
+          >
+            ZeroTally
+          </Text>
+
+          {onClose ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="关闭设置抽屉"
+              onPress={() => {
+                hapticLight();
+                onClose();
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.drawerCloseBtn,
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
+            >
+              <AppIcon name="close" size={22} color={theme.colors.heroText} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingHorizontal: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
+            paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.md,
+          },
+        ]}
+      >
+        <View style={{ gap: theme.spacing.md }}>
+          {/* 最上方：外观切换（系统 / 浅色 / 深色） */}
+          <View
+            style={[
+              styles.appearanceCard,
+              theme.elevation.card,
+              {
+                backgroundColor: theme.colors.surfaceRaised,
+                borderRadius: theme.radius.lg,
+                padding: theme.spacing.md,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: theme.fontSize.sm,
+                fontWeight: theme.fontWeight.semibold,
+                marginBottom: theme.spacing.sm,
+              }}
+            >
+              外观
+            </Text>
+            <View
+              style={[
+                styles.segmentRow,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  borderWidth: theme.borderWidth.hairline,
+                  borderRadius: theme.radius.full,
+                  padding: 3,
+                },
+              ]}
+            >
+              {THEME_OPTIONS.map((opt) => {
+                const selected = preference === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                    onPress={() => handleSelectTheme(opt.value)}
+                    style={({ pressed }) => [
+                      styles.segmentBtn,
+                      {
+                        backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
+                        borderRadius: theme.radius.full,
+                      },
+                      pressed && !selected && { opacity: theme.opacity.pressed },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: selected
+                          ? theme.colors.actionTextOnSubtle
+                          : theme.colors.textSecondary,
+                        fontSize: theme.fontSize.sm,
+                        fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 同级独立功能按钮：分类管理 -> 关于 -> 高级设置 */}
+          {menuItems.map((item) => (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              onPress={item.onPress}
+              style={({ pressed }) => [
+                styles.menuCard,
+                theme.elevation.card,
+                {
+                  backgroundColor: theme.colors.surfaceRaised,
+                  borderRadius: theme.radius.lg,
+                  paddingHorizontal: theme.spacing.md,
+                },
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
+            >
+              <View
+                style={[
+                  styles.menuIconWrap,
+                  {
+                    backgroundColor: theme.colors.actionSubtle,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              >
+                <AppIcon name={item.icon} size={18} color={theme.colors.actionTextOnSubtle} />
+              </View>
+              <Text
+                style={{
+                  flex: 1,
+                  color: theme.colors.text,
+                  fontSize: theme.fontSize.base,
+                  fontWeight: theme.fontWeight.semibold,
+                }}
+              >
+                {item.label}
+              </Text>
+              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
+            </Pressable>
+          ))}
+        </View>
+
+        {/* 最底部居中版本标识 */}
+        <View style={styles.versionFooter}>
+          <Text
+            style={{
+              color: theme.colors.textMuted,
+              fontSize: theme.fontSize.xs,
+            }}
+          >
+            ZeroTally v{appVersion}
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+  },
+  appearanceCard: {},
+  segmentRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuCard: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  versionFooter: {
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingBottom: 4,
+  },
+});

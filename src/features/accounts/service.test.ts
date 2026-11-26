@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createNodeTestDatabase } from '../../db/node-test-client';
 import { initializeSchema } from '../../db/schema';
-import { seedDefaultData } from '../../db/seed';
+import { DEFAULT_WALLET_ACCOUNT_ID, seedDefaultData } from '../../db/seed';
 import type { SqlExecutor } from '../../db/types';
 import { createTransaction } from '../transactions/service';
 import {
@@ -72,25 +72,34 @@ describe('accounts 服务层（真实 SQLite）', () => {
   });
 
   it('关联账目的账户禁止物理删除，但支持归档与恢复', async () => {
+    const wechat = await createAccount(db, {
+      name: '微信零钱',
+      kind: 'asset',
+      category: 'digital',
+      initialBalanceCents: 10000,
+      icon: 'wallet-outline',
+      color: '#059669',
+    });
+
     await createTransaction(db, {
       type: 'expense',
       amountCents: 3500,
       categoryId: 'cat_exp_food',
-      accountId: 'acc_wechat',
+      accountId: wechat.id,
       toAccountId: null,
       occurredOn: '2026-11-25',
       note: '午饭',
     });
 
-    await expect(deleteAccount(db, 'acc_wechat')).rejects.toThrow('停用归档');
+    await expect(deleteAccount(db, wechat.id)).rejects.toThrow('停用归档');
 
-    const archived = await archiveAccount(db, 'acc_wechat');
+    const archived = await archiveAccount(db, wechat.id);
     expect(archived.isArchived).toBe(true);
 
     const overviewArchived = await getAssetOverview(db);
-    expect(overviewArchived.archivedAccounts.some((a) => a.id === 'acc_wechat')).toBe(true);
+    expect(overviewArchived.archivedAccounts.some((a) => a.id === wechat.id)).toBe(true);
 
-    const restored = await restoreAccount(db, 'acc_wechat');
+    const restored = await restoreAccount(db, wechat.id);
     expect(restored.isArchived).toBe(false);
   });
 
@@ -106,13 +115,12 @@ describe('accounts 服务层（真实 SQLite）', () => {
 
     await deleteAccount(db, temp.id);
 
-    // 停用 4 个默认账户后，最后一个账户禁止停用或删除
-    await archiveAccount(db, 'acc_wechat');
-    await archiveAccount(db, 'acc_alipay');
-    await archiveAccount(db, 'acc_bank');
-    await archiveAccount(db, 'acc_cash');
-
-    await expect(archiveAccount(db, 'acc_credit')).rejects.toThrow('至少需要保留一个可用账户');
-    await expect(deleteAccount(db, 'acc_credit')).rejects.toThrow('至少需要保留一个可用账户');
+    // 仅剩默认唯一「钱包」时禁止停用或删除
+    await expect(archiveAccount(db, DEFAULT_WALLET_ACCOUNT_ID)).rejects.toThrow(
+      '至少需要保留一个可用账户'
+    );
+    await expect(deleteAccount(db, DEFAULT_WALLET_ACCOUNT_ID)).rejects.toThrow(
+      '至少需要保留一个可用账户'
+    );
   });
 });

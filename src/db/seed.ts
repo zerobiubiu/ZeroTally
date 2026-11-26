@@ -12,51 +12,20 @@ interface DefaultAccountSeed {
   sortOrder: number;
 }
 
+export const DEFAULT_WALLET_ACCOUNT_ID = 'acc_wallet';
+
+/**
+ * 全新安装或清空账本后的唯一默认账户：「钱包」（现金资产，初始余额 ¥0.00）
+ */
 export const DEFAULT_ACCOUNTS: readonly DefaultAccountSeed[] = [
   {
-    id: 'acc_wechat',
-    name: '微信零钱',
-    kind: 'asset',
-    category: 'digital',
-    icon: 'wallet-outline',
-    color: '#059669',
-    sortOrder: 10,
-  },
-  {
-    id: 'acc_alipay',
-    name: '支付宝',
-    kind: 'asset',
-    category: 'digital',
-    icon: 'phone-portrait-outline',
-    color: '#0284C7',
-    sortOrder: 20,
-  },
-  {
-    id: 'acc_bank',
-    name: '银行储蓄卡',
-    kind: 'asset',
-    category: 'bank',
-    icon: 'card-outline',
-    color: '#0F766E',
-    sortOrder: 30,
-  },
-  {
-    id: 'acc_cash',
-    name: '现金',
+    id: DEFAULT_WALLET_ACCOUNT_ID,
+    name: '钱包',
     kind: 'asset',
     category: 'cash',
-    icon: 'cash-outline',
-    color: '#D97706',
-    sortOrder: 40,
-  },
-  {
-    id: 'acc_credit',
-    name: '信用卡',
-    kind: 'liability',
-    category: 'credit',
-    icon: 'card-outline',
-    color: '#E11D48',
-    sortOrder: 50,
+    icon: 'wallet-outline',
+    color: '#017853',
+    sortOrder: 10,
   },
 ] as const;
 
@@ -72,21 +41,31 @@ export interface DatabaseStats {
 }
 
 /**
- * 幂等初始化默认分类与默认账户（仅在对应表为空时写入）
+ * 幂等初始化默认分类与默认账户：
+ * - 预设分类按 ID `INSERT OR IGNORE` 补齐（老用户升级可补全预设二级且不覆盖已修改内容）；
+ * - 默认账户仅在账户表为空时写入唯一的「钱包（¥0.00）」（老用户覆盖升级不改变已有账户）。
  */
 export async function seedDefaultData(db: SqlExecutor): Promise<void> {
   const now = new Date().toISOString();
 
   await db.withTransaction(async (tx) => {
-    const catCount = await tx.getFirst<CountRow>('SELECT COUNT(*) AS count FROM categories');
-    if ((catCount?.count ?? 0) === 0) {
-      for (const cat of PRESET_CATEGORIES) {
-        await tx.run(
-          `INSERT INTO categories (id, name, type, icon, color, is_system, is_archived, sort_order, created_at)
-           VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?)`,
-          [cat.id, cat.name, cat.type, cat.icon, cat.color, cat.sortOrder, now]
-        );
-      }
+    for (const cat of PRESET_CATEGORIES) {
+      // 二级预设继承上级的停用状态，避免在已停用一级下冒出启用的二级
+      await tx.run(
+        `INSERT OR IGNORE INTO categories (id, name, type, icon, color, parent_id, is_system, is_archived, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, COALESCE((SELECT is_archived FROM categories WHERE id = ?), 0), ?, ?)`,
+        [
+          cat.id,
+          cat.name,
+          cat.type,
+          cat.icon,
+          cat.color,
+          cat.parentId,
+          cat.parentId,
+          cat.sortOrder,
+          now,
+        ]
+      );
     }
 
     const accCount = await tx.getFirst<CountRow>('SELECT COUNT(*) AS count FROM accounts');
@@ -105,11 +84,12 @@ export async function seedDefaultData(db: SqlExecutor): Promise<void> {
 }
 
 /**
- * 清空账本并恢复默认分类与初始账户
+ * 清空账本：删除全部明细与快捷模板，账户重置为唯一的「钱包（¥0.00）」，分类恢复为系统预设分类。
  */
 export async function resetDatabase(db: SqlExecutor): Promise<void> {
   await db.withTransaction(async (tx) => {
     await tx.run('DELETE FROM transactions');
+    await tx.run('DELETE FROM quick_templates');
     await tx.run('DELETE FROM accounts');
     await tx.run('DELETE FROM categories');
   });
@@ -117,7 +97,7 @@ export async function resetDatabase(db: SqlExecutor): Promise<void> {
 }
 
 /**
- * 读取本地账本数据统计（用于设置页概览）
+ * 读取本地账本数据统计（用于清空账本安全核对与概览）
  */
 export async function getDatabaseStats(db: SqlExecutor): Promise<DatabaseStats> {
   const [txRow, activeAccRow, archivedAccRow, activeCatRow] = await Promise.all([

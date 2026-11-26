@@ -1,14 +1,33 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
+import { getThemePreferenceSetting } from '../src/features/settings/repository';
 import { ThemeProvider, useTheme } from '../src/theme/theme-context';
 
 function RootNavigator(): React.JSX.Element {
-  const { theme } = useTheme();
-  const { isReady, error } = useDatabaseContext();
+  const { theme, setPreference } = useTheme();
+  const { db, isReady, error, revision } = useDatabaseContext();
+
+  // 启动及导入全量备份后，从本地 SQLite 同步持久化的外观主题偏好
+  useEffect(() => {
+    if (!isReady || !db) {
+      return;
+    }
+    let active = true;
+    void (async () => {
+      const savedPref = await getThemePreferenceSetting(db);
+      if (active) {
+        setPreference(savedPref);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [db, isReady, revision, setPreference]);
 
   if (error) {
     return (
@@ -73,7 +92,10 @@ function RootNavigator(): React.JSX.Element {
           name="record"
           options={{
             title: '记一笔',
-            presentation: 'modal',
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
+            headerShown: false,
+            contentStyle: { backgroundColor: 'transparent' },
           }}
         />
         <Stack.Screen
@@ -102,6 +124,18 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="about"
+          options={{
+            title: '关于',
+          }}
+        />
+        <Stack.Screen
+          name="advanced-settings"
+          options={{
+            title: '高级设置',
+          }}
+        />
+        <Stack.Screen
           name="settings"
           options={{
             title: '设置',
@@ -114,17 +148,22 @@ function RootNavigator(): React.JSX.Element {
 
 export default function RootLayout(): React.JSX.Element {
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <ThemeProvider>
-        <DatabaseProvider>
-          <RootNavigator />
-        </DatabaseProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <ThemeProvider>
+          <DatabaseProvider>
+            <RootNavigator />
+          </DatabaseProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   center: {
     flex: 1,
     alignItems: 'center',

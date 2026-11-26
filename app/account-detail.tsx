@@ -7,7 +7,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
+  KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,6 +27,7 @@ import {
 } from '../src/features/accounts/service';
 import type { Account } from '../src/features/accounts/types';
 import { TransactionRow } from '../src/features/transactions/components/TransactionRow';
+import { useTransactionListInteractions } from '../src/features/transactions/components/useTransactionListInteractions';
 import { listAccountTransactions } from '../src/features/transactions/service';
 import type { TransactionListItem } from '../src/features/transactions/types';
 import {
@@ -37,6 +38,7 @@ import {
 } from '../src/shared/money/money';
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { Button } from '../src/shared/ui/Button';
+import { ConfirmDialog } from '../src/shared/ui/ConfirmDialog';
 import { EmptyState } from '../src/shared/ui/EmptyState';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
 import { useTheme } from '../src/theme/theme-context';
@@ -60,6 +62,11 @@ export default function AccountDetailScreen(): React.JSX.Element {
   const [adjustInput, setAdjustInput] = useState('');
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
+  const [accountDialog, setAccountDialog] = useState<'archive' | 'delete' | null>(null);
+  const [accountActionLoading, setAccountActionLoading] = useState(false);
+  const [accountActionError, setAccountActionError] = useState<string | null>(null);
+  const [noticeDialog, setNoticeDialog] = useState<{ title: string; message: string } | null>(null);
+  const interactions = useTransactionListInteractions();
 
   useEffect(() => {
     if (!accountId) {
@@ -153,53 +160,63 @@ export default function AccountDetailScreen(): React.JSX.Element {
           await restoreAccount(db, account.id);
           notifyChange();
         } catch (err) {
-          Alert.alert('恢复失败', err instanceof Error ? err.message : '无法恢复账户');
+          setNoticeDialog({
+            title: '恢复失败',
+            message: err instanceof Error ? err.message : '无法恢复账户',
+          });
         }
       })();
       return;
     }
 
-    Alert.alert('停用账户', '停用后不参与净资产汇总与新记账，历史账目保留，可随时恢复。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '停用',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            try {
-              await archiveAccount(db, account.id);
-              notifyChange();
-            } catch (err) {
-              Alert.alert('无法停用', err instanceof Error ? err.message : '操作失败');
-            }
-          })();
-        },
-      },
-    ]);
+    setAccountActionError(null);
+    setAccountDialog('archive');
   };
 
   const handleDeleteAccount = () => {
     if (!account) {
       return;
     }
-    Alert.alert('删除账户', `将永久删除「${account.name}」，无法撤销。`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            try {
-              await deleteAccount(db, account.id);
-              notifyChange();
-              router.back();
-            } catch (err) {
-              Alert.alert('无法删除', err instanceof Error ? err.message : '删除失败');
-            }
-          })();
-        },
-      },
-    ]);
+    setAccountActionError(null);
+    setAccountDialog('delete');
+  };
+
+  const handleCancelAccountDialog = () => {
+    if (accountActionLoading) {
+      return;
+    }
+    setAccountDialog(null);
+    setAccountActionError(null);
+  };
+
+  const handleConfirmAccountDialog = async () => {
+    if (!account || !accountDialog || accountActionLoading) {
+      return;
+    }
+    setAccountActionLoading(true);
+    setAccountActionError(null);
+    try {
+      if (accountDialog === 'archive') {
+        await archiveAccount(db, account.id);
+        setAccountDialog(null);
+        notifyChange();
+      } else {
+        await deleteAccount(db, account.id);
+        setAccountDialog(null);
+        notifyChange();
+        router.back();
+      }
+    } catch (err) {
+      setAccountActionError(
+        err instanceof Error
+          ? err.message
+          : accountDialog === 'archive'
+            ? '无法停用账户'
+            : '删除账户失败'
+      );
+    } finally {
+      setAccountActionLoading(false);
+    }
   };
 
   if (!account) {
@@ -219,13 +236,20 @@ export default function AccountDetailScreen(): React.JSX.Element {
 
   return (
     <SafeScreen edges={['left', 'right']}>
-      <ScrollView
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        contentContainerStyle={{
-          padding: theme.spacing.lg,
-          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
-        }}
+        behavior="padding"
+        keyboardVerticalOffset={insets.top + 56}
       >
+        <ScrollView
+          style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={interactions.closeAllSwipes}
+          contentContainerStyle={{
+            padding: theme.spacing.lg,
+            paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
+          }}
+        >
         <Stack.Screen options={{ title: account.name }} />
 
         <View
@@ -409,15 +433,36 @@ export default function AccountDetailScreen(): React.JSX.Element {
             />
 
             {adjustError ? (
-              <Text
-                style={{
-                  color: theme.colors.expense,
-                  fontSize: theme.fontSize.xs,
-                  marginTop: theme.spacing.sm,
-                }}
+              <View
+                style={[
+                  styles.errorBox,
+                  {
+                    backgroundColor: theme.colors.expenseSubtle,
+                    borderLeftColor: theme.colors.expense,
+                    borderRadius: theme.radius.sm,
+                    marginTop: theme.spacing.sm,
+                    paddingHorizontal: theme.spacing.sm,
+                    paddingVertical: theme.spacing.xs,
+                  },
+                ]}
               >
-                {adjustError}
-              </Text>
+                <AppIcon
+                  name="alert-circle-outline"
+                  size={15}
+                  color={theme.colors.expenseTextOnSubtle}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.expenseTextOnSubtle,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: theme.fontWeight.semibold,
+                    marginLeft: theme.spacing.xs,
+                    flex: 1,
+                  }}
+                >
+                  {adjustError}
+                </Text>
+              </View>
             ) : null}
 
             <View style={[styles.actionsRow, { marginTop: theme.spacing.md }]}>
@@ -470,7 +515,13 @@ export default function AccountDetailScreen(): React.JSX.Element {
                   key={item.id}
                   item={item}
                   perspectiveAccountId={account.id}
-                  onPress={(tx) => router.push({ pathname: '/record', params: { id: tx.id } })}
+                  onPress={interactions.handleInspect}
+                  onEdit={interactions.handleEdit}
+                  onRefund={interactions.handleRefund}
+                  onDelete={interactions.handleDelete}
+                  isSwipeOpen={interactions.openSwipeId === item.id}
+                  onSwipeOpen={interactions.handleSwipeOpen}
+                  onSwipeClose={interactions.handleSwipeClose}
                   showDivider={idx < transactions.length - 1}
                 />
               ))}
@@ -478,40 +529,193 @@ export default function AccountDetailScreen(): React.JSX.Element {
           )}
         </View>
 
-        <View style={[styles.footerActions, { marginTop: theme.spacing.xl }]}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleToggleArchive}
-            style={styles.footerBtn}
+        <View style={{ marginTop: theme.spacing.xl }}>
+          <Text
+            style={{
+              color: theme.colors.textSecondary,
+              fontSize: theme.fontSize.xs,
+              fontWeight: theme.fontWeight.semibold,
+              marginBottom: theme.spacing.sm,
+              paddingHorizontal: 4,
+            }}
           >
-            <Text
-              style={{
-                color: theme.colors.textSecondary,
-                fontSize: theme.fontSize.sm,
-                fontWeight: theme.fontWeight.semibold,
-              }}
+            账户管理
+          </Text>
+          <View
+            style={[
+              styles.listCard,
+              theme.elevation.card,
+              {
+                backgroundColor: theme.colors.surfaceRaised,
+                borderRadius: theme.radius.lg,
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={account.isArchived ? '恢复账户' : '停用账户'}
+              onPress={handleToggleArchive}
+              style={({ pressed }) => [
+                styles.manageRow,
+                {
+                  paddingHorizontal: theme.spacing.lg,
+                  borderBottomColor: theme.colors.border,
+                  borderBottomWidth: theme.borderWidth.hairline,
+                },
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
             >
-              {account.isArchived ? '恢复' : '停用'}
-            </Text>
-          </Pressable>
+              <View style={styles.manageLeft}>
+                <AppIcon
+                  name={account.isArchived ? 'refresh-outline' : 'pause-circle-outline'}
+                  size={20}
+                  color={account.isArchived ? theme.colors.action : theme.colors.warning}
+                />
+                <Text
+                  style={{
+                    color: account.isArchived ? theme.colors.action : theme.colors.text,
+                    fontSize: theme.fontSize.base,
+                    fontWeight: theme.fontWeight.semibold,
+                    marginLeft: theme.spacing.md,
+                  }}
+                >
+                  {account.isArchived ? '恢复账户' : '停用账户'}
+                </Text>
+              </View>
+              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
+            </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleDeleteAccount}
-            style={styles.footerBtn}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="删除账户"
+              onPress={handleDeleteAccount}
+              style={({ pressed }) => [
+                styles.manageRow,
+                { paddingHorizontal: theme.spacing.lg },
+                pressed && { opacity: theme.opacity.pressed },
+              ]}
+            >
+              <View style={styles.manageLeft}>
+                <AppIcon name="trash-outline" size={20} color={theme.colors.expense} />
+                <Text
+                  style={{
+                    color: theme.colors.expense,
+                    fontSize: theme.fontSize.base,
+                    fontWeight: theme.fontWeight.semibold,
+                    marginLeft: theme.spacing.md,
+                  }}
+                >
+                  删除账户
+                </Text>
+              </View>
+              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
+            </Pressable>
+          </View>
+        </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <ConfirmDialog
+        visible={accountDialog !== null}
+        title={accountDialog === 'archive' ? '停用账户' : '删除账户'}
+        message={
+          accountDialog === 'archive'
+            ? '停用后不参与净资产汇总与新记账，历史账目保留，可随时恢复。'
+            : '将永久删除该账户，无法撤销。若该账户有关联流水，请先清理流水或改为停用。'
+        }
+        icon={accountDialog === 'archive' ? 'pause-circle-outline' : 'trash-outline'}
+        tone={accountDialog === 'archive' ? 'warning' : 'destructive'}
+        confirmLabel={accountDialog === 'archive' ? '确认停用' : '确认删除'}
+        loading={accountActionLoading}
+        error={accountActionError}
+        onCancel={handleCancelAccountDialog}
+        onConfirm={() => void handleConfirmAccountDialog()}
+      >
+        <View
+          style={[
+            styles.dialogPreviewCard,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              borderWidth: theme.borderWidth.hairline,
+              borderRadius: theme.radius.md,
+              padding: theme.spacing.md,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.dialogPreviewIcon,
+              {
+                backgroundColor:
+                  account.kind === 'liability'
+                    ? theme.colors.warningSubtle
+                    : theme.colors.actionSubtle,
+                borderRadius: theme.radius.md,
+              },
+            ]}
           >
+            <AppIcon
+              name={account.icon}
+              size={18}
+              color={
+                account.kind === 'liability'
+                  ? theme.colors.warningTextOnSubtle
+                  : theme.colors.actionTextOnSubtle
+              }
+            />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text
+              numberOfLines={1}
               style={{
-                color: theme.colors.expense,
+                color: theme.colors.text,
                 fontSize: theme.fontSize.sm,
                 fontWeight: theme.fontWeight.semibold,
               }}
             >
-              删除
+              {account.name}
             </Text>
-          </Pressable>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.xs,
+                marginTop: 2,
+              }}
+            >
+              {categoryMeta.label} · {balanceInfo.caption}
+            </Text>
+          </View>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.tabular,
+              {
+                color: balanceInfo.isDebt ? theme.colors.expense : theme.colors.text,
+                fontSize: theme.fontSize.base,
+                fontWeight: theme.fontWeight.semibold,
+              },
+            ]}
+          >
+            {balanceInfo.amountText}
+          </Text>
         </View>
-      </ScrollView>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        visible={noticeDialog !== null}
+        title={noticeDialog?.title ?? ''}
+        message={noticeDialog?.message}
+        icon="alert-circle-outline"
+        tone="destructive"
+        confirmLabel="知道了"
+        hideCancel
+        onCancel={() => setNoticeDialog(null)}
+        onConfirm={() => setNoticeDialog(null)}
+      />
+
+      {interactions.overlays}
     </SafeScreen>
   );
 }
@@ -556,13 +760,29 @@ const styles = StyleSheet.create({
   listCard: {
     overflow: 'hidden',
   },
-  footerActions: {
+  errorBox: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    alignItems: 'center',
+    borderLeftWidth: 3,
   },
-  footerBtn: {
-    minHeight: 48,
-    paddingHorizontal: 20,
+  manageRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  manageLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dialogPreviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dialogPreviewIcon: {
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },

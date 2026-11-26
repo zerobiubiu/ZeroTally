@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v0.1.0
+- **生效版本**：v1.0.0
 
 ## 结论概览
 
@@ -15,12 +15,14 @@
 | `app/` | Expo Router 文件路由入口 | 导航装配、参数读取、页面壳 | SQL 访问、业务校验、余额计算 | 仅 Expo Router 运行时 |
 | `src/features/transactions/` | 收支与转账核心职责 | 支出/收入/转账记账、编辑删除、余额联动规则、按月流水与日分组汇总、记账表单与明细组件 | 账户净资产汇总、分类 CRUD | `app/`、`analytics`、`export` |
 | `src/features/accounts/` | 资产与负债账户职责 | 账户增改、归档恢复、余额校准、总资产/总负债/净资产汇总规则、资产页组件 | 交易流水写入、分类规则 | `app/`、`transactions`、`export` |
-| `src/features/categories/` | 收支分类职责 | 预设分类种子、自定义分类增删改、使用中分类删除保护、分类选择组件 | 账目记账、账户余额 | `app/`、`transactions`、`export` |
-| `src/features/analytics/` | 月度账务分析职责 | 分类占比排行、账户资金分布、日均支出、结余率与近 6 个月收支趋势聚合 | 交易写入、余额变更 | `app/` |
-| `src/features/export/` | 结构化数据导出职责 | 标准缩进 JSON 与 UTF-8 BOM RFC 4180 CSV（含公式注入防护）生成及 Android 目录保存/系统分享 | 业务数据修改 | `app/` |
-| `src/features/settings/` | 应用设置与账本概览职责 | 版本与数据统计展示、账本重置入口、设置页组件 | 核心账目与资产业务规则 | `app/` |
-| `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema 迁移、幂等种子数据、Expo 与 Node 适配器、数据变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
-| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化、日期月份工具、ID 生成、异形屏安全区容器与基础 UI 原子 | 任何记账或资产业务规则 | 全项目 |
+| `src/features/categories/` | 收支分类职责 | 预设分类种子、居中弹窗新增/编辑、长按拖拽同级排序、左滑/删除账务原子迁移、分类树独立 JSON 校验增量/覆盖导入导出 | 账目记账、账户余额 | `app/`、`transactions`、`quick-record`、`export` |
+| `src/features/quick-record/` | 快捷记账半屏窗职责 | 自定义快捷模板 CRUD、近 30 天高频收支推荐聚合、一键入账执行与底栏上滑下半屏快捷窗口 | 完整计算键盘、报表分析 | `app/(tabs)/`、`export` |
+| `src/features/analytics/` | 多周期账务分析职责 | 分类占比排行、账户资金分布、日均支出、结余率与月/年/全量收支趋势聚合 | 交易写入、余额变更 | `app/` |
+| `src/features/export/` | 完整 JSON 备份导入导出职责 | Schema v3 完整 JSON 备份（含外观/账户/分类/快捷模板/明细与 FNV-1a 校验指纹）生成、严格校验、单事务原子恢复及 Android 原生文件读写 | 单笔业务记账规则 | `app/` |
+| `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（置顶外观切换持久化、分类管理、关于、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export` |
+| `src/features/navigation/` | 主导航路由与共享顶栏上下文职责 | Expo Router 双页 Tab 占位描述符补齐、固定顺序规范化纯逻辑及主界面共享顶栏/抽屉上下文 | 具体页面渲染与业务规则 | `app/(tabs)/` |
+| `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema v4 迁移（含 `app_settings` 与 `quick_templates`）、幂等默认单一钱包与分类种子、Expo/Node 适配器、变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
+| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、可拖拽 `BottomSheet` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |
 | `src/theme/` | 设计令牌与主题系统 | 浅色/深色语义配色、排版、间距、圆角、阴影、系统主题跟随 | 业务逻辑与数据读写 | `app/`、`src/features/*`、`src/shared/ui/` |
 
 ## 依赖方向约束
@@ -56,10 +58,13 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | 金额以整数「分」存储、上限与千分位格式化 | `src/shared/money/money.ts` | 全部表单与展示组件 | 全项目 | `src/shared/money/money.test.ts` |
 | 业务日期（`YYYY-MM-DD`）与月度归属（`YYYY-MM`） | `src/shared/date/date.ts` | 明细筛选、记账日期、日分组 | `transactions` | `src/shared/date/date.test.ts` |
-| 交易余额增量计算（支出扣减、收入增加、转账一减一增） | `src/features/transactions/rules.ts` | `src/features/transactions/service.ts` 事务内 | `accounts` 余额、`transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
-| 月度收支结余汇总（转账不计入支出/收入） | `src/features/transactions/rules.ts` | 明细页月度总览 | `transactions` | `src/features/transactions/rules.test.ts` |
+| 交易余额增量计算（支出扣减、收入与退款增加、转账一减一增）与关联退款上限/连带回滚约束 | `src/features/transactions/rules.ts` | `src/features/transactions/service.ts` 事务内 | `accounts` 余额、`transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
+| 月度收支结余汇总（转账不计入支出/收入，退款抵扣当月净支出） | `src/features/transactions/rules.ts` | 明细页月度总览与账务分析 | `transactions`、`analytics` | `src/features/transactions/rules.test.ts`、`analytics/service.test.ts` |
 | 总资产、总负债与净资产汇总（负债欠款以负数净值存储） | `src/features/accounts/rules.ts` | 资产页总览与账户调账 | `accounts` | `src/features/accounts/rules.test.ts`、`service.test.ts` |
-| 分类删除保护（已被账目引用时仅允许归档停用） | `src/features/categories/rules.ts` | `src/features/categories/service.ts` | `categories`、`transactions` 历史展示 | `src/features/categories/service.test.ts` |
+| 分类删除保护（已被账目引用时仅允许归档停用）与两级层级约束 | `src/features/categories/rules.ts` | `src/features/categories/service.ts` | `categories`、`transactions`、`analytics` | `src/features/categories/rules.test.ts`、`service.test.ts` |
+| 记账金额键盘表达式解析与分精度加减求值 | `src/features/transactions/amount-expression.ts` | `app/record.tsx`、`RecordKeypad.tsx` | `transactions` | `src/features/transactions/amount-expression.test.ts` |
+| 收支分类账户记忆四层回退规则（精确分类 → 一级大类 → 同收支类型 → 默认首活跃账户）与单次手动锁定策略 | `src/features/transactions/rules.ts` | `src/features/transactions/repository.ts`、`app/record.tsx` | `transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
+| 账务分析分类占比按一级分类聚合（二级并入所属一级） | `src/features/analytics/rules.ts` | `src/features/analytics/service.ts` | `analytics` | `src/features/analytics/rules.test.ts`、`service.test.ts` |
 
 ## 用例导航索引
 
@@ -67,13 +72,14 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | UC-01 记一笔（支出/收入/转账） | `app/record.tsx` | `transactions/service.ts` (`createTransaction`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
 | UC-02 编辑/删除账目并回滚重算余额 | `app/record.tsx` | `transactions/service.ts` (`updateTransaction` / `deleteTransaction`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
-| UC-03 按月查看流水与月度收支汇总 | `app/(tabs)/index.tsx` | `transactions/service.ts` (`getMonthlyLedger`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
+| UC-03 按月/按年/全部查看流水与周期汇总 | `app/(tabs)/index.tsx` | `transactions/service.ts` (`getMonthlyLedger` / `getYearlyLedger` / `getAllLedger`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
 | UC-04 资产与负债账户管理及净资产汇总 | `app/(tabs)/assets.tsx`、`app/account-form.tsx` | `accounts/service.ts` | `accounts/rules.ts`、`repository.ts` | `accounts/service.test.ts` |
 | UC-05 账户详情、流水筛选与手动调账 | `app/account-detail.tsx` | `accounts/service.ts` (`adjustAccountBalance`)、`transactions/service.ts` | `accounts/rules.ts` | `accounts/service.test.ts` |
-| UC-06 预设与自定义分类管理 | `app/categories.tsx` | `categories/service.ts` | `categories/rules.ts`、`repository.ts` | `categories/service.test.ts` |
-| UC-07 设置页账本概览与数据重置 | `app/settings.tsx`（由首页/资产页右上角入口进入） | `db/seed.ts` (`resetDatabase`) | `db/schema.ts` | `src/db/schema.test.ts` |
-| UC-08 月度账务分析（分类占比/近 6 月趋势/账户分布） | `app/analytics.tsx`（点击明细顶部月度总览卡进入） | `analytics/service.ts` (`getMonthlyAnalytics`) | `analytics/rules.ts` | `analytics/rules.test.ts`、`service.test.ts` |
-| UC-09 标准结构化数据导出（JSON / CSV） | `app/settings.tsx` | `export/service.ts`、`export/native-io.ts` | `export/formatter.ts` | `export/formatter.test.ts`、`service.test.ts` |
+| UC-06 分类管理（排序、迁移删除、独立 JSON 导入导出） | `app/categories.tsx` | `categories/service.ts`、`categories/portability.ts` | `categories/rules.ts`、`repository.ts` | `categories/service.test.ts` |
+| UC-07 侧边抽屉设置、关于页、高级设置与验证码清空账本 | `app/(tabs)/_layout.tsx`、`app/about.tsx`、`app/advanced-settings.tsx` | `settings/components/SettingsDrawer.tsx`、`SettingsPanel.tsx`、`ClearLedgerDialog.tsx`、`db/seed.ts` | `settings/repository.ts`、`db/schema.ts` | `src/db/schema.test.ts` |
+| UC-08 多周期账务分析（按月/按年/全部、分类占比、趋势与账户分布） | `app/analytics.tsx`（点击明细顶部总览卡进入） | `analytics/service.ts` (`getScopedAnalytics` / `getMonthlyAnalytics`) | `analytics/rules.ts` | `analytics/rules.test.ts`、`service.test.ts` |
+| UC-09 完整 JSON 备份导出与校验原子导入恢复 | `app/advanced-settings.tsx` | `export/service.ts`、`export/native-io.ts` | `export/formatter.ts`、`shared/integrity/checksum.ts` | `export/formatter.test.ts`、`service.test.ts` |
+| UC-10 底栏上滑快捷记账半屏窗与二次上滑展开完整记一笔 | `app/(tabs)/_layout.tsx` | `quick-record/components/QuickRecordSheet.tsx`、`quick-record/service.ts` | `quick-record/repository.ts` | `quick-record/service.test.ts` |
 
 ## 变更场景模拟验证
 

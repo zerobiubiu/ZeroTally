@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/banner-light.png" />
-  <img alt="ZeroTally（简记）项目封面" src="docs/assets/banner-light.png" width="100%" />
+  <img alt="ZeroTally 项目封面" src="docs/assets/banner-light.png" width="100%" />
 </picture>
 
 <br />
@@ -28,16 +28,16 @@
 
 </div>
 
-# ZeroTally（简记）
+# ZeroTally
 
-ZeroTally（应用内中文名「简记」）是面向 Android 的本地离线个人记账与资产管理应用，基于 React Native（Expo SDK 58 + TypeScript + Expo Router + `expo-sqlite`）开发，采用 MIT 协议开源。
+ZeroTally 是面向 Android 的本地离线个人记账与资产管理应用，基于 React Native（Expo SDK 58 + TypeScript + Expo Router + `expo-sqlite`）开发，采用 MIT 协议开源。
 
 设计重点聚焦在四个工程与交互约束上：
 
 - **本地离线存储**：全部账目、账户与分类存储在设备本地 SQLite 数据库（`src/db/`），无需注册账号，不上传任何账务数据。
 - **整数「分」与原子事务**：金额统一以整数「分」（`cents`）解析与存储（`src/shared/money/money.ts`），记账、改账、删账与账户余额更新在单一 SQLite 事务内原子完成（`src/features/transactions/service.ts`）。
-- **高频记账优先布局**：底栏采用半高双栏（明细 / 资产）加居中向上凸起的圆形「+ 记一笔」主按钮，设置入口收敛至顶栏右上角；全部页面通过 `SafeScreen` 隔离刘海屏、挖孔屏与手势导航条区域。
-- **零锁定结构化导出**：支持一键导出标准缩进 JSON（完整账本快照）与 UTF-8 BOM CSV（兼容 Excel / WPS，含公式注入防护），可保存至本地文件夹或调用系统分享。
+- **高频记账优先布局**：底栏采用半高双栏（明细 / 资产）加居中向上凸起的圆形「+ 记一笔」主按钮——点击自下向上滑入完整记一笔（支持跟手下滑退出），在底栏向上滑动更可零停顿拉出「快捷记账半屏窗」点图标一秒入账（二次上滑直达完整记一笔）；顶栏固定共享且零冗余汉堡按钮（点击页面标题或在明细页右滑即可展开左侧设置抽屉）。
+- **零锁定完整 JSON 校验导入导出**：支持导出标准缩进完整 JSON 备份（包含外观主题、账户、分类、快捷模板与全部明细，附确定性校验指纹）以及分类树独立 JSON 导入导出（支持手动编辑后增量合并或覆盖重建）。
 
 ---
 
@@ -65,10 +65,11 @@ ZeroTally（应用内中文名「简记」）是面向 Android 的本地离线�
 | --- | --- | --- |
 | 支出与收入记账 | 录入金额、日期、备注与账户；内置 11 个支出分类、7 个收入分类，支持自定义分类与账目编辑删除 | 金额以整数「分」存储；编辑或删除自动回滚并重算关联账户余额（[src/features/transactions/](src/features/transactions/)） |
 | 账户间转账 | 任意两账户间资金划转（含储蓄卡还信用卡），支持一键互换转出与转入账户 | 计入账单流水并原子联动两端余额，不计入月度支出或收入统计（[src/features/transactions/rules.ts](src/features/transactions/rules.ts)） |
-| 资产与负债管理 | 预设微信零钱、支付宝、银行储蓄卡、现金与信用卡 5 个账户；支持新增、余额校准、归档与恢复 | 负债欠款以负数净值存储，实时汇总总资产、总负债与净资产（[src/features/accounts/](src/features/accounts/)） |
-| 月度账务分析 | 点击明细页顶部月度总览卡直达分析页；展示近 6 个月趋势、分类占比排行、账户分布、日均支出与结余率 | 支持点击 6 月趋势柱快速切月，支持支出构成与收入构成双维度切换（[app/analytics.tsx](app/analytics.tsx)） |
-| 标准数据导出 | 在设置页导出标准缩进 JSON（完整账本）与 UTF-8 BOM RFC 4180 CSV（明细表格） | 支持 Android 本地目录保存与系统分享，CSV 自动对 `= + - @` 开头自由文本做公式注入防护（[src/features/export/](src/features/export/)） |
-| 分类与主题设置 | 管理自定义分类与使用中分类归档保护；支持系统 / 浅色 / 深色三态切换与账本重置 | 已被历史账目引用的分类仅允许归档停用，防止历史明细丢失名称（[src/features/categories/](src/features/categories/)） |
+| 资产与负债管理 | 默认初始化唯一「钱包（¥0.00）」账户，按需新增银行卡、数字钱包、现金与信用卡等资产/负债账户；支持余额校准、归档与恢复 | 负债欠款以负数净值存储，实时汇总总资产、总负债与净资产（[src/features/accounts/](src/features/accounts/)） |
+| 多周期账务分析 | 点击明细页顶部总览卡直达分析页；支持按月 / 按年 / 全部维度趋势、分类占比排行、账户分布、日均支出与结余率 | 二级分类自动并入所属一级聚合，关联退款自动抵扣净支出（[app/analytics.tsx](app/analytics.tsx)） |
+| 快捷记账半屏窗 | 在底栏直接向上滑动无停顿呼出下半屏快捷记账页，点击图标按钮免输入一键入账（3.5 秒可撤销），二次上滑展开完整记一笔 | 优先展示自定义快捷模板，未自定义时自动推荐近 30 天高频消费/收入（[src/features/quick-record/](src/features/quick-record/)） |
+| 完整数据导入导出 | 在「高级设置」导出完整 JSON（含外观、账户、分类、快捷模板与明细，附校验指纹）并支持导入恢复；清空账本需通过随机 4 位数字验证码校验 | 全量导入与清空均在单 SQLite 事务内原子完成（[src/features/export/](src/features/export/)） |
+| 分类管理与外观设置 | 居中浮窗新增/编辑、146 个 9 主题双图库图标、长按同级拖拽排序、左滑菜单、删除分类原子迁移旧账务、分类独立 JSON 增量/覆盖导入导出；系统/浅色/深色主题持久化 | 停用分类沉底变灰仅从记一笔隐藏，不删除历史账务（[app/categories.tsx](app/categories.tsx)、[src/features/categories/](src/features/categories/)） |
 | 品牌图标与系统适配 | 配套深玉青矢量 Logo、Android 三层自适应图标与 Android 13+ Material You 单色主题图标 | 全页面异形屏安全区隔离，可交互控件满足 Android 48dp 最小触控热区（[assets/brand/](assets/brand/)） |
 
 ---
@@ -106,7 +107,7 @@ sha256sum -c ZeroTally-v0.1.0-android.apk.sha256
 # 1. 安装依赖
 bun install
 
-# 2. 运行完整质量门禁（版本同步检查 + TypeScript + ESLint + 12 组 Vitest 单测）
+# 2. 运行完整质量门禁（版本同步检查 + TypeScript + ESLint + 18 组 Vitest 单测）
 bun run verify
 
 # 3. 启动 Expo 开发服务
@@ -210,14 +211,14 @@ ZeroTally/
 <details>
 <summary>展开查看标准 JSON（Schema v1）与 CSV 字段结构示例</summary>
 
-**1. 完整账本 JSON（`keep-accounts-YYYY-MM-DD.json`，2 空格缩进）**
+**1. 完整账本 JSON（`ZeroTally-YYYY-MM-DD.json`，2 空格缩进）**
 
 同时输出精确整数 `Cents` 与两位小数字符串 `Yuan`，便于程序无损读取或人工核对：
 
 ```json
 {
-  "schemaVersion": 1,
-  "app": "keep-accounts",
+  "schemaVersion": 2,
+  "app": "ZeroTally",
   "currency": "CNY",
   "exportedAt": "2026-11-25T13:30:00.000Z",
   "summary": {
@@ -254,7 +255,7 @@ ZeroTally/
 }
 ```
 
-**2. 账单明细 CSV（`keep-accounts-YYYY-MM-DD.csv`，UTF-8 BOM + RFC 4180）**
+**2. 账单明细 CSV（`ZeroTally-YYYY-MM-DD.csv`，UTF-8 BOM + RFC 4180）**
 
 表头固定为 8 列：`日期,类型,分类,金额(元),账户,转入账户,备注,记录ID`。支出金额带负号前缀，收入与转账为正数；对分类、账户、备注等自由文本字段自动拦截 `=`、`+`、`-`、`@` 开头的表格公式注入风险。
 

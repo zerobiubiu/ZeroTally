@@ -1,15 +1,49 @@
 import { isValidIsoDate } from '../../shared/date/date';
 import { MAX_AMOUNT_CENTS } from '../../shared/money/money';
+import type { Account } from '../accounts/types';
+import type { Category } from '../categories/types';
 import type {
   BalanceDelta,
+  CategoryAccountMemory,
   CreateTransactionInput,
   DailyTransactionSection,
   MonthlySummary,
   Transaction,
   TransactionListItem,
+  UpdateRefundInput,
 } from './types';
 
 export const MAX_TRANSACTION_NOTE_LENGTH = 120;
+
+export function normalizeRefundInput(input: UpdateRefundInput): UpdateRefundInput {
+  if (
+    !Number.isSafeInteger(input.amountCents) ||
+    input.amountCents <= 0 ||
+    input.amountCents > MAX_AMOUNT_CENTS
+  ) {
+    throw new Error('请输入大于 0 且在有效范围内的退款金额');
+  }
+
+  if (!isValidIsoDate(input.occurredOn)) {
+    throw new Error('退款日期格式无效，应为 YYYY-MM-DD');
+  }
+
+  if (!input.accountId.trim()) {
+    throw new Error('请选择退款入账账户');
+  }
+
+  const note = (input.note ?? '').trim();
+  if (note.length > MAX_TRANSACTION_NOTE_LENGTH) {
+    throw new Error(`备注不能超过 ${MAX_TRANSACTION_NOTE_LENGTH} 个字符`);
+  }
+
+  return {
+    amountCents: input.amountCents,
+    accountId: input.accountId,
+    occurredOn: input.occurredOn,
+    note,
+  };
+}
 
 export function normalizeTransactionInput(input: CreateTransactionInput): CreateTransactionInput {
   if (
@@ -64,6 +98,7 @@ export function normalizeTransactionInput(input: CreateTransactionInput): Create
  * 权威余额联动规则：根据交易类型与金额计算受影响账户的余额增量。
  * - expense：支出账户扣减 amountCents
  * - income：收入账户增加 amountCents
+ * - refund：退款入账账户增加 amountCents（资金退回）
  * - transfer：转出账户扣减 amountCents，转入账户增加 amountCents
  */
 export function computeBalanceDeltas(
@@ -73,6 +108,7 @@ export function computeBalanceDeltas(
     case 'expense':
       return [{ accountId: tx.accountId, deltaCents: -tx.amountCents }];
     case 'income':
+    case 'refund':
       return [{ accountId: tx.accountId, deltaCents: tx.amountCents }];
     case 'transfer':
       if (!tx.toAccountId) {
@@ -120,16 +156,21 @@ export function mergeBalanceDeltas(deltas: readonly BalanceDelta[]): BalanceDelt
 /**
  * 权威月度统计规则：
  * - 转账仅在账户间迁移资金，不计入当月支出或收入。
- * - 月度结余 = 当月收入 - 当月支出。
+ * - 退款抵扣当月支出（不虚增收入），月度净支出 = 支出 - 退款。
+ * - 月度结余 = 当月收入 - 当月净支出。
  */
 export function computeMonthlySummary(items: readonly Transaction[]): MonthlySummary {
   let expenseCents = 0;
   let incomeCents = 0;
   let transferCents = 0;
+  let refundCents = 0;
 
   for (const item of items) {
     if (item.type === 'expense') {
       expenseCents += item.amountCents;
+    } else if (item.type === 'refund') {
+      expenseCents -= item.amountCents;
+      refundCents += item.amountCents;
     } else if (item.type === 'income') {
       incomeCents += item.amountCents;
     } else {
@@ -142,12 +183,13 @@ export function computeMonthlySummary(items: readonly Transaction[]): MonthlySum
     incomeCents,
     balanceCents: incomeCents - expenseCents,
     transferCents,
+    refundCents,
     transactionCount: items.length,
   };
 }
 
 /**
- * 将已按 occurredOn DESC 排序的交易流水按日分组，并计算每日收支小计。
+ * 将已按 occurredOn DESC 排序的交易流水按日分组，并计算每日净支出与收入小计。
  */
 export function groupTransactionsByDay(
   items: readonly TransactionListItem[]
@@ -162,6 +204,7 @@ export function groupTransactionsByDay(
         occurredOn: item.occurredOn,
         expenseCents: 0,
         incomeCents: 0,
+        refundCents: 0,
         items: [],
       };
       sectionMap.set(item.occurredOn, section);
@@ -171,10 +214,107 @@ export function groupTransactionsByDay(
     section.items.push(item);
     if (item.type === 'expense') {
       section.expenseCents += item.amountCents;
+    } else if (item.type === 'refund') {
+      section.expenseCents -= item.amountCents;
+      section.refundCents += item.amountCents;
     } else if (item.type === 'income') {
       section.incomeCents += item.amountCents;
     }
   }
 
   return sections;
+}
+
+export const EMPTY_CATEGORY_ACCOUNT_MEMORY: CategoryAccountMemory = {
+  byCategoryId: {},
+  byRootCategoryId: {},
+  byType: {},
+};
+
+export interface ResolveRememberedAccountParams {
+  txType: 'expense' | 'income';
+  categoryId: string | null;
+  categories: readonly Pick<Category, 'id' | 'parentId'>[];
+  accounts: readonly Pick<Account, 'id' | 'isArchived'>[];
+  memory: CategoryAccountMemory;
+}
+
+/**
+ * 权威收支分类账户记忆解析规则（四层回退，始终优先返回活跃可用账户）：
+ * 1. 精确分类记忆：该分类（一级或二级）最近一次使用的活跃账户；
+ * 2. 所属大类兜底：回退至所属一级大类（含自身及同级兄弟子分类）最近一次使用的活跃账户；
+ * 3. 同收支类型兜底：回退至同类型（expense / income）全局最近一次使用的活跃账户；
+ * 4. 默认首账户：无历史匹配时返回第 1 个活跃账户。
+ */
+export function resolveRememberedAccountId({
+  txType,
+  categoryId,
+  categories,
+  accounts,
+  memory,
+}: ResolveRememberedAccountParams): string {
+  const activeAccountIds = new Set<string>();
+  let firstActiveAccountId = '';
+  for (const acc of accounts) {
+    if (!acc.isArchived) {
+      activeAccountIds.add(acc.id);
+      if (!firstActiveAccountId) {
+        firstActiveAccountId = acc.id;
+      }
+    }
+  }
+
+  const pickIfActive = (candidateId: string | undefined): string | null =>
+    candidateId && activeAccountIds.has(candidateId) ? candidateId : null;
+
+  if (categoryId) {
+    const exactMatch = pickIfActive(memory.byCategoryId[categoryId]);
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const currentCat = categories.find((c) => c.id === categoryId);
+    const rootId = currentCat?.parentId ?? categoryId;
+    const rootMatch = pickIfActive(memory.byRootCategoryId[rootId]);
+    if (rootMatch) {
+      return rootMatch;
+    }
+  }
+
+  const typeMatch = pickIfActive(memory.byType[txType]);
+  if (typeMatch) {
+    return typeMatch;
+  }
+
+  return firstActiveAccountId || accounts[0]?.id || '';
+}
+
+/**
+ * 在「保存并再记」后立即在内存中同步刚写入的收支记忆，避免异步刷新窗口内切换分类读到旧值。
+ */
+export function recordCategoryAccountMemory(
+  memory: CategoryAccountMemory,
+  params: {
+    txType: 'expense' | 'income';
+    categoryId: string;
+    accountId: string;
+    categories: readonly Pick<Category, 'id' | 'parentId'>[];
+  }
+): CategoryAccountMemory {
+  const currentCat = params.categories.find((c) => c.id === params.categoryId);
+  const rootId = currentCat?.parentId ?? params.categoryId;
+  return {
+    byCategoryId: {
+      ...memory.byCategoryId,
+      [params.categoryId]: params.accountId,
+    },
+    byRootCategoryId: {
+      ...memory.byRootCategoryId,
+      [rootId]: params.accountId,
+    },
+    byType: {
+      ...memory.byType,
+      [params.txType]: params.accountId,
+    },
+  };
 }

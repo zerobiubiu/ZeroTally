@@ -1,36 +1,53 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 异形屏适配：SafeScreen 硬隔离系统状态栏与刘海/挖孔区，顶部应用栏固定在安全区下方，列表仅在下方安全视口内滚动
- * - 信息层级：主（月度收支总览卡，点击进入账务分析）、次（按日分组账单明细）、弱（日小计与笔数）
+ * - 容器归属：顶部安全区与全局共享顶栏由 app/(tabs)/_layout.tsx 统一固定承接，本页专注深玉青总览卡与按日分组账单流水滚动区
+ * - 信息层级：主（按月/按年/全部总览卡，按月/按年点击标题弹出周期选择器，点击数据区直达账务分析）、次（按日分组账单明细）、弱（日小计与笔数）
  * - 文案密度：零解释性段落，空状态仅保留简短状态与记账动作按钮
  */
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../src/db/database-context';
+import { useMainDrawer } from '../../src/features/navigation/drawer-context';
 import { MonthlySummaryHeader } from '../../src/features/transactions/components/MonthlySummaryHeader';
+import { PeriodPickerSheet } from '../../src/features/transactions/components/PeriodPickerSheet';
 import { TransactionRow } from '../../src/features/transactions/components/TransactionRow';
-import { getMonthlyLedger } from '../../src/features/transactions/service';
-import type { MonthlyLedger, TransactionListItem } from '../../src/features/transactions/types';
+import { useTransactionListInteractions } from '../../src/features/transactions/components/useTransactionListInteractions';
+import {
+  getAllLedger,
+  getMonthlyLedger,
+  getYearlyLedger,
+} from '../../src/features/transactions/service';
+import type {
+  DailyTransactionSection,
+  LedgerPeriodMode,
+  MonthlySummary,
+} from '../../src/features/transactions/types';
 import {
   formatDaySectionTitle,
+  formatMonthTitle,
   getCurrentMonthKey,
+  getCurrentYear,
   shiftMonthKey,
 } from '../../src/shared/date/date';
 import { formatCentsToYuan } from '../../src/shared/money/money';
-import { AppIcon } from '../../src/shared/ui/AppIcon';
 import { EmptyState } from '../../src/shared/ui/EmptyState';
-import { SafeScreen } from '../../src/shared/ui/SafeScreen';
 import { useTheme } from '../../src/theme/theme-context';
 
-const EMPTY_LEDGER: MonthlyLedger = {
-  monthKey: getCurrentMonthKey(),
+interface LedgerViewState {
+  summary: MonthlySummary;
+  sections: DailyTransactionSection[];
+}
+
+const EMPTY_LEDGER_STATE: LedgerViewState = {
   summary: {
     expenseCents: 0,
     incomeCents: 0,
     balanceCents: 0,
     transferCents: 0,
+    refundCents: 0,
     transactionCount: 0,
   },
   sections: [],
@@ -40,16 +57,61 @@ export default function LedgerScreen(): React.JSX.Element {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { db, revision } = useDatabase();
+  const { isDrawerOpen, ledgerPeriodMode: periodMode } = useMainDrawer();
 
   const [monthKey, setMonthKey] = useState<string>(() => getCurrentMonthKey());
-  const [ledger, setLedger] = useState<MonthlyLedger>(EMPTY_LEDGER);
+  const [year, setYear] = useState<number>(() => getCurrentYear());
+  const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
+
+  // 响应全局共享顶栏切换「按月 / 按年 / 全部」时联动年月上下文并收起周期弹窗
+  const [prevPeriodMode, setPrevPeriodMode] = useState<LedgerPeriodMode>(periodMode);
+  if (prevPeriodMode !== periodMode) {
+    setPrevPeriodMode(periodMode);
+    if (periodPickerOpen) {
+      setPeriodPickerOpen(false);
+    }
+    if (periodMode === 'year' && prevPeriodMode === 'month') {
+      setYear(Number(monthKey.slice(0, 4)));
+    } else if (periodMode === 'month' && prevPeriodMode === 'year') {
+      const monthPart = monthKey.slice(5, 7);
+      setMonthKey(`${year}-${monthPart}`);
+    }
+  }
+
+  const [ledger, setLedger] = useState<LedgerViewState>(EMPTY_LEDGER_STATE);
   const [refreshing, setRefreshing] = useState(false);
+  const interactions = useTransactionListInteractions();
+  const closeAllSwipes = interactions.closeAllSwipes;
+
+  useEffect(() => {
+    closeAllSwipes();
+  }, [closeAllSwipes, periodMode]);
+
+  useEffect(() => {
+    if (isDrawerOpen) {
+      closeAllSwipes();
+    }
+  }, [closeAllSwipes, isDrawerOpen]);
+
+  const loadLedger = useCallback(async (): Promise<LedgerViewState> => {
+    if (periodMode === 'month') {
+      const data = await getMonthlyLedger(db, monthKey);
+      return { summary: data.summary, sections: data.sections };
+    }
+    if (periodMode === 'year') {
+      const data = await getYearlyLedger(db, year);
+      return { summary: data.summary, sections: data.sections };
+    }
+    const data = await getAllLedger(db);
+    return { summary: data.summary, sections: data.sections };
+  }, [db, monthKey, periodMode, year]);
 
   useEffect(() => {
     let active = true;
     void (async () => {
-      const data = await getMonthlyLedger(db, monthKey);
+      const data = await loadLedger();
       if (active) {
         setLedger(data);
       }
@@ -57,80 +119,37 @@ export default function LedgerScreen(): React.JSX.Element {
     return () => {
       active = false;
     };
-  }, [db, monthKey, revision]);
+  }, [loadLedger, revision]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await getMonthlyLedger(db, monthKey);
+      const data = await loadLedger();
       setLedger(data);
     } finally {
       setRefreshing(false);
     }
-  }, [db, monthKey]);
+  }, [loadLedger]);
 
-  const handlePressTransaction = useCallback(
-    (item: TransactionListItem) => {
-      router.push({ pathname: '/record', params: { id: item.id } });
-    },
-    [router]
-  );
+  const periodLabel =
+    periodMode === 'month'
+      ? formatMonthTitle(monthKey)
+      : periodMode === 'year'
+        ? `${year}年`
+        : '全部时间';
+
+  const emptyTitle =
+    periodMode === 'month'
+      ? '本月暂无账目'
+      : periodMode === 'year'
+        ? `${year}年暂无账目`
+        : '暂无账目';
 
   return (
-    <SafeScreen edges={['top', 'left', 'right']}>
-      {/* 固定顶栏：严守系统顶部工具栏下方，滚动时明细绝不侵入状态栏 */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingHorizontal: theme.spacing.lg,
-            backgroundColor: theme.colors.surface,
-          },
-        ]}
-      >
-        <View style={styles.titleGroup}>
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.xxl,
-              fontWeight: theme.fontWeight.semibold,
-            }}
-          >
-            简记
-          </Text>
-          <Text
-            style={{
-              color: theme.colors.textMuted,
-              fontSize: theme.fontSize.xs,
-              marginLeft: theme.spacing.sm,
-            }}
-          >
-            {ledger.summary.transactionCount} 笔
-          </Text>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="设置"
-          onPress={() => router.push('/settings')}
-          hitSlop={4}
-          style={({ pressed }) => [
-            styles.settingsBtn,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderColor: theme.colors.border,
-              borderWidth: theme.borderWidth.hairline,
-              borderRadius: theme.radius.full,
-            },
-            pressed && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <AppIcon name="settings-outline" size={20} color={theme.colors.textSecondary} />
-        </Pressable>
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       <ScrollView
         style={styles.scroll}
+        onScrollBeginDrag={closeAllSwipes}
         contentContainerStyle={{
           paddingTop: theme.spacing.sm,
           paddingHorizontal: theme.spacing.lg,
@@ -145,13 +164,37 @@ export default function LedgerScreen(): React.JSX.Element {
         }
       >
         <MonthlySummaryHeader
-          monthKey={monthKey}
+          mode={periodMode}
+          periodLabel={periodLabel}
           summary={ledger.summary}
-          onPrevMonth={() => setMonthKey((prev) => shiftMonthKey(prev, -1))}
-          onNextMonth={() => setMonthKey((prev) => shiftMonthKey(prev, 1))}
-          onResetCurrentMonth={() => setMonthKey(getCurrentMonthKey())}
+          onPrevPeriod={() => {
+            if (periodMode === 'month') {
+              setMonthKey((prev) => shiftMonthKey(prev, -1));
+            } else if (periodMode === 'year') {
+              setYear((prev) => prev - 1);
+            }
+          }}
+          onNextPeriod={() => {
+            if (periodMode === 'month') {
+              setMonthKey((prev) => shiftMonthKey(prev, 1));
+            } else if (periodMode === 'year') {
+              setYear((prev) => prev + 1);
+            }
+          }}
+          onPressPeriod={() => {
+            if (periodMode !== 'all') {
+              setPeriodPickerOpen(true);
+            }
+          }}
           onPressAnalytics={() =>
-            router.push({ pathname: '/analytics', params: { month: monthKey } })
+            router.push({
+              pathname: '/analytics',
+              params: {
+                scope: periodMode,
+                month: monthKey,
+                year: String(periodMode === 'year' ? year : Number(monthKey.slice(0, 4))),
+              },
+            })
           }
         />
 
@@ -159,7 +202,7 @@ export default function LedgerScreen(): React.JSX.Element {
           <View style={{ marginTop: theme.spacing.xl }}>
             <EmptyState
               icon="receipt-outline"
-              title="本月暂无账目"
+              title={emptyTitle}
               actionLabel="记一笔"
               onAction={() => router.push('/record')}
             />
@@ -189,6 +232,15 @@ export default function LedgerScreen(): React.JSX.Element {
                       >
                         支 {formatCentsToYuan(section.expenseCents)}
                       </Text>
+                    ) : section.expenseCents < 0 ? (
+                      <Text
+                        style={[
+                          styles.tabular,
+                          { color: theme.colors.textMuted, fontSize: theme.fontSize.xs },
+                        ]}
+                      >
+                        退 {formatCentsToYuan(Math.abs(section.expenseCents))}
+                      </Text>
                     ) : null}
                     {section.incomeCents > 0 ? (
                       <Text
@@ -217,7 +269,13 @@ export default function LedgerScreen(): React.JSX.Element {
                     <TransactionRow
                       key={item.id}
                       item={item}
-                      onPress={handlePressTransaction}
+                      onPress={interactions.handleInspect}
+                      onEdit={interactions.handleEdit}
+                      onRefund={interactions.handleRefund}
+                      onDelete={interactions.handleDelete}
+                      isSwipeOpen={isFocused && !isDrawerOpen && interactions.openSwipeId === item.id}
+                      onSwipeOpen={interactions.handleSwipeOpen}
+                      onSwipeClose={interactions.handleSwipeClose}
                       showDivider={idx < section.items.length - 1}
                     />
                   ))}
@@ -227,26 +285,30 @@ export default function LedgerScreen(): React.JSX.Element {
           </View>
         )}
       </ScrollView>
-    </SafeScreen>
+
+      <PeriodPickerSheet
+        visible={periodPickerOpen && periodMode !== 'all'}
+        mode={periodMode === 'year' ? 'year' : 'month'}
+        selectedMonthKey={monthKey}
+        selectedYear={year}
+        onSelectMonth={(nextMonth) => {
+          setMonthKey(nextMonth);
+          setYear(Number(nextMonth.slice(0, 4)));
+        }}
+        onSelectYear={(nextYear) => {
+          setYear(nextYear);
+        }}
+        onClose={() => setPeriodPickerOpen(false)}
+      />
+
+      {interactions.overlays}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  titleGroup: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  settingsBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  container: {
+    flex: 1,
   },
   scroll: {
     flex: 1,

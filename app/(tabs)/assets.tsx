@@ -1,12 +1,13 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 异形屏适配：SafeScreen 硬隔离系统状态栏与刘海/挖孔区，顶部标题栏固定，列表不侵入状态栏
+ * - 容器归属：顶部安全区与全局共享顶栏由 app/(tabs)/_layout.tsx 统一固定承接，本页专注净资产总览卡与资产/负债账户列表
  * - 信息层级：主（净资产总览卡）、次（资产与负债分组列表）、弱（已停用账户折叠区）
  * - 文案密度：简短名词与动作词，空状态不堆叠说明文案
  */
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../src/db/database-context';
 import { AccountRow } from '../../src/features/accounts/components/AccountRow';
@@ -15,7 +16,6 @@ import { getAssetOverview, type AssetOverview } from '../../src/features/account
 import type { Account } from '../../src/features/accounts/types';
 import { AppIcon } from '../../src/shared/ui/AppIcon';
 import { EmptyState } from '../../src/shared/ui/EmptyState';
-import { SafeScreen } from '../../src/shared/ui/SafeScreen';
 import { useTheme } from '../../src/theme/theme-context';
 
 const EMPTY_OVERVIEW: AssetOverview = {
@@ -75,78 +75,7 @@ export default function AssetsScreen(): React.JSX.Element {
     overview.assetAccounts.length > 0 || overview.liabilityAccounts.length > 0;
 
   return (
-    <SafeScreen edges={['top', 'left', 'right']}>
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingHorizontal: theme.spacing.lg,
-            backgroundColor: theme.colors.surface,
-          },
-        ]}
-      >
-        <Text
-          style={{
-            color: theme.colors.text,
-            fontSize: theme.fontSize.xxl,
-            fontWeight: theme.fontWeight.semibold,
-          }}
-        >
-          资产
-        </Text>
-
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="新增账户"
-            onPress={() => router.push('/account-form')}
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.addAccountBtn,
-              {
-                backgroundColor: theme.colors.surfaceRaised,
-                borderColor: theme.colors.borderStrong,
-                borderWidth: theme.borderWidth.hairline,
-                borderRadius: theme.radius.full,
-                paddingHorizontal: theme.spacing.md,
-              },
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="add" size={18} color={theme.colors.action} />
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.sm,
-                fontWeight: theme.fontWeight.semibold,
-                marginLeft: theme.spacing.xs,
-              }}
-            >
-              新增
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="设置"
-            onPress={() => router.push('/settings')}
-            hitSlop={4}
-            style={({ pressed }) => [
-              styles.settingsBtn,
-              {
-                backgroundColor: theme.colors.surfaceRaised,
-                borderColor: theme.colors.border,
-                borderWidth: theme.borderWidth.hairline,
-                borderRadius: theme.radius.full,
-              },
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="settings-outline" size={20} color={theme.colors.textSecondary} />
-          </Pressable>
-        </View>
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{
@@ -295,32 +224,13 @@ export default function AssetsScreen(): React.JSX.Element {
           </View>
         ) : null}
       </ScrollView>
-    </SafeScreen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  addAccountBtn: {
-    height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingsBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  container: {
+    flex: 1,
   },
   scroll: {
     flex: 1,

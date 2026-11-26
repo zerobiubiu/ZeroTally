@@ -21,6 +21,43 @@ export function getCurrentMonthKey(now: Date = new Date()): string {
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
 }
 
+/** 返回本地时区的当前年份 */
+export function getCurrentYear(now: Date = new Date()): number {
+  return now.getFullYear();
+}
+
+/** 计算包含指定年份的 12 年分页起始年（以 2020 为锚点：2008-2019、2020-2031、2032-2043...） */
+export function getYearRangeStart(year: number, span = 12): number {
+  return 2020 + Math.floor((year - 2020) / span) * span;
+}
+
+/** 返回指定年份的起止 YYYY-MM-DD 闭区间 */
+export function getYearDateRange(year: number): { start: string; end: string } {
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  };
+}
+
+/** 返回指定年份的自然天数（闰年 366，平年 365） */
+export function getDaysInYear(year: number): number {
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  return isLeap ? 366 : 365;
+}
+
+/** 计算两个 YYYY-MM-DD 日期之间的闭区间天数（至少返回 1） */
+export function countInclusiveDaysBetween(startIso: string, endIso: string): number {
+  if (!isValidIsoDate(startIso) || !isValidIsoDate(endIso)) {
+    return 1;
+  }
+  const [sy, sm, sd] = startIso.split('-').map(Number);
+  const [ey, em, ed] = endIso.split('-').map(Number);
+  const startUtc = Date.UTC(sy!, sm! - 1, sd!);
+  const endUtc = Date.UTC(ey!, em! - 1, ed!);
+  const diffDays = Math.floor((endUtc - startUtc) / 86_400_000) + 1;
+  return Math.max(1, diffDays);
+}
+
 /** 校验 YYYY-MM-DD 是否为真实日历日期 */
 export function isValidIsoDate(value: string): boolean {
   const match = ISO_DATE_PATTERN.exec(value);
@@ -97,6 +134,43 @@ export function formatMonthTitle(monthKey: string): string {
   }
   const [yearStr, monthStr] = monthKey.split('-');
   return `${yearStr}年${Number(monthStr)}月`;
+}
+
+/** 格式化记账日期短标签：今天 / 昨天 / 11月20日 / 2025年11月20日（跨年） */
+export function formatRelativeDateLabel(isoDate: string, todayIso: string = getTodayIsoDate()): string {
+  if (!isValidIsoDate(isoDate)) {
+    return isoDate;
+  }
+  if (isoDate === todayIso) {
+    return '今天';
+  }
+  if (isoDate === shiftIsoDate(todayIso, -1)) {
+    return '昨天';
+  }
+  const [yearStr, monthStr, dayStr] = isoDate.split('-');
+  const monthDay = `${Number(monthStr)}月${Number(dayStr)}日`;
+  return yearStr === todayIso.slice(0, 4) ? monthDay : `${yearStr}年${monthDay}`;
+}
+
+/**
+ * 生成月历网格（周一为每周第一天）：返回长度为 7 的倍数的数组，
+ * 本月日期为 YYYY-MM-DD，首尾补位为 null。
+ */
+export function getMonthCalendarCells(monthKey: string): (string | null)[] {
+  const { start, end } = getMonthDateRange(monthKey);
+  const [yearStr, monthStr] = monthKey.split('-');
+  const firstWeekday = new Date(Number(yearStr), Number(monthStr) - 1, 1).getDay();
+  const leading = (firstWeekday + 6) % 7;
+  const lastDay = Number(end.slice(8, 10));
+
+  const cells: (string | null)[] = Array.from({ length: leading }, () => null);
+  for (let day = 1; day <= lastDay; day += 1) {
+    cells.push(`${start.slice(0, 8)}${pad2(day)}`);
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+  return cells;
 }
 
 /** 格式化按日分组标题（如 "11月25日 周三 · 今天"） */

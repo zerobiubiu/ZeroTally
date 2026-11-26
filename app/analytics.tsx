@@ -1,7 +1,7 @@
 /**
- * 约束简报（Workflow B）：
- * - 信息层级：主（月份切换 + 支出/收入/结余核心指标卡）、次（近 6 月收支趋势柱图 + 分类占比排行）、弱（账户分布与日均/结余率辅助指标）
- * - 交互意图：由明细页顶部月度总览卡点击直达，支持点击 6 月趋势柱快速切月
+ * 约束简报（Workflow B / C）：
+ * - 信息层级：主（顶部「按月 / 按年 / 全部」范围切换 + 周期核心指标卡）、次（收支趋势柱图 + 一级分类占比排行）、弱（账户分布与日均/结余率辅助指标）
+ * - 交互意图：移除「本月」快捷字样，按月/按年态点击周期标题弹出 PeriodPickerSheet；按年趋势点击单月柱下钻月度分析，全部趋势点击单年柱下钻年度分析
  * - 语义双重编码：柱图与排行均同时呈现文字标签、颜色与精确数值/百分比
  */
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -9,11 +9,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
-import { getMonthlyAnalytics } from '../src/features/analytics/service';
-import type { AnalyticsKind, MonthlyAnalyticsReport } from '../src/features/analytics/types';
+import { getScopedAnalytics } from '../src/features/analytics/service';
+import type {
+  AnalyticsKind,
+  AnalyticsScope,
+  ScopedAnalyticsReport,
+} from '../src/features/analytics/types';
+import { PeriodPickerSheet } from '../src/features/transactions/components/PeriodPickerSheet';
 import {
   formatMonthTitle,
   getCurrentMonthKey,
+  getCurrentYear,
   isValidMonthKey,
   shiftMonthKey,
 } from '../src/shared/date/date';
@@ -22,6 +28,12 @@ import { AppIcon } from '../src/shared/ui/AppIcon';
 import { EmptyState } from '../src/shared/ui/EmptyState';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
 import { useTheme } from '../src/theme/theme-context';
+
+const SCOPE_OPTIONS: readonly { value: AnalyticsScope; label: string }[] = [
+  { value: 'month', label: '按月' },
+  { value: 'year', label: '按年' },
+  { value: 'all', label: '全部' },
+];
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -34,19 +46,36 @@ export default function AnalyticsScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { db, revision } = useDatabase();
 
-  const params = useLocalSearchParams<{ month?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    scope?: string | string[];
+    month?: string | string[];
+    year?: string | string[];
+  }>();
+  const initialScopeParam = firstParam(params.scope);
   const initialMonth = firstParam(params.month);
+  const initialYearParam = Number(firstParam(params.year));
 
+  const [scope, setScope] = useState<AnalyticsScope>(() =>
+    initialScopeParam === 'year' || initialScopeParam === 'all' ? initialScopeParam : 'month'
+  );
   const [monthKey, setMonthKey] = useState<string>(() =>
     initialMonth && isValidMonthKey(initialMonth) ? initialMonth : getCurrentMonthKey()
   );
+  const [year, setYear] = useState<number>(() =>
+    Number.isInteger(initialYearParam) && initialYearParam >= 1970 && initialYearParam <= 2100
+      ? initialYearParam
+      : initialMonth && isValidMonthKey(initialMonth)
+        ? Number(initialMonth.slice(0, 4))
+        : getCurrentYear()
+  );
   const [kind, setKind] = useState<AnalyticsKind>('expense');
-  const [report, setReport] = useState<MonthlyAnalyticsReport | null>(null);
+  const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
+  const [report, setReport] = useState<ScopedAnalyticsReport | null>(null);
 
   useEffect(() => {
     let active = true;
     void (async () => {
-      const data = await getMonthlyAnalytics(db, monthKey);
+      const data = await getScopedAnalytics(db, { scope, monthKey, year });
       if (active) {
         setReport(data);
       }
@@ -54,21 +83,32 @@ export default function AnalyticsScreen(): React.JSX.Element {
     return () => {
       active = false;
     };
-  }, [db, monthKey, revision]);
+  }, [db, scope, monthKey, year, revision]);
 
   const maxTrendCents = useMemo(() => {
     if (!report) {
       return 0;
     }
     let peak = 0;
-    for (const pt of report.trend6Months) {
+    for (const pt of report.trendPoints) {
       if (pt.expenseCents > peak) peak = pt.expenseCents;
       if (pt.incomeCents > peak) peak = pt.incomeCents;
     }
     return peak;
   }, [report]);
 
-  const isCurrentMonth = monthKey === getCurrentMonthKey();
+  const handleSwitchScope = (nextScope: AnalyticsScope) => {
+    if (nextScope === scope) {
+      return;
+    }
+    if (nextScope === 'year' && scope === 'month') {
+      setYear(Number(monthKey.slice(0, 4)));
+    } else if (nextScope === 'month' && scope === 'year') {
+      setMonthKey(`${year}-${monthKey.slice(5, 7)}`);
+    }
+    setScope(nextScope);
+  };
+
   const categoryList = report
     ? kind === 'expense'
       ? report.expenseByCategory
@@ -84,6 +124,23 @@ export default function AnalyticsScreen(): React.JSX.Element {
   const badgeFg =
     kind === 'expense' ? theme.colors.expenseTextOnSubtle : theme.colors.incomeTextOnSubtle;
 
+  const isDenseYearTrend = scope === 'year';
+  const periodTitle =
+    scope === 'month' ? formatMonthTitle(monthKey) : scope === 'year' ? `${year}年` : '全部时间';
+
+  const emptyCategoryTitle =
+    scope === 'month'
+      ? kind === 'expense'
+        ? '本月暂无支出'
+        : '本月暂无收入'
+      : scope === 'year'
+        ? kind === 'expense'
+          ? `${year}年暂无支出`
+          : `${year}年暂无收入`
+        : kind === 'expense'
+          ? '暂无支出记录'
+          : '暂无收入记录';
+
   return (
     <SafeScreen edges={['left', 'right']}>
       <Stack.Screen options={{ title: '账务分析' }} />
@@ -95,7 +152,49 @@ export default function AnalyticsScreen(): React.JSX.Element {
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
         }}
       >
-        {/* 月份切换与核心指标汇总卡 */}
+        {/* 周期范围切换：按月 / 按年 / 全部 */}
+        <View
+          style={[
+            styles.segmentBar,
+            {
+              backgroundColor: theme.colors.surfaceRaised,
+              borderRadius: theme.radius.md,
+              padding: theme.spacing.xs,
+              marginBottom: theme.spacing.md,
+            },
+          ]}
+        >
+          {SCOPE_OPTIONS.map((opt) => {
+            const selected = scope === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                onPress={() => handleSwitchScope(opt.value)}
+                style={[
+                  styles.segmentItem,
+                  {
+                    borderRadius: theme.radius.sm,
+                    backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: selected ? theme.colors.actionTextOnSubtle : theme.colors.textMuted,
+                    fontSize: theme.fontSize.sm,
+                    fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
+                  }}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* 周期切换与核心指标汇总卡 */}
         <View
           style={[
             styles.card,
@@ -107,18 +206,8 @@ export default function AnalyticsScreen(): React.JSX.Element {
             },
           ]}
         >
-          <View style={styles.monthRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="上一个月"
-              onPress={() => setMonthKey((prev) => shiftMonthKey(prev, -1))}
-              hitSlop={8}
-              style={styles.monthArrow}
-            >
-              <AppIcon name="chevron-back" size={20} color={theme.colors.text} />
-            </Pressable>
-
-            <View style={styles.monthCenter}>
+          {scope === 'all' ? (
+            <View style={styles.allHeader}>
               <Text
                 style={{
                   color: theme.colors.text,
@@ -126,39 +215,89 @@ export default function AnalyticsScreen(): React.JSX.Element {
                   fontWeight: theme.fontWeight.semibold,
                 }}
               >
-                {formatMonthTitle(monthKey)}
+                {periodTitle}
               </Text>
-              {!isCurrentMonth ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="回到本月"
-                  onPress={() => setMonthKey(getCurrentMonthKey())}
-                  hitSlop={8}
-                  style={{ marginLeft: theme.spacing.sm }}
-                >
-                  <Text
-                    style={{
-                      color: theme.colors.action,
+              {report?.dateRangeLabel ? (
+                <Text
+                  style={[
+                    styles.tabular,
+                    {
+                      color: theme.colors.textMuted,
                       fontSize: theme.fontSize.xs,
-                      fontWeight: theme.fontWeight.semibold,
-                    }}
-                  >
-                    本月
-                  </Text>
-                </Pressable>
+                      marginTop: theme.spacing.xs,
+                    },
+                  ]}
+                >
+                  {report.dateRangeLabel}
+                </Text>
               ) : null}
             </View>
+          ) : (
+            <View style={styles.periodRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={scope === 'month' ? '上一个月' : '上一年'}
+                onPress={() => {
+                  if (scope === 'month') {
+                    setMonthKey((prev) => shiftMonthKey(prev, -1));
+                  } else {
+                    setYear((prev) => prev - 1);
+                  }
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.periodArrow,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <AppIcon name="chevron-back" size={20} color={theme.colors.text} />
+              </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="下一个月"
-              onPress={() => setMonthKey((prev) => shiftMonthKey(prev, 1))}
-              hitSlop={8}
-              style={styles.monthArrow}
-            >
-              <AppIcon name="chevron-forward" size={20} color={theme.colors.text} />
-            </Pressable>
-          </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`选择${scope === 'month' ? '月份' : '年份'}，当前 ${periodTitle}`}
+                onPress={() => setPeriodPickerOpen(true)}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.periodCenterBtn,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabular,
+                    {
+                      color: theme.colors.text,
+                      fontSize: theme.fontSize.lg,
+                      fontWeight: theme.fontWeight.semibold,
+                    },
+                  ]}
+                >
+                  {periodTitle}
+                </Text>
+                <AppIcon name="chevron-down" size={14} color={theme.colors.textMuted} />
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={scope === 'month' ? '下一个月' : '下一年'}
+                onPress={() => {
+                  if (scope === 'month') {
+                    setMonthKey((prev) => shiftMonthKey(prev, 1));
+                  } else {
+                    setYear((prev) => prev + 1);
+                  }
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.periodArrow,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <AppIcon name="chevron-forward" size={20} color={theme.colors.text} />
+              </Pressable>
+            </View>
+          )}
 
           <View style={[styles.kpiGrid, { marginTop: theme.spacing.lg }]}>
             <View style={styles.kpiItem}>
@@ -297,7 +436,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* 近 6 个月收支趋势 */}
+        {/* 收支趋势柱图（按月 6 月 / 按年 12 月 / 全部按年） */}
         <View style={{ marginTop: theme.spacing.xl }}>
           <View style={[styles.sectionHeader, { marginBottom: theme.spacing.sm }]}>
             <Text
@@ -307,7 +446,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
                 fontWeight: theme.fontWeight.semibold,
               }}
             >
-              近 6 个月趋势
+              {report?.trendTitle ?? '收支趋势'}
             </Text>
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
@@ -332,13 +471,14 @@ export default function AnalyticsScreen(): React.JSX.Element {
               {
                 backgroundColor: theme.colors.surfaceRaised,
                 borderRadius: theme.radius.lg,
-                padding: theme.spacing.lg,
+                paddingHorizontal: isDenseYearTrend ? theme.spacing.sm : theme.spacing.lg,
+                paddingVertical: theme.spacing.lg,
               },
             ]}
           >
-            <View style={styles.chartRow}>
-              {(report?.trend6Months ?? []).map((pt) => {
-                const selected = pt.monthKey === monthKey;
+            <View style={[styles.chartRow, { gap: isDenseYearTrend ? 2 : 4 }]}>
+              {(report?.trendPoints ?? []).map((pt) => {
+                const selected = scope === 'month' && pt.key === monthKey;
                 const expHeight =
                   maxTrendCents > 0 && pt.expenseCents > 0
                     ? Math.max(4, Math.round((pt.expenseCents / maxTrendCents) * CHART_BAR_MAX_HEIGHT))
@@ -348,30 +488,47 @@ export default function AnalyticsScreen(): React.JSX.Element {
                     ? Math.max(4, Math.round((pt.incomeCents / maxTrendCents) * CHART_BAR_MAX_HEIGHT))
                     : 2;
 
+                const compactLabel = isDenseYearTrend ? pt.label.replace('月', '') : pt.label;
+
                 return (
                   <Pressable
-                    key={pt.monthKey}
+                    key={pt.key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${formatMonthTitle(pt.monthKey)}，支出 ${formatCentsToYuan(pt.expenseCents)}，收入 ${formatCentsToYuan(pt.incomeCents)}`}
+                    accessibilityLabel={`${pt.label}，支出 ${formatCentsToYuan(pt.expenseCents)}，收入 ${formatCentsToYuan(pt.incomeCents)}`}
                     accessibilityState={{ selected }}
-                    onPress={() => setMonthKey(pt.monthKey)}
-                    style={[
+                    onPress={() => {
+                      if (scope === 'month') {
+                        setMonthKey(pt.key);
+                      } else if (scope === 'year') {
+                        setMonthKey(pt.key);
+                        setScope('month');
+                      } else {
+                        const targetYear = Number(pt.key);
+                        if (Number.isInteger(targetYear)) {
+                          setYear(targetYear);
+                          setScope('year');
+                        }
+                      }
+                    }}
+                    style={({ pressed }) => [
                       styles.chartCol,
                       selected && {
                         backgroundColor: theme.colors.surface,
                         borderRadius: theme.radius.sm,
                       },
+                      pressed && { opacity: theme.opacity.pressed },
                     ]}
                   >
-                    <View style={styles.barsWrap}>
+                    <View style={[styles.barsWrap, { gap: isDenseYearTrend ? 1.5 : 3 }]}>
                       <View
                         style={[
                           styles.bar,
                           {
+                            width: isDenseYearTrend ? 5 : 10,
                             height: expHeight,
                             backgroundColor:
                               pt.expenseCents > 0 ? theme.colors.expense : theme.colors.border,
-                            opacity: selected ? 1 : 0.72,
+                            opacity: selected || scope !== 'month' ? 1 : 0.72,
                           },
                         ]}
                       />
@@ -379,25 +536,30 @@ export default function AnalyticsScreen(): React.JSX.Element {
                         style={[
                           styles.bar,
                           {
+                            width: isDenseYearTrend ? 5 : 10,
                             height: incHeight,
                             backgroundColor:
                               pt.incomeCents > 0 ? theme.colors.income : theme.colors.border,
-                            opacity: selected ? 1 : 0.72,
+                            opacity: selected || scope !== 'month' ? 1 : 0.72,
                           },
                         ]}
                       />
                     </View>
                     <Text
-                      style={{
-                        color: selected ? theme.colors.action : theme.colors.textMuted,
-                        fontSize: theme.fontSize.xs,
-                        fontWeight: selected
-                          ? theme.fontWeight.semibold
-                          : theme.fontWeight.regular,
-                        marginTop: theme.spacing.sm,
-                      }}
+                      numberOfLines={1}
+                      style={[
+                        styles.tabular,
+                        {
+                          color: selected ? theme.colors.action : theme.colors.textMuted,
+                          fontSize: isDenseYearTrend ? 11 : theme.fontSize.xs,
+                          fontWeight: selected
+                            ? theme.fontWeight.semibold
+                            : theme.fontWeight.regular,
+                          marginTop: theme.spacing.sm,
+                        },
+                      ]}
                     >
-                      {pt.label}
+                      {compactLabel}
                     </Text>
                   </Pressable>
                 );
@@ -463,10 +625,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
           </Text>
 
           {categoryList.length === 0 ? (
-            <EmptyState
-              icon="pie-chart-outline"
-              title={kind === 'expense' ? '本月暂无支出' : '本月暂无收入'}
-            />
+            <EmptyState icon="pie-chart-outline" title={emptyCategoryTitle} />
           ) : (
             <View
               style={[
@@ -510,6 +669,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
                         <Text
                           numberOfLines={1}
                           style={{
+                            flexShrink: 1,
                             color: theme.colors.text,
                             fontSize: theme.fontSize.sm,
                             fontWeight: theme.fontWeight.semibold,
@@ -629,6 +789,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
                     <Text
                       numberOfLines={1}
                       style={{
+                        flexShrink: 1,
                         color: theme.colors.text,
                         fontSize: theme.fontSize.sm,
                         fontWeight: theme.fontWeight.semibold,
@@ -681,26 +842,50 @@ export default function AnalyticsScreen(): React.JSX.Element {
           </View>
         ) : null}
       </ScrollView>
+
+      {scope !== 'all' ? (
+        <PeriodPickerSheet
+          visible={periodPickerOpen}
+          mode={scope}
+          selectedMonthKey={monthKey}
+          selectedYear={year}
+          onSelectMonth={(nextMonth) => {
+            setMonthKey(nextMonth);
+            setYear(Number(nextMonth.slice(0, 4)));
+          }}
+          onSelectYear={(nextYear) => {
+            setYear(nextYear);
+          }}
+          onClose={() => setPeriodPickerOpen(false)}
+        />
+      ) : null}
     </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
   card: {},
-  monthRow: {
+  allHeader: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  periodRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  monthArrow: {
+  periodArrow: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthCenter: {
+  periodCenterBtn: {
+    minHeight: 36,
+    paddingHorizontal: 10,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    gap: 5,
   },
   kpiGrid: {
     flexDirection: 'row',
@@ -741,7 +926,6 @@ const styles = StyleSheet.create({
   chartRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 4,
   },
   chartCol: {
     flex: 1,
@@ -752,10 +936,8 @@ const styles = StyleSheet.create({
     height: CHART_BAR_MAX_HEIGHT,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 3,
   },
   bar: {
-    width: 10,
     borderRadius: 3,
   },
   segmentBar: {

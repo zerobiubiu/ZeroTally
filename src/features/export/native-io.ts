@@ -1,12 +1,17 @@
-import { Directory } from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
 import { Share } from 'react-native';
-import type { GeneratedExportArtifact } from './types';
+
+export interface SaveableJsonArtifact {
+  filename: string;
+  mimeType: string;
+  content: string;
+}
 
 /**
- * 调用系统目录选择器将结构化文件写入用户选定的本地文件夹（Android SAF，免额外存储权限）。
+ * 调用系统目录选择器将 JSON 文件写入用户选定的本地文件夹（Android SAF，免额外存储权限）。
  */
 export async function saveExportArtifactToDirectory(
-  artifact: GeneratedExportArtifact
+  artifact: SaveableJsonArtifact
 ): Promise<{ saved: boolean; uri?: string }> {
   try {
     const dir = await Directory.pickDirectoryAsync();
@@ -23,11 +28,43 @@ export async function saveExportArtifactToDirectory(
 }
 
 /**
- * 通过系统分享面板发送标准结构化文本（JSON / CSV）。
+ * 通过系统分享面板发送 JSON 文本。
  */
-export async function shareExportArtifact(artifact: GeneratedExportArtifact): Promise<void> {
+export async function shareExportArtifact(artifact: SaveableJsonArtifact): Promise<void> {
   await Share.share({
     title: artifact.filename,
     message: artifact.content,
   });
+}
+
+/**
+ * 调用系统文件选择器读取本地 JSON 文本（使用 expo-file-system 原生 File.pickFileAsync，零额外原生依赖）。
+ */
+export async function pickJsonFileText(): Promise<{
+  cancelled: boolean;
+  filename?: string;
+  content?: string;
+}> {
+  try {
+    const picked = await File.pickFileAsync({
+      mimeTypes: ['application/json', 'text/plain', '*/*'],
+    });
+    const file = Array.isArray(picked) ? picked[0] : picked;
+    if (!file) {
+      return { cancelled: true };
+    }
+    const content = await file.text();
+    const rawName = file.name || decodeURIComponent(file.uri.split('/').pop() ?? 'backup.json');
+    return {
+      cancelled: false,
+      filename: rawName,
+      content,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (/cancel/i.test(message)) {
+      return { cancelled: true };
+    }
+    throw err;
+  }
 }
