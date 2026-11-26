@@ -66,16 +66,6 @@ export function ClearLedgerDialog({
   const matched = inputCode.trim() === code;
   const displayError = error ?? localError;
 
-  const handleRefreshCode = () => {
-    if (loading) {
-      return;
-    }
-    hapticLight();
-    setCode(generateFourDigitCode());
-    setInputCode('');
-    setLocalError(null);
-  };
-
   const handlePressConfirm = () => {
     if (loading) {
       return;
@@ -244,7 +234,7 @@ export function ClearLedgerDialog({
             ) : null}
           </View>
 
-          {/* 4 位随机验证码展示块 */}
+          {/* 4 位随机验证码展示块（每次弹出自动生成，不提供刷新按钮） */}
           <View
             style={[
               styles.codeBox,
@@ -259,45 +249,23 @@ export function ClearLedgerDialog({
               },
             ]}
           >
-            <View>
-              <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs }}>
-                请输入下方 4 位安全验证码
-              </Text>
-              <Text
-                selectable
-                style={[
-                  styles.codeDigits,
-                  {
-                    color: theme.colors.expense,
-                    fontSize: theme.fontSize.xxl,
-                    fontWeight: theme.fontWeight.semibold,
-                    marginTop: 2,
-                  },
-                ]}
-              >
-                {code.split('').join(' ')}
-              </Text>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="刷新验证码"
-              disabled={loading}
-              onPress={handleRefreshCode}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.refreshBtn,
+            <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs }}>
+              请输入下方 4 位安全验证码
+            </Text>
+            <Text
+              selectable
+              style={[
+                styles.codeDigits,
                 {
-                  backgroundColor: theme.colors.surfaceRaised,
-                  borderColor: theme.colors.border,
-                  borderWidth: theme.borderWidth.hairline,
-                  borderRadius: theme.radius.full,
+                  color: theme.colors.expense,
+                  fontSize: theme.fontSize.xxl,
+                  fontWeight: theme.fontWeight.semibold,
+                  marginTop: 4,
                 },
-                pressed && { opacity: theme.opacity.pressed },
               ]}
             >
-              <AppIcon name="refresh-outline" size={16} color={theme.colors.textSecondary} />
-            </Pressable>
+              {code.split('').join(' ')}
+            </Text>
           </View>
 
           <TextInput
@@ -473,19 +441,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   codeBox: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   codeDigits: {
     fontVariant: ['tabular-nums'],
-    letterSpacing: 4,
-  },
-  refreshBtn: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
+    letterSpacing: 6,
   },
   codeInput: {
     minHeight: 48,

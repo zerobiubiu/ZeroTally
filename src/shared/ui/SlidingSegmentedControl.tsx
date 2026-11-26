@@ -1,17 +1,31 @@
 /**
  * 约束简报（Workflow B / C）：
- * - iOS 风格分段滑块控件：支持普通点击弹簧切换，以及长按（140ms）触发马达震动微抬起后 1:1 跟手左右滑动切档（每跨档位一次清脆刻度震动）
- * - 手势隔离：长按激活后由本控件子级 PanGesture 接管触摸，自动阻断父级页面横向翻页手势，零误触
+ * - 全应用统一 iOS 风格分段滑块控件：收口明细周期、设置外观、分类收支、账务分析、快捷记账类型与账户性质等所有 2~4 段互斥切换
+ * - 统一手感：短按轻点弹簧丝滑切档 + 刻度震动；长按（140ms）触发轻震动并微浮起放大，随后 1:1 跟手左右滑动实时切档（每跨档位一次清脆震动）
+ * - 视觉分层与手势隔离：支持 surface / surfaceRaised 轨道层级、pill / rounded 圆角与单格语义配色；长按激活后由子级 PanGesture 接管，自动阻断父级页面/抽屉横滑
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import { hapticLight, hapticSelection } from '../haptics/haptics';
 import { useTheme } from '../../theme/theme-context';
+import { hapticLight, hapticSelection } from '../haptics/haptics';
+import { resolveSegmentDragPosition } from './sliding-segmented-rules';
 
 export interface SlidingSegmentOption<T extends string> {
   value: T;
   label: string;
+  /** 可选：该项选中时的滑块语义底色（默认 theme.colors.actionSubtle） */
+  activeBackgroundColor?: string;
+  /** 可选：该项选中时的文字颜色（默认 theme.colors.actionTextOnSubtle） */
+  activeTextColor?: string;
 }
 
 export interface SlidingSegmentedControlProps<T extends string> {
@@ -20,8 +34,20 @@ export interface SlidingSegmentedControlProps<T extends string> {
   onChange: (nextValue: T) => void;
   /** 控件轨道高度（默认 40） */
   height?: number;
-  /** 每格最小宽度（默认 50） */
+  /** 非通栏模式下的每格最小宽度（默认 52） */
   minSegmentWidth?: number;
+  /** 是否撑满父容器宽度均分各格（默认 false，适合顶栏紧凑布局） */
+  fullWidth?: boolean;
+  /** 视觉圆角风格：pill = 全圆角胶囊，rounded = 柔和圆角矩形 */
+  shape?: 'pill' | 'rounded';
+  /** 轨道底色层级：页面底色上用 surfaceRaised，卡片/浮窗内用 surface */
+  trackTone?: 'surface' | 'surfaceRaised';
+  /** 标签字号级别（默认 sm） */
+  textSize?: 'xs' | 'sm' | 'base';
+  /** 禁用状态 */
+  disabled?: boolean;
+  /** 附加外容器样式（如外边距） */
+  style?: StyleProp<ViewStyle>;
 }
 
 const TRACK_PADDING = 3;
@@ -32,6 +58,12 @@ export function SlidingSegmentedControl<T extends string>({
   onChange,
   height = 40,
   minSegmentWidth = 52,
+  fullWidth = false,
+  shape = 'pill',
+  trackTone = 'surfaceRaised',
+  textSize = 'sm',
+  disabled = false,
+  style,
 }: SlidingSegmentedControlProps<T>): React.JSX.Element {
   const { theme } = useTheme();
   const count = Math.max(1, options.length);
@@ -39,12 +71,14 @@ export function SlidingSegmentedControl<T extends string>({
     0,
     options.findIndex((o) => o.value === value)
   );
+  const activeOption = options[selectedIndex];
 
-  const [segmentWidth, setSegmentWidth] = useState(minSegmentWidth);
-  const [thumbX] = useState(() => new Animated.Value(selectedIndex * minSegmentWidth));
+  const initialWidth = fullWidth ? 0 : minSegmentWidth;
+  const [segmentWidth, setSegmentWidth] = useState(initialWidth);
+  const [thumbX] = useState(() => new Animated.Value(selectedIndex * initialWidth));
   const [thumbScale] = useState(() => new Animated.Value(1));
 
-  const segmentWidthRef = useRef(segmentWidth);
+  const segmentWidthRef = useRef(initialWidth);
   const selectedIndexRef = useRef(selectedIndex);
   const optionsRef = useRef(options);
   const onChangeRef = useRef(onChange);
@@ -85,7 +119,7 @@ export function SlidingSegmentedControl<T extends string>({
     if (draggingRef.current) {
       return;
     }
-    if (!hasMeasuredRef.current) {
+    if (!hasMeasuredRef.current || segmentWidth <= 0) {
       thumbX.setValue(selectedIndex * segmentWidth);
       return;
     }
@@ -94,18 +128,25 @@ export function SlidingSegmentedControl<T extends string>({
 
   const updateIndexFromFingerX = useCallback(
     (fingerX: number) => {
-      const segW = Math.max(1, segmentWidthRef.current);
+      const segW = segmentWidthRef.current;
       const opts = optionsRef.current;
-      const innerX = fingerX - TRACK_PADDING;
-      const maxThumbX = Math.max(0, (opts.length - 1) * segW);
-      const clampedThumb = Math.max(0, Math.min(maxThumbX, innerX - segW / 2));
-      thumbX.setValue(clampedThumb);
+      if (segW <= 0 || opts.length === 0) {
+        return;
+      }
 
-      const nextIdx = Math.max(0, Math.min(opts.length - 1, Math.floor(innerX / segW)));
-      if (nextIdx !== selectedIndexRef.current) {
-        selectedIndexRef.current = nextIdx;
+      const { clampedThumbX, targetIndex } = resolveSegmentDragPosition({
+        fingerX,
+        trackPadding: TRACK_PADDING,
+        segmentWidth: segW,
+        count: opts.length,
+      });
+
+      thumbX.setValue(clampedThumbX);
+
+      if (targetIndex !== selectedIndexRef.current) {
+        selectedIndexRef.current = targetIndex;
         hapticSelection();
-        const nextOption = opts[nextIdx];
+        const nextOption = opts[targetIndex];
         if (nextOption) {
           onChangeRef.current(nextOption.value);
         }
@@ -114,9 +155,9 @@ export function SlidingSegmentedControl<T extends string>({
     [thumbX]
   );
 
-  // 长按 140ms 触发震动与滑块轻抬起，随后 1:1 跟手在各分段间滑动切换
+  // 长按 140ms 触发轻震动与滑块浮起放大，随后 1:1 跟手左右滑动切档
   const slidePanGesture = usePanGesture({
-    enabled: options.length > 1,
+    enabled: !disabled && options.length > 1,
     disableReanimated: true,
     runOnJS: true,
     activateAfterLongPress: 140,
@@ -125,7 +166,7 @@ export function SlidingSegmentedControl<T extends string>({
       draggingRef.current = true;
       hapticLight();
       Animated.spring(thumbScale, {
-        toValue: 1.06,
+        toValue: 1.05,
         useNativeDriver: true,
         stiffness: 420,
         damping: 24,
@@ -155,6 +196,16 @@ export function SlidingSegmentedControl<T extends string>({
   });
 
   const thumbHeight = height - TRACK_PADDING * 2;
+  const trackRadius = shape === 'pill' ? theme.radius.full : theme.radius.md;
+  const thumbRadius = shape === 'pill' ? theme.radius.full : theme.radius.sm;
+  const trackBg = trackTone === 'surface' ? theme.colors.surface : theme.colors.surfaceRaised;
+  const thumbBg = activeOption?.activeBackgroundColor ?? theme.colors.actionSubtle;
+  const resolvedFontSize =
+    textSize === 'xs'
+      ? theme.fontSize.xs
+      : textSize === 'base'
+        ? theme.fontSize.base
+        : theme.fontSize.sm;
 
   return (
     <GestureDetector gesture={slidePanGesture}>
@@ -175,41 +226,48 @@ export function SlidingSegmentedControl<T extends string>({
         }}
         style={[
           styles.track,
+          fullWidth && styles.fullWidth,
           {
             height,
             padding: TRACK_PADDING,
-            backgroundColor: theme.colors.surfaceRaised,
+            backgroundColor: trackBg,
             borderColor: theme.colors.border,
             borderWidth: theme.borderWidth.hairline,
-            borderRadius: theme.radius.full,
+            borderRadius: trackRadius,
+            opacity: disabled ? theme.opacity.disabled : 1,
           },
+          style,
         ]}
       >
-        {/* 实体高亮滑动胶囊 */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.thumb,
-            theme.elevation.card,
-            {
-              left: TRACK_PADDING,
-              top: TRACK_PADDING,
-              width: segmentWidth,
-              height: thumbHeight,
-              backgroundColor: theme.colors.actionSubtle,
-              borderRadius: theme.radius.full,
-              transform: [{ translateX: thumbX }, { scale: thumbScale }],
-            },
-          ]}
-        />
+        {/* 实体高亮滑动胶囊（完成布局测量后显现，避免首帧宽度跳变） */}
+        {segmentWidth > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.thumb,
+              theme.elevation.card,
+              {
+                left: TRACK_PADDING,
+                top: TRACK_PADDING,
+                width: segmentWidth,
+                height: thumbHeight,
+                backgroundColor: thumbBg,
+                borderRadius: thumbRadius,
+                transform: [{ translateX: thumbX }, { scale: thumbScale }],
+              },
+            ]}
+          />
+        ) : null}
 
         {options.map((opt) => {
           const selected = opt.value === value;
+          const activeColor = opt.activeTextColor ?? theme.colors.actionTextOnSubtle;
           return (
             <Pressable
               key={opt.value}
+              disabled={disabled}
               accessibilityRole="tab"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled }}
               accessibilityHint="点击切换，或长按左右滑动切换"
               onPress={() => {
                 if (opt.value !== value) {
@@ -220,7 +278,7 @@ export function SlidingSegmentedControl<T extends string>({
               style={[
                 styles.option,
                 {
-                  minWidth: minSegmentWidth,
+                  minWidth: fullWidth ? 0 : minSegmentWidth,
                   height: thumbHeight,
                 },
               ]}
@@ -228,8 +286,8 @@ export function SlidingSegmentedControl<T extends string>({
               <Text
                 numberOfLines={1}
                 style={{
-                  color: selected ? theme.colors.actionTextOnSubtle : theme.colors.textMuted,
-                  fontSize: theme.fontSize.xs,
+                  color: selected ? activeColor : theme.colors.textSecondary,
+                  fontSize: resolvedFontSize,
                   fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
                 }}
               >
@@ -248,6 +306,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     position: 'relative',
+  },
+  fullWidth: {
+    width: '100%',
   },
   thumb: {
     position: 'absolute',

@@ -29,6 +29,10 @@ import { parseSignedYuanToCents, parseYuanToCents } from '../src/shared/money/mo
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { Button } from '../src/shared/ui/Button';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import {
+  SlidingSegmentedControl,
+  type SlidingSegmentOption,
+} from '../src/shared/ui/SlidingSegmentedControl';
 import { useTheme } from '../src/theme/theme-context';
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -65,6 +69,29 @@ export default function AccountFormScreen(): React.JSX.Element {
   const [saving, setSaving] = useState(false);
 
   const iconRows = useMemo(() => chunkIcons(ACCOUNT_ICON_OPTIONS, 4), []);
+
+  const kindOptions = useMemo<readonly SlidingSegmentOption<AccountKind>[]>(
+    () => [
+      {
+        value: 'asset',
+        label: '资产',
+        activeBackgroundColor: theme.colors.actionSubtle,
+        activeTextColor: theme.colors.actionTextOnSubtle,
+      },
+      {
+        value: 'liability',
+        label: '负债',
+        activeBackgroundColor: theme.colors.warningSubtle,
+        activeTextColor: theme.colors.warningTextOnSubtle,
+      },
+    ],
+    [
+      theme.colors.actionSubtle,
+      theme.colors.actionTextOnSubtle,
+      theme.colors.warningSubtle,
+      theme.colors.warningTextOnSubtle,
+    ]
+  );
 
   useEffect(() => {
     if (!editId) {
@@ -234,7 +261,7 @@ export default function AccountFormScreen(): React.JSX.Element {
             </View>
           </View>
 
-          {/* 账户性质 */}
+          {/* 账户性质（统一长按震动滑动分段控件） */}
           <View style={{ marginTop: theme.spacing.xl }}>
             <Text
               style={{
@@ -246,53 +273,16 @@ export default function AccountFormScreen(): React.JSX.Element {
             >
               性质
             </Text>
-            <View style={styles.kindRow}>
-              {(['asset', 'liability'] as const).map((item) => {
-                const selected = kind === item;
-                return (
-                  <Pressable
-                    key={item}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => setKind(item)}
-                    style={({ pressed }) => [
-                      styles.kindBtn,
-                      {
-                        backgroundColor: selected
-                          ? item === 'liability'
-                            ? theme.colors.warningSubtle
-                            : theme.colors.actionSubtle
-                          : theme.colors.surfaceRaised,
-                        borderColor: selected
-                          ? item === 'liability'
-                            ? theme.colors.warning
-                            : theme.colors.action
-                          : theme.colors.border,
-                        borderWidth: selected
-                          ? theme.borderWidth.focus
-                          : theme.borderWidth.hairline,
-                        borderRadius: theme.radius.md,
-                      },
-                      pressed && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected
-                          ? item === 'liability'
-                            ? theme.colors.warningTextOnSubtle
-                            : theme.colors.actionTextOnSubtle
-                          : theme.colors.text,
-                        fontSize: theme.fontSize.base,
-                        fontWeight: theme.fontWeight.semibold,
-                      }}
-                    >
-                      {item === 'asset' ? '资产' : '负债'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <SlidingSegmentedControl
+              options={kindOptions}
+              value={kind}
+              onChange={setKind}
+              fullWidth
+              height={46}
+              shape="rounded"
+              trackTone="surfaceRaised"
+              textSize="base"
+            />
           </View>
 
           {/* 名称 */}
@@ -540,16 +530,6 @@ const styles = StyleSheet.create({
     minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  kindRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  kindBtn: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   input: {
     minHeight: 48,

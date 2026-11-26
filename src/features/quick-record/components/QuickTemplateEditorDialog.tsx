@@ -15,9 +15,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { hapticLight, hapticMedium, hapticSelection, hapticSuccess, hapticWarning } from '../../../shared/haptics/haptics';
 import { centsToInputString, parseYuanToCents } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  SlidingSegmentedControl,
+  type SlidingSegmentOption,
+} from '../../../shared/ui/SlidingSegmentedControl';
 import { useTheme } from '../../../theme/theme-context';
 import type { Account } from '../../accounts/types';
 import { buildCategoryTree } from '../../categories/rules';
@@ -44,11 +49,6 @@ export interface QuickTemplateEditorDialogProps {
   onSave: (input: CreateQuickTemplateInput, editingId?: string) => Promise<void>;
   onDelete?: (editingId: string) => Promise<void>;
 }
-
-const TYPE_OPTIONS: readonly { value: QuickRecordType; label: string }[] = [
-  { value: 'expense', label: '支出' },
-  { value: 'income', label: '收入' },
-];
 
 export function QuickTemplateEditorDialog({
   visible,
@@ -138,11 +138,33 @@ export function QuickTemplateEditorDialog({
   const editingId = initialValue?.id;
   const isEditing = Boolean(editingId);
 
+  const typeOptions = useMemo<readonly SlidingSegmentOption<QuickRecordType>[]>(
+    () => [
+      {
+        value: 'expense',
+        label: '支出',
+        activeBackgroundColor: theme.colors.expenseSubtle,
+        activeTextColor: theme.colors.expenseTextOnSubtle,
+      },
+      {
+        value: 'income',
+        label: '收入',
+        activeBackgroundColor: theme.colors.incomeSubtle,
+        activeTextColor: theme.colors.incomeTextOnSubtle,
+      },
+    ],
+    [
+      theme.colors.expenseSubtle,
+      theme.colors.expenseTextOnSubtle,
+      theme.colors.incomeSubtle,
+      theme.colors.incomeTextOnSubtle,
+    ]
+  );
+
   const handleSelectType = (next: QuickRecordType) => {
     if (next === type) {
       return;
     }
-    hapticSelection();
     setType(next);
     const nextTyped = activeCategories.filter((c) => c.type === next);
     const nextFirst = buildCategoryTree(nextTyped)[0]?.category.id ?? nextTyped[0]?.id ?? '';
@@ -240,7 +262,8 @@ export function QuickTemplateEditorDialog({
         }
       }}
     >
-      <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
+      <GestureHandlerRootView style={styles.flex}>
+        <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="关闭快捷项编辑窗口"
@@ -310,54 +333,17 @@ export function QuickTemplateEditorDialog({
               gap: theme.spacing.md,
             }}
           >
-            {/* 支出 / 收入切换 */}
-            <View
-              style={[
-                styles.segmentTrack,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.md,
-                  borderColor: theme.colors.border,
-                  borderWidth: theme.borderWidth.hairline,
-                  padding: 3,
-                },
-              ]}
-            >
-              {TYPE_OPTIONS.map((opt) => {
-                const selected = type === opt.value;
-                const activeBg =
-                  opt.value === 'expense' ? theme.colors.expenseSubtle : theme.colors.incomeSubtle;
-                const activeText =
-                  opt.value === 'expense'
-                    ? theme.colors.expenseTextOnSubtle
-                    : theme.colors.incomeTextOnSubtle;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected }}
-                    onPress={() => handleSelectType(opt.value)}
-                    style={[
-                      styles.segmentBtn,
-                      {
-                        backgroundColor: selected ? activeBg : 'transparent',
-                        borderRadius: theme.radius.sm,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? activeText : theme.colors.textSecondary,
-                        fontSize: theme.fontSize.sm,
-                        fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                      }}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {/* 支出 / 收入统一滑动分段切换 */}
+            <SlidingSegmentedControl
+              options={typeOptions}
+              value={type}
+              onChange={handleSelectType}
+              fullWidth
+              height={40}
+              shape="rounded"
+              trackTone="surface"
+              textSize="sm"
+            />
 
             {/* 名称与固定金额 */}
             <View style={styles.twoColRow}>
@@ -658,12 +644,16 @@ export function QuickTemplateEditorDialog({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     alignItems: 'center',
@@ -689,16 +679,6 @@ const styles = StyleSheet.create({
   },
   bodyScroll: {
     flexShrink: 1,
-  },
-  segmentTrack: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   twoColRow: {
     flexDirection: 'row',

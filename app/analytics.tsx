@@ -27,12 +27,18 @@ import { formatCentsToYuan } from '../src/shared/money/money';
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { EmptyState } from '../src/shared/ui/EmptyState';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SlidingSegmentedControl } from '../src/shared/ui/SlidingSegmentedControl';
 import { useTheme } from '../src/theme/theme-context';
 
 const SCOPE_OPTIONS: readonly { value: AnalyticsScope; label: string }[] = [
   { value: 'month', label: '按月' },
   { value: 'year', label: '按年' },
   { value: 'all', label: '全部' },
+];
+
+const KIND_OPTIONS: readonly { value: AnalyticsKind; label: string }[] = [
+  { value: 'expense', label: '支出构成' },
+  { value: 'income', label: '收入构成' },
 ];
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -152,47 +158,18 @@ export default function AnalyticsScreen(): React.JSX.Element {
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
         }}
       >
-        {/* 周期范围切换：按月 / 按年 / 全部 */}
-        <View
-          style={[
-            styles.segmentBar,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing.xs,
-              marginBottom: theme.spacing.md,
-            },
-          ]}
-        >
-          {SCOPE_OPTIONS.map((opt) => {
-            const selected = scope === opt.value;
-            return (
-              <Pressable
-                key={opt.value}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => handleSwitchScope(opt.value)}
-                style={[
-                  styles.segmentItem,
-                  {
-                    borderRadius: theme.radius.sm,
-                    backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.actionTextOnSubtle : theme.colors.textMuted,
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* 周期范围切换：按月 / 按年 / 全部（统一长按震动滑动分段控件） */}
+        <SlidingSegmentedControl
+          options={SCOPE_OPTIONS}
+          value={scope}
+          onChange={handleSwitchScope}
+          fullWidth
+          height={44}
+          shape="rounded"
+          trackTone="surfaceRaised"
+          textSize="sm"
+          style={{ marginBottom: theme.spacing.md }}
+        />
 
         {/* 周期切换与核心指标汇总卡 */}
         <View
@@ -568,47 +545,18 @@ export default function AnalyticsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* 支出 / 收入分析维度切换 */}
-        <View
-          style={[
-            styles.segmentBar,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing.xs,
-              marginTop: theme.spacing.xl,
-            },
-          ]}
-        >
-          {(['expense', 'income'] as const).map((tab) => {
-            const selected = kind === tab;
-            return (
-              <Pressable
-                key={tab}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => setKind(tab)}
-                style={[
-                  styles.segmentItem,
-                  {
-                    borderRadius: theme.radius.sm,
-                    backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.actionTextOnSubtle : theme.colors.textMuted,
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                  }}
-                >
-                  {tab === 'expense' ? '支出构成' : '收入构成'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* 支出 / 收入分析维度切换（统一长按震动滑动分段控件） */}
+        <SlidingSegmentedControl
+          options={KIND_OPTIONS}
+          value={kind}
+          onChange={setKind}
+          fullWidth
+          height={44}
+          shape="rounded"
+          trackTone="surfaceRaised"
+          textSize="sm"
+          style={{ marginTop: theme.spacing.xl }}
+        />
 
         {/* 分类占比排行 */}
         <View style={{ marginTop: theme.spacing.lg }}>
@@ -939,16 +887,6 @@ const styles = StyleSheet.create({
   },
   bar: {
     borderRadius: 3,
-  },
-  segmentBar: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  segmentItem: {
-    flex: 1,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   rankRow: {
     flexDirection: 'row',

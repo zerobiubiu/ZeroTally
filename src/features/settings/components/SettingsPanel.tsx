@@ -1,7 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
  * - 极简无分组布局：彻底去除统计头、「配置/数据导出/系统」二级分组标题、存储行与独立版本条目
- * - 信息顺序（严格按用户设计）：外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 关于 -> 高级设置 -> 最底部居中版本号
+ * - 信息顺序（严格按用户设计）：外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 高级设置 -> 关于 -> 最底部居中版本号
  * - 复用形态：同时支持左侧抽屉（variant="drawer"）与独立设置页（variant="page"），外观切换即时落盘 SQLite
  */
 import Constants from 'expo-constants';
@@ -11,8 +11,9 @@ import { Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View }
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
-import { hapticLight, hapticSelection } from '../../../shared/haptics/haptics';
+import { hapticLight } from '../../../shared/haptics/haptics';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { SlidingSegmentedControl } from '../../../shared/ui/SlidingSegmentedControl';
 import { useTheme, type ThemePreference } from '../../../theme/theme-context';
 import { setThemePreferenceSetting } from '../repository';
 
@@ -48,7 +49,6 @@ export function SettingsPanel({
     if (next === preference) {
       return;
     }
-    hapticSelection();
     setPreference(next);
     void setThemePreferenceSetting(db, next).catch(() => {});
   };
@@ -72,16 +72,16 @@ export function SettingsPanel({
       onPress: () => navigateTo('/categories'),
     },
     {
-      key: 'about',
-      label: '关于',
-      icon: 'information-circle-outline',
-      onPress: () => navigateTo('/about'),
-    },
-    {
       key: 'advanced',
       label: '高级设置',
       icon: 'construct-outline',
       onPress: () => navigateTo('/advanced-settings'),
+    },
+    {
+      key: 'about',
+      label: '关于',
+      icon: 'information-circle-outline',
+      onPress: () => navigateTo('/about'),
     },
   ];
 
@@ -166,53 +166,19 @@ export function SettingsPanel({
             >
               外观
             </Text>
-            <View
-              style={[
-                styles.segmentRow,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  borderWidth: theme.borderWidth.hairline,
-                  borderRadius: theme.radius.full,
-                  padding: 3,
-                },
-              ]}
-            >
-              {THEME_OPTIONS.map((opt) => {
-                const selected = preference === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected }}
-                    onPress={() => handleSelectTheme(opt.value)}
-                    style={({ pressed }) => [
-                      styles.segmentBtn,
-                      {
-                        backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
-                        borderRadius: theme.radius.full,
-                      },
-                      pressed && !selected && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: selected
-                          ? theme.colors.actionTextOnSubtle
-                          : theme.colors.textSecondary,
-                        fontSize: theme.fontSize.sm,
-                        fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                      }}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <SlidingSegmentedControl
+              options={THEME_OPTIONS}
+              value={preference}
+              onChange={handleSelectTheme}
+              fullWidth
+              height={42}
+              shape="pill"
+              trackTone="surface"
+              textSize="sm"
+            />
           </View>
 
-          {/* 同级独立功能按钮：分类管理 -> 关于 -> 高级设置 */}
+          {/* 同级独立功能按钮：分类管理 -> 高级设置 -> 关于 */}
           {menuItems.map((item) => (
             <Pressable
               key={item.key}
@@ -296,16 +262,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   appearanceCard: {},
-  segmentRow: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   menuCard: {
     minHeight: 56,
     flexDirection: 'row',

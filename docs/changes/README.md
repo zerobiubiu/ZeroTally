@@ -30,3 +30,4 @@
 | [0022-draggable-bottom-sheet.md](0022-draggable-bottom-sheet.md) | 变更记录 | 已执行 | v0.9.0 | 统一重构全应用 6 个底部半屏弹窗为真实可拖拽 BottomSheet（支持下滑关闭与账目详情半屏/全屏两段展开） |
 | [0023-unified-header-and-swipe-drawer.md](0023-unified-header-and-swipe-drawer.md) | 变更记录 | 已执行 | v0.9.1 | 重构主界面为全局固定共享极简顶栏（移除汉堡图标、双页点击标题及明细页跟手右滑拉出设置抽屉） |
 | [0024-v1-settings-categories-portability-and-quick-record.md](0024-v1-settings-categories-portability-and-quick-record.md) | 变更记录 | 已执行 | v1.0.0 | 设置重构与完整 JSON 校验导入导出、验证码清空账本、分类管理全面升级、快捷记账半屏窗、明细手势与全应用震动反馈 |
+| [0025-unified-segmented-control-and-ui-polish.md](0025-unified-segmented-control-and-ui-polish.md) | 变更记录 | 已执行 | v1.0.1 | 全仓 7 处分段切换统一为滑动分段组件、设置「关于」置底与 database 图标、分类管理圆润卡片重构、清空账本二次确认与快捷记账全区上下滑/横向分页 |

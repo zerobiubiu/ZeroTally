@@ -7,7 +7,7 @@
  */
 import { Stack } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
@@ -17,7 +17,8 @@ import {
   CategoryChildRow,
   CategoryRootRow,
   CHILD_ROW_HEIGHT,
-  ROOT_ROW_HEIGHT,
+  ROOT_CARD_GAP,
+  ROOT_DRAG_STRIDE,
 } from '../src/features/categories/components/CategoryManageRows';
 import {
   generateCategoriesExport,
@@ -53,7 +54,13 @@ import { ActionSheet } from '../src/shared/ui/ActionSheet';
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { ConfirmDialog } from '../src/shared/ui/ConfirmDialog';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SlidingSegmentedControl } from '../src/shared/ui/SlidingSegmentedControl';
 import { useTheme } from '../src/theme/theme-context';
+
+const CATEGORY_TYPE_OPTIONS: readonly { value: CategoryType; label: string }[] = [
+  { value: 'expense', label: '支出分类' },
+  { value: 'income', label: '收入分类' },
+];
 
 interface DragSortState {
   scope: 'root' | 'child';
@@ -363,8 +370,8 @@ export default function CategoriesScreen(): React.JSX.Element {
     if (!current) {
       return;
     }
-    const rowHeight = current.scope === 'root' ? ROOT_ROW_HEIGHT : CHILD_ROW_HEIGHT;
-    const stepDelta = Math.round(translationY / rowHeight);
+    const rowStride = current.scope === 'root' ? ROOT_DRAG_STRIDE : CHILD_ROW_HEIGHT;
+    const stepDelta = Math.round(translationY / rowStride);
     const nextTo = Math.max(0, Math.min(current.activeCount - 1, current.fromIndex + stepDelta));
     if (nextTo !== current.toIndex) {
       hapticSelection();
@@ -527,7 +534,7 @@ export default function CategoriesScreen(): React.JSX.Element {
                   pressed && { opacity: theme.opacity.pressed },
                 ]}
               >
-                <AppIcon name="swap-vertical-outline" size={21} color={theme.colors.text} />
+                <AppIcon name="feather:database" size={19} color={theme.colors.text} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -546,7 +553,7 @@ export default function CategoriesScreen(): React.JSX.Element {
         }}
       />
 
-      {/* 顶部支出 / 收入切换 */}
+      {/* 顶部支出 / 收入统一滑动分段切换 */}
       <View
         style={[
           styles.typeSwitchWrap,
@@ -558,57 +565,23 @@ export default function CategoriesScreen(): React.JSX.Element {
           },
         ]}
       >
-        <View
-          style={[
-            styles.segmentBar,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderColor: theme.colors.border,
-              borderWidth: theme.borderWidth.hairline,
-              borderRadius: theme.radius.full,
-              padding: 3,
-            },
-          ]}
-        >
-          {(['expense', 'income'] as const).map((tab) => {
-            const selected = type === tab;
-            return (
-              <Pressable
-                key={tab}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  if (tab === type) {
-                    return;
-                  }
-                  hapticSelection();
-                  closeAllSwipes();
-                  setExpandedRootIds({});
-                  setType(tab);
-                }}
-                style={[
-                  styles.segmentItem,
-                  {
-                    backgroundColor: selected ? theme.colors.actionSubtle : 'transparent',
-                    borderRadius: theme.radius.full,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: selected
-                      ? theme.colors.actionTextOnSubtle
-                      : theme.colors.textSecondary,
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                  }}
-                >
-                  {tab === 'expense' ? '支出分类' : '收入分类'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SlidingSegmentedControl
+          options={CATEGORY_TYPE_OPTIONS}
+          value={type}
+          onChange={(nextType) => {
+            if (nextType === type) {
+              return;
+            }
+            closeAllSwipes();
+            setExpandedRootIds({});
+            setType(nextType);
+          }}
+          fullWidth
+          height={42}
+          shape="pill"
+          trackTone="surfaceRaised"
+          textSize="sm"
+        />
       </View>
 
       <ScrollView
@@ -619,114 +592,90 @@ export default function CategoriesScreen(): React.JSX.Element {
           paddingHorizontal: theme.spacing.lg,
           paddingTop: theme.spacing.xs,
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
+          gap: ROOT_CARD_GAP,
         }}
       >
-        <View
-          style={[
-            styles.listCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-            },
-          ]}
-        >
-          {orderedTree.map((node, rootIdx) => {
-            const root = node.category;
-            const isExpanded = Boolean(expandedRootIds[root.id]) && dragState?.scope !== 'root';
-            const isDraggingThisRoot =
-              dragState?.scope === 'root' && dragState.itemId === root.id;
-            const rootShift =
-              dragState?.scope === 'root' && !root.isArchived
-                ? computeRowShiftOffset(
-                    rootIdx,
-                    ROOT_ROW_HEIGHT,
-                    dragState.fromIndex,
-                    dragState.toIndex
-                  )
-                : 0;
+        {orderedTree.map((node, rootIdx) => {
+          const root = node.category;
+          const isExpanded = Boolean(expandedRootIds[root.id]) && dragState?.scope !== 'root';
+          const isDraggingThisRoot =
+            dragState?.scope === 'root' && dragState.itemId === root.id;
+          const rootShift =
+            dragState?.scope === 'root' && !root.isArchived
+              ? computeRowShiftOffset(
+                  rootIdx,
+                  ROOT_DRAG_STRIDE,
+                  dragState.fromIndex,
+                  dragState.toIndex
+                )
+              : 0;
 
-            const activeChildrenCount = node.children.filter((c) => !c.isArchived).length;
-            const hasMoreRootsBelow = rootIdx < orderedTree.length - 1;
+          const activeChildrenCount = node.children.filter((c) => !c.isArchived).length;
 
-            return (
-              <View key={root.id} style={{ zIndex: isDraggingThisRoot ? 30 : 1 }}>
-                <CategoryRootRow
-                  category={root}
-                  childCount={node.children.length}
-                  expanded={isExpanded}
-                  showDivider={hasMoreRootsBelow || (isExpanded && node.children.length > 0)}
-                  index={rootIdx}
-                  activeSiblingCount={activeRootNodes.length}
-                  isDraggingThis={isDraggingThisRoot}
-                  shiftOffsetY={rootShift}
-                  anyDragging={dragState !== null}
-                  isSwipeOpen={openSwipeId === root.id}
-                  onSwipeOpen={(id) => setOpenSwipeId(id)}
-                  onSwipeClose={(id) => setOpenSwipeId((prev) => (prev === id ? null : prev))}
-                  onToggleExpand={handleToggleExpand}
-                  onAddChild={openCreateChild}
-                  onEdit={openEdit}
-                  onToggleArchive={(cat) => void handleToggleArchive(cat)}
-                  onDelete={(cat) => void handleRequestDelete(cat)}
-                  onDragStart={handleRootDragStart}
-                  onDragMove={handleDragMove}
-                  onDragEnd={handleDragEnd}
-                />
+          return (
+            <CategoryRootRow
+              key={root.id}
+              category={root}
+              childCount={node.children.length}
+              expanded={isExpanded}
+              index={rootIdx}
+              activeSiblingCount={activeRootNodes.length}
+              isDraggingThis={isDraggingThisRoot}
+              shiftOffsetY={rootShift}
+              anyDragging={dragState !== null}
+              isSwipeOpen={openSwipeId === root.id}
+              onSwipeOpen={(id) => setOpenSwipeId(id)}
+              onSwipeClose={(id) => setOpenSwipeId((prev) => (prev === id ? null : prev))}
+              onToggleExpand={handleToggleExpand}
+              onAddChild={openCreateChild}
+              onEdit={openEdit}
+              onToggleArchive={(cat) => void handleToggleArchive(cat)}
+              onDelete={(cat) => void handleRequestDelete(cat)}
+              onDragStart={handleRootDragStart}
+              onDragMove={handleDragMove}
+              onDragEnd={handleDragEnd}
+            >
+              {isExpanded && node.children.length > 0
+                ? node.children.map((child, childIdx) => {
+                    const isDraggingThisChild =
+                      dragState?.scope === 'child' &&
+                      dragState.parentId === root.id &&
+                      dragState.itemId === child.id;
+                    const childShift =
+                      dragState?.scope === 'child' &&
+                      dragState.parentId === root.id &&
+                      !child.isArchived
+                        ? computeRowShiftOffset(
+                            childIdx,
+                            CHILD_ROW_HEIGHT,
+                            dragState.fromIndex,
+                            dragState.toIndex
+                          )
+                        : 0;
 
-                {/* 展开的二级分类子表：无底部添加按钮，仅展示子分类，停用子分类沉底变灰 */}
-                {isExpanded && node.children.length > 0 ? (
-                  <View
-                    style={[
-                      styles.childListWrap,
-                      {
-                        borderBottomColor: theme.colors.border,
-                        borderBottomWidth: hasMoreRootsBelow ? theme.borderWidth.hairline : 0,
-                      },
-                    ]}
-                  >
-                    {node.children.map((child, childIdx) => {
-                      const isDraggingThisChild =
-                        dragState?.scope === 'child' &&
-                        dragState.parentId === root.id &&
-                        dragState.itemId === child.id;
-                      const childShift =
-                        dragState?.scope === 'child' &&
-                        dragState.parentId === root.id &&
-                        !child.isArchived
-                          ? computeRowShiftOffset(
-                              childIdx,
-                              CHILD_ROW_HEIGHT,
-                              dragState.fromIndex,
-                              dragState.toIndex
-                            )
-                          : 0;
-
-                      return (
-                        <CategoryChildRow
-                          key={child.id}
-                          category={child}
-                          parentArchived={root.isArchived}
-                          showDivider={childIdx < node.children.length - 1}
-                          index={childIdx}
-                          activeSiblingCount={activeChildrenCount}
-                          isDraggingThis={isDraggingThisChild}
-                          shiftOffsetY={childShift}
-                          onEdit={openEdit}
-                          onToggleArchive={(cat) => void handleToggleArchive(cat)}
-                          onDelete={(cat) => void handleRequestDelete(cat)}
-                          onDragStart={handleChildDragStart}
-                          onDragMove={handleDragMove}
-                          onDragEnd={handleDragEnd}
-                        />
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
+                    return (
+                      <CategoryChildRow
+                        key={child.id}
+                        category={child}
+                        parentArchived={root.isArchived}
+                        showDivider={childIdx < node.children.length - 1}
+                        index={childIdx}
+                        activeSiblingCount={activeChildrenCount}
+                        isDraggingThis={isDraggingThisChild}
+                        shiftOffsetY={childShift}
+                        onEdit={openEdit}
+                        onToggleArchive={(cat) => void handleToggleArchive(cat)}
+                        onDelete={(cat) => void handleRequestDelete(cat)}
+                        onDragStart={handleChildDragStart}
+                        onDragMove={handleDragMove}
+                        onDragEnd={handleDragEnd}
+                      />
+                    );
+                  })
+                : null}
+            </CategoryRootRow>
+          );
+        })}
       </ScrollView>
 
       {/* 居中浮窗：新增 / 编辑分类与 9 大主题图标选择器 */}
@@ -866,20 +815,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   typeSwitchWrap: {},
-  segmentBar: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  segmentItem: {
-    flex: 1,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listCard: {
-    overflow: 'visible',
-  },
-  childListWrap: {
-    overflow: 'visible',
-  },
 });

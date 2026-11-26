@@ -56,6 +56,7 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
   const [importError, setImportError] = useState<string | null>(null);
 
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearConfirmSheetOpen, setClearConfirmSheetOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
 
@@ -160,6 +161,13 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
     }
   };
 
+  const handlePassVerificationCode = () => {
+    hapticMedium();
+    setClearDialogOpen(false);
+    setClearError(null);
+    setClearConfirmSheetOpen(true);
+  };
+
   const handleConfirmClear = async () => {
     if (clearing) {
       return;
@@ -168,7 +176,7 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
     setClearError(null);
     try {
       await resetDatabase(db);
-      setClearDialogOpen(false);
+      setClearConfirmSheetOpen(false);
       notifyChange();
       hapticSuccess();
       setNoticeDialog({
@@ -179,7 +187,12 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
       });
     } catch (err) {
       hapticWarning();
-      setClearError(err instanceof Error ? err.message : '清空失败');
+      setNoticeDialog({
+        title: '清空失败',
+        message: err instanceof Error ? err.message : '无法完成清空操作',
+        tone: 'destructive',
+        icon: 'alert-circle-outline',
+      });
     } finally {
       setClearing(false);
     }
@@ -461,7 +474,39 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
             setClearError(null);
           }
         }}
-        onConfirm={() => void handleConfirmClear()}
+        onConfirm={handlePassVerificationCode}
+      />
+
+      {/* 验证码通过后的最终二次确认菜单，杜绝误清空 */}
+      <ActionSheet
+        visible={clearConfirmSheetOpen}
+        title="确认立即清空账本？"
+        subtitle={`将永久删除全部 ${stats.transactionCount} 笔明细与快捷模板，账户重置为「钱包（¥0.00）」且不可恢复`}
+        onClose={() => {
+          if (!clearing) {
+            setClearConfirmSheetOpen(false);
+          }
+        }}
+        options={[
+          {
+            key: 'export-first',
+            label: '先去导出 JSON 备份',
+            subtitle: '暂不清空，先保存当前账本与配置副本',
+            icon: 'download-outline',
+            onPress: () => {
+              setClearConfirmSheetOpen(false);
+              setExportSheetOpen(true);
+            },
+          },
+          {
+            key: 'confirm-clear',
+            label: '确认永久清空账本',
+            subtitle: '我已确认备份无误，立即清空并重置',
+            icon: 'trash-outline',
+            tone: 'destructive',
+            onPress: () => void handleConfirmClear(),
+          },
+        ]}
       />
 
       <ConfirmDialog

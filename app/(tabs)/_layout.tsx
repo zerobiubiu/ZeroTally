@@ -563,6 +563,7 @@ function SwipeTabsContent({
                   onChange={setLedgerPeriodMode}
                   height={38}
                   minSegmentWidth={50}
+                  textSize="xs"
                 />
               </Animated.View>
 
