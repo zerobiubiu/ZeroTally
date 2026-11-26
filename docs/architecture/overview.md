@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.0.1
+- **生效版本**：v1.1.0
 
 ## 结论概览
 
@@ -16,7 +16,7 @@
 | `src/features/transactions/` | 收支与转账核心职责 | 支出/收入/转账记账、编辑删除、余额联动规则、按月流水与日分组汇总、记账表单与明细组件 | 账户净资产汇总、分类 CRUD | `app/`、`analytics`、`export` |
 | `src/features/accounts/` | 资产与负债账户职责 | 账户增改、归档恢复、余额校准、总资产/总负债/净资产汇总规则、资产页组件 | 交易流水写入、分类规则 | `app/`、`transactions`、`export` |
 | `src/features/categories/` | 收支分类职责 | 预设分类种子、居中弹窗新增/编辑、长按拖拽同级排序、左滑/删除账务原子迁移、分类树独立 JSON 校验增量/覆盖导入导出 | 账目记账、账户余额 | `app/`、`transactions`、`quick-record`、`export` |
-| `src/features/quick-record/` | 快捷记账半屏窗职责 | 自定义快捷模板 CRUD、近 30 天高频收支推荐聚合、一键入账执行与底栏上滑下半屏快捷窗口 | 完整计算键盘、报表分析 | `app/(tabs)/`、`export` |
+| `src/features/quick-record/` | 快捷记账半屏窗与扇形极速入口职责 | 自定义快捷模板 CRUD、近 30 天高频推荐聚合、底栏长按 `+` 扇形滑选浮层、单卡 3 秒圆环倒计时原地撤销、单卡长按调金额/切账户与内嵌复用记账 UI 编辑器 | 完整记账日期/备注、报表分析 | `app/(tabs)/`、`export` |
 | `src/features/analytics/` | 多周期账务分析职责 | 分类占比排行、账户资金分布、日均支出、结余率与月/年/全量收支趋势聚合 | 交易写入、余额变更 | `app/` |
 | `src/features/export/` | 完整 JSON 备份导入导出职责 | Schema v3 完整 JSON 备份（含外观/账户/分类/快捷模板/明细与 FNV-1a 校验指纹）生成、严格校验、单事务原子恢复及 Android 原生文件读写 | 单笔业务记账规则 | `app/` |
 | `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（置顶外观切换持久化、分类管理、高级设置、关于、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export` |
@@ -79,7 +79,7 @@ flowchart TD
 | UC-07 侧边抽屉设置、关于页、高级设置与验证码清空账本 | `app/(tabs)/_layout.tsx`、`app/about.tsx`、`app/advanced-settings.tsx` | `settings/components/SettingsDrawer.tsx`、`SettingsPanel.tsx`、`ClearLedgerDialog.tsx`、`db/seed.ts` | `settings/repository.ts`、`db/schema.ts` | `src/db/schema.test.ts` |
 | UC-08 多周期账务分析（按月/按年/全部、分类占比、趋势与账户分布） | `app/analytics.tsx`（点击明细顶部总览卡进入） | `analytics/service.ts` (`getScopedAnalytics` / `getMonthlyAnalytics`) | `analytics/rules.ts` | `analytics/rules.test.ts`、`service.test.ts` |
 | UC-09 完整 JSON 备份导出与校验原子导入恢复 | `app/advanced-settings.tsx` | `export/service.ts`、`export/native-io.ts` | `export/formatter.ts`、`shared/integrity/checksum.ts` | `export/formatter.test.ts`、`service.test.ts` |
-| UC-10 底栏上滑快捷记账半屏窗与二次上滑展开完整记一笔 | `app/(tabs)/_layout.tsx` | `quick-record/components/QuickRecordSheet.tsx`、`quick-record/service.ts` | `quick-record/repository.ts` | `quick-record/service.test.ts` |
+| UC-10 底栏上滑快捷记账半屏窗、长按 `+` 扇形极速记账与原地 3 秒倒计时撤销 | `app/(tabs)/_layout.tsx` | `quick-record/components/QuickRecordSheet.tsx`、`QuickRadialOverlay.tsx`、`quick-record/service.ts` | `quick-record/repository.ts`、`scrub-rules.ts`、`radial-menu-rules.ts` | `quick-record/service.test.ts`、`scrub-rules.test.ts`、`radial-menu-rules.test.ts` |
 
 ## 变更场景模拟验证
 

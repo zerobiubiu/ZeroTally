@@ -24,22 +24,39 @@ import {
 } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDatabase } from '../../src/db/database-context';
 import { MainDrawerContext, useMainDrawer } from '../../src/features/navigation/drawer-context';
 import {
   appendMissingPlaceholderDescriptors,
   isPlaceholderTabDescriptor,
   normalizeOrderedTabState,
 } from '../../src/features/navigation/tab-routes';
+import { QuickRadialOverlay } from '../../src/features/quick-record/components/QuickRadialOverlay';
 import {
   computeQuickSheetHeight,
   QuickRecordSheet,
 } from '../../src/features/quick-record/components/QuickRecordSheet';
 import {
+  hitTestRadialOption,
+  MAX_RADIAL_QUICK_ITEMS,
+} from '../../src/features/quick-record/radial-menu-rules';
+import {
+  executeQuickRecord,
+  listQuickRecordButtons,
+} from '../../src/features/quick-record/service';
+import type { QuickRecordButtonItem } from '../../src/features/quick-record/types';
+import {
   computeSettingsDrawerWidth,
   SettingsDrawer,
 } from '../../src/features/settings/components/SettingsDrawer';
 import type { LedgerPeriodMode } from '../../src/features/transactions/types';
-import { hapticLight, hapticSelection } from '../../src/shared/haptics/haptics';
+import {
+  hapticLight,
+  hapticMedium,
+  hapticSelection,
+  hapticWarning,
+} from '../../src/shared/haptics/haptics';
+import { formatCentsToYuan } from '../../src/shared/money/money';
 import { AppIcon } from '../../src/shared/ui/AppIcon';
 import { SafeScreen } from '../../src/shared/ui/SafeScreen';
 import { SlidingSegmentedControl } from '../../src/shared/ui/SlidingSegmentedControl';
@@ -81,6 +98,11 @@ interface DrawerGestureBridgeValue {
   startQuickPull: () => void;
   endQuickPull: () => void;
   openQuickSheet: () => void;
+  isRadialOpen: boolean;
+  radialItemsCount: number;
+  startRadialMenu: () => void;
+  updateRadialSelection: (dx: number, dy: number) => void;
+  finishRadialMenu: (commit: boolean) => void;
 }
 
 const DrawerGestureBridgeContext = createContext<DrawerGestureBridgeValue | null>(null);
@@ -136,6 +158,7 @@ function SwipeTabsContent({
   const { isDrawerOpen, openDrawer, ledgerPeriodMode, setLedgerPeriodMode } = useMainDrawer();
   const drawerBridge = useContext(DrawerGestureBridgeContext);
   const isQuickSheetOpen = drawerBridge?.isQuickSheetOpen ?? false;
+  const isRadialOpen = drawerBridge?.isRadialOpen ?? false;
 
   const activeIndex = state.index;
   const pageCount = state.routes.length;
@@ -154,6 +177,8 @@ function SwipeTabsContent({
   const isDraggingRef = useRef(false);
   const isPullingDrawerRef = useRef(false);
   const isPullingQuickRef = useRef(false);
+  const isRadialDraggingRef = useRef(false);
+  const suppressFabTapRef = useRef(false);
 
   // 首帧主动预挂载未激活的 Tab（如「资产」），并加短延迟兜底防 Expo Router 首帧 ROUTE_NAMES_CHANGED 竞态丢失
   useEffect(() => {
@@ -238,7 +263,7 @@ function SwipeTabsContent({
   // 明细页（activeIndex === 0）向右滑 1:1 跟手拉出左侧设置抽屉；向左滑切至资产页；
   // 账目行子级左滑阈值为 10px（更早激活并由 RNGH Orchestrator 自动取消父级翻页），互不干扰
   const pagerPanGesture = usePanGesture({
-    enabled: !isDrawerOpen && !isQuickSheetOpen,
+    enabled: !isDrawerOpen && !isQuickSheetOpen && !isRadialOpen,
     disableReanimated: true,
     runOnJS: true,
     activeOffsetX: [-14, 14],
@@ -362,7 +387,7 @@ function SwipeTabsContent({
 
   // 底栏无停顿上滑手势：在底栏任意区域向上划 8px 即 1:1 跟手拉出下半屏「快捷记账半屏窗」
   const bottomBarPullUpGesture = usePanGesture({
-    enabled: !isDrawerOpen && !isQuickSheetOpen && Boolean(drawerBridge),
+    enabled: !isDrawerOpen && !isQuickSheetOpen && !isRadialOpen && Boolean(drawerBridge),
     disableReanimated: true,
     runOnJS: true,
     activeOffsetY: [-8, 9999],
@@ -406,6 +431,49 @@ function SwipeTabsContent({
       if (isPullingQuickRef.current && drawerBridge) {
         isPullingQuickRef.current = false;
         drawerBridge.endQuickPull();
+      }
+    },
+  });
+
+  // 长按居中「+ 记一笔」260ms 绽放扇形快捷选项，手指顺势滑向对应项松手即刻记账（无撤回）
+  const fabRadialPanGesture = usePanGesture({
+    enabled: !isDrawerOpen && !isQuickSheetOpen && Boolean(drawerBridge),
+    disableReanimated: true,
+    runOnJS: true,
+    activateAfterLongPress: 260,
+    minDistance: 0,
+    onActivate: () => {
+      if (!drawerBridge) {
+        return;
+      }
+      isRadialDraggingRef.current = true;
+      suppressFabTapRef.current = true;
+      hapticMedium();
+      drawerBridge.startRadialMenu();
+    },
+    onUpdate: (event) => {
+      if (!isRadialDraggingRef.current || !drawerBridge) {
+        return;
+      }
+      drawerBridge.updateRadialSelection(event.translationX, event.translationY);
+    },
+    onDeactivate: () => {
+      if (!isRadialDraggingRef.current || !drawerBridge) {
+        return;
+      }
+      isRadialDraggingRef.current = false;
+      drawerBridge.finishRadialMenu(true);
+      setTimeout(() => {
+        suppressFabTapRef.current = false;
+      }, 80);
+    },
+    onFinalize: () => {
+      if (isRadialDraggingRef.current && drawerBridge) {
+        isRadialDraggingRef.current = false;
+        drawerBridge.finishRadialMenu(false);
+        setTimeout(() => {
+          suppressFabTapRef.current = false;
+        }, 80);
       }
     },
   });
@@ -665,40 +733,45 @@ function SwipeTabsContent({
                 {renderTabButton('index')}
 
                 <View pointerEvents="box-none" style={styles.centerSlot}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="记一笔"
-                    accessibilityHint="点击进入完整记一笔，向上滑动呼出快捷记账面板"
-                    onPress={() => {
-                      hapticLight();
-                      router.push('/record');
-                    }}
-                    style={({ pressed }) => [
-                      styles.fabOuterRing,
-                      {
-                        width: FAB_OUTER_SIZE,
-                        height: FAB_OUTER_SIZE,
-                        borderRadius: theme.radius.full,
-                        backgroundColor: theme.colors.surface,
-                      },
-                      pressed && { transform: [{ scale: 0.96 }] },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.fabInner,
-                        theme.elevation.floating,
+                  <GestureDetector gesture={fabRadialPanGesture}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="记一笔"
+                      accessibilityHint="点击进入完整记一笔，向上滑动呼出快捷记账，长按滑动扇形极速入账"
+                      onPress={() => {
+                        if (suppressFabTapRef.current || isRadialDraggingRef.current) {
+                          return;
+                        }
+                        hapticLight();
+                        router.push('/record');
+                      }}
+                      style={({ pressed }) => [
+                        styles.fabOuterRing,
                         {
-                          width: FAB_INNER_SIZE,
-                          height: FAB_INNER_SIZE,
+                          width: FAB_OUTER_SIZE,
+                          height: FAB_OUTER_SIZE,
                           borderRadius: theme.radius.full,
-                          backgroundColor: theme.colors.action,
+                          backgroundColor: theme.colors.surface,
                         },
+                        pressed && { transform: [{ scale: 0.96 }] },
                       ]}
                     >
-                      <AppIcon name="add" size={30} color={theme.colors.onAction} />
-                    </View>
-                  </Pressable>
+                      <View
+                        style={[
+                          styles.fabInner,
+                          theme.elevation.floating,
+                          {
+                            width: FAB_INNER_SIZE,
+                            height: FAB_INNER_SIZE,
+                            borderRadius: theme.radius.full,
+                            backgroundColor: theme.colors.action,
+                          },
+                        ]}
+                      >
+                        <AppIcon name="add" size={30} color={theme.colors.onAction} />
+                      </View>
+                    </Pressable>
+                  </GestureDetector>
                   <Text
                     style={{
                       color: theme.colors.action,
@@ -732,6 +805,10 @@ const SwipeTabs = createStandardRouterNavigator(SwipeTabsContent, TabRouter, {
 
 export default function TabsLayout(): React.JSX.Element {
   const router = useRouter();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { db, revision, notifyChange } = useDatabase();
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isPullingDrawer, setIsPullingDrawer] = useState(false);
   const [isQuickSheetOpen, setIsQuickSheetOpen] = useState(false);
@@ -739,6 +816,99 @@ export default function TabsLayout(): React.JSX.Element {
   const [ledgerPeriodMode, setLedgerPeriodMode] = useState<LedgerPeriodMode>('month');
   const [drawerProgress] = useState(() => new Animated.Value(0));
   const [quickProgress] = useState(() => new Animated.Value(0));
+
+  // 长按居中「+」扇形快捷选项状态（预热缓存最新前 5 项，长按零延迟瞬开）
+  const [isRadialOpen, setIsRadialOpen] = useState(false);
+  const [radialItems, setRadialItems] = useState<QuickRecordButtonItem[]>([]);
+  const [radialActiveIndex, setRadialActiveIndex] = useState<number | null>(null);
+  const [radialDoneNotice, setRadialDoneNotice] = useState<string | null>(null);
+
+  const radialItemsRef = useRef<QuickRecordButtonItem[]>([]);
+  const radialActiveIndexRef = useRef<number | null>(null);
+  const radialToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const res = await listQuickRecordButtons(db);
+      if (!active) {
+        return;
+      }
+      const sliced = res.items.slice(0, MAX_RADIAL_QUICK_ITEMS);
+      radialItemsRef.current = sliced;
+      setRadialItems(sliced);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [db, revision]);
+
+  useEffect(() => {
+    return () => {
+      if (radialToastTimerRef.current) {
+        clearTimeout(radialToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showRadialDoneToast = useCallback((text: string) => {
+    if (radialToastTimerRef.current) {
+      clearTimeout(radialToastTimerRef.current);
+    }
+    setRadialDoneNotice(text);
+    radialToastTimerRef.current = setTimeout(() => {
+      setRadialDoneNotice(null);
+      radialToastTimerRef.current = null;
+    }, 1500);
+  }, []);
+
+  const startRadialMenu = useCallback(() => {
+    radialActiveIndexRef.current = null;
+    setRadialActiveIndex(null);
+    setIsRadialOpen(true);
+  }, []);
+
+  const updateRadialSelection = useCallback((dx: number, dy: number) => {
+    const nextIdx = hitTestRadialOption(dx, dy, radialItemsRef.current.length);
+    if (nextIdx !== radialActiveIndexRef.current) {
+      radialActiveIndexRef.current = nextIdx;
+      setRadialActiveIndex(nextIdx);
+      if (nextIdx !== null) {
+        hapticSelection();
+      }
+    }
+  }, []);
+
+  const finishRadialMenu = useCallback(
+    (commit: boolean) => {
+      const pickedIdx = radialActiveIndexRef.current;
+      radialActiveIndexRef.current = null;
+      setRadialActiveIndex(null);
+      setIsRadialOpen(false);
+
+      if (!commit || pickedIdx === null) {
+        return;
+      }
+      const picked = radialItemsRef.current[pickedIdx];
+      if (!picked) {
+        return;
+      }
+      void (async () => {
+        try {
+          await executeQuickRecord(db, picked);
+          hapticLight();
+          notifyChange();
+          const sign = picked.type === 'expense' ? '-' : '+';
+          showRadialDoneToast(
+            `已记 · ${picked.name} ${sign}${formatCentsToYuan(picked.amountCents)}`
+          );
+        } catch {
+          hapticWarning();
+        }
+      })();
+    },
+    [db, notifyChange, showRadialDoneToast]
+  );
 
   const openDrawer = useCallback(() => {
     setIsQuickSheetOpen(false);
@@ -802,18 +972,31 @@ export default function TabsLayout(): React.JSX.Element {
       startQuickPull,
       endQuickPull,
       openQuickSheet,
+      isRadialOpen,
+      radialItemsCount: radialItems.length,
+      startRadialMenu,
+      updateRadialSelection,
+      finishRadialMenu,
     }),
     [
       drawerProgress,
       endDrawerPull,
       endQuickPull,
+      finishRadialMenu,
       isQuickSheetOpen,
+      isRadialOpen,
       openQuickSheet,
       quickProgress,
+      radialItems.length,
       startDrawerPull,
       startQuickPull,
+      startRadialMenu,
+      updateRadialSelection,
     ]
   );
+
+  const bottomInset = Math.max(insets.bottom, theme.spacing.xs);
+  const radialOriginBottom = bottomInset + FAB_LABEL_BLOCK_HEIGHT + FAB_OUTER_SIZE / 2;
 
   return (
     <MainDrawerContext.Provider value={drawerContextValue}>
@@ -831,6 +1014,50 @@ export default function TabsLayout(): React.JSX.Element {
             pullProgress={quickProgress}
             pullingOpen={isPullingQuickSheet}
           />
+
+          <QuickRadialOverlay
+            visible={isRadialOpen}
+            items={radialItems}
+            activeIndex={radialActiveIndex}
+            originBottom={radialOriginBottom}
+          />
+
+          {/* 扇形滑选极速记账完成后 1.5 秒轻提示（按要求无撤回按钮） */}
+          {radialDoneNotice ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.radialDoneWrap,
+                { bottom: bottomInset + BAR_BODY_HEIGHT + FAB_PROTRUSION + 16 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.radialDonePill,
+                  theme.elevation.floating,
+                  {
+                    backgroundColor: theme.colors.heroBg,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              >
+                <AppIcon name="checkmark-circle" size={16} color={theme.colors.heroText} />
+                <Text
+                  style={[
+                    styles.tabular,
+                    {
+                      color: theme.colors.heroText,
+                      fontSize: theme.fontSize.xs,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginLeft: 6,
+                    },
+                  ]}
+                >
+                  {radialDoneNotice}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           <SettingsDrawer
             open={isDrawerOpen}
@@ -926,5 +1153,22 @@ const styles = StyleSheet.create({
   fabInner: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  radialDoneWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 109,
+    elevation: 22,
+  },
+  radialDonePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  tabular: {
+    fontVariant: ['tabular-nums'],
   },
 });

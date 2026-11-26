@@ -61,6 +61,22 @@ interface RecordKeypadProps {
   /** 当前选中分类的简短展示名（如「餐饮美食 · 午餐」），转账时为 null */
   selectedCategoryLabel: string | null;
   formError: string | null;
+  /** 可选：覆写左侧文本输入框占位文案（默认「点此输入备注...」） */
+  notePlaceholder?: string;
+  /** 可选：覆写左侧文本输入框无障碍标签（默认「备注」） */
+  noteAccessibilityLabel?: string;
+  /** 可选：覆写左侧文本输入框图标（默认 create-outline） */
+  noteIconName?: string;
+  /** 可选：覆写左侧文本输入框最大长度（默认 120） */
+  noteMaxLength?: number;
+  /** 可选：隐藏右侧日期选择按钮（用于无需日期的快捷模板编辑模式） */
+  hideDateButton?: boolean;
+  /** 可选：左下角始终显示「清空」而非「再记」 */
+  forceClearSecondary?: boolean;
+  /** 可选：是否自动添加底部安全区内边距（默认 true） */
+  includeBottomInset?: boolean;
+  /** 可选：覆写主保存按钮无障碍文案 */
+  saveAccessibilityLabel?: string;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -116,6 +132,14 @@ export function RecordKeypad({
   onPressDate,
   selectedCategoryLabel,
   formError,
+  notePlaceholder = '点此输入备注...',
+  noteAccessibilityLabel = '备注',
+  noteIconName = 'create-outline',
+  noteMaxLength = 120,
+  hideDateButton = false,
+  forceClearSecondary = false,
+  includeBottomInset = true,
+  saveAccessibilityLabel = '保存账目',
 }: RecordKeypadProps): React.JSX.Element {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -244,12 +268,14 @@ export function RecordKeypad({
     }
   };
 
+  const showClearAsSecondary = isEditing || forceClearSecondary;
+
   const handleSecondaryBottomLeft = () => {
     if (saving) {
       return;
     }
     hapticSelection();
-    if (isEditing) {
+    if (showClearAsSecondary) {
       onClearAmount();
     } else if (!disabled) {
       onSave(true);
@@ -385,22 +411,22 @@ export function RecordKeypad({
           ]}
         >
           <AppIcon
-            name="create-outline"
+            name={noteIconName}
             size={16}
             color={noteFocused ? theme.colors.action : theme.colors.textMuted}
           />
           <TextInput
             ref={noteInputRef}
-            accessibilityLabel="备注"
+            accessibilityLabel={noteAccessibilityLabel}
             value={note}
             onChangeText={onChangeNote}
             onFocus={() => setNoteFocused(true)}
             onBlur={() => setNoteFocused(false)}
             onSubmitEditing={dismissSystemKeyboard}
             returnKeyType="done"
-            placeholder="点此输入备注..."
+            placeholder={notePlaceholder}
             placeholderTextColor={theme.colors.textMuted}
-            maxLength={120}
+            maxLength={noteMaxLength}
             style={[
               styles.noteInput,
               {
@@ -492,13 +518,13 @@ export function RecordKeypad({
         </Pressable>
       </View>
 
-      {/* 融合条：左侧横向直选账户卡片（支出/收入）+ 右侧固定日期选择按钮 */}
+      {/* 融合条：左侧横向直选账户卡片（支出/收入）+ 可选右侧固定日期选择按钮 */}
       <View
         style={[
           styles.selectorStrip,
           {
             backgroundColor: theme.colors.surfaceRaised,
-            paddingRight: theme.spacing.md,
+            paddingRight: hideDateButton ? 0 : theme.spacing.md,
             paddingBottom: theme.spacing.sm,
             paddingTop: theme.spacing.xs,
             borderBottomColor: theme.colors.border,
@@ -680,37 +706,39 @@ export function RecordKeypad({
           <View style={styles.accountsScroll} />
         )}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`选择日期，当前 ${formatRelativeDateLabel(occurredOn)}`}
-          onPress={() => {
-            dismissSystemKeyboard();
-            onPressDate();
-          }}
-          style={({ pressed }) => [
-            styles.dateCard,
-            {
-              marginLeft: txType !== 'transfer' ? theme.spacing.xs : 0,
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderRadius: theme.radius.md,
-            },
-            pressed && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <AppIcon name="calendar-outline" size={14} color={theme.colors.action} />
-          <Text
-            numberOfLines={1}
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              marginTop: 2,
+        {!hideDateButton ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`选择日期，当前 ${formatRelativeDateLabel(occurredOn)}`}
+            onPress={() => {
+              dismissSystemKeyboard();
+              onPressDate();
             }}
+            style={({ pressed }) => [
+              styles.dateCard,
+              {
+                marginLeft: txType !== 'transfer' ? theme.spacing.xs : 0,
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radius.md,
+              },
+              pressed && { opacity: theme.opacity.pressed },
+            ]}
           >
-            {formatRelativeDateLabel(occurredOn)}
-          </Text>
-        </Pressable>
+            <AppIcon name="calendar-outline" size={14} color={theme.colors.action} />
+            <Text
+              numberOfLines={1}
+              style={{
+                color: theme.colors.text,
+                fontSize: theme.fontSize.xs,
+                fontWeight: theme.fontWeight.semibold,
+                marginTop: 2,
+              }}
+            >
+              {formatRelativeDateLabel(occurredOn)}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {/* 自制 4x4 数字计算键盘（仅在备注未聚焦时展示） */}
@@ -719,7 +747,7 @@ export function RecordKeypad({
           style={{
             paddingHorizontal: theme.spacing.sm,
             paddingTop: theme.spacing.sm,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.sm),
+            paddingBottom: includeBottomInset ? Math.max(insets.bottom, theme.spacing.sm) : theme.spacing.sm,
             gap: theme.spacing.sm,
           }}
         >
@@ -766,8 +794,8 @@ export function RecordKeypad({
           <View style={[styles.keyRow, { gap: theme.spacing.sm }]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={isEditing ? '清空金额' : '保存并再记一笔'}
-              disabled={saving || (!isEditing && disabled)}
+              accessibilityLabel={showClearAsSecondary ? '清空金额' : '保存并再记一笔'}
+              disabled={saving || (!showClearAsSecondary && disabled)}
               onPress={handleSecondaryBottomLeft}
               style={({ pressed }) => [
                 styles.keyCap,
@@ -775,7 +803,7 @@ export function RecordKeypad({
                 {
                   backgroundColor: theme.colors.surfaceRaised,
                   borderRadius: theme.radius.md,
-                  opacity: saving || (!isEditing && disabled) ? theme.opacity.disabled : 1,
+                  opacity: saving || (!showClearAsSecondary && disabled) ? theme.opacity.disabled : 1,
                 },
                 pressed && { opacity: theme.opacity.pressed },
               ]}
@@ -787,7 +815,7 @@ export function RecordKeypad({
                   fontWeight: theme.fontWeight.semibold,
                 }}
               >
-                {isEditing ? '清空' : '再记'}
+                {showClearAsSecondary ? '清空' : '再记'}
               </Text>
             </Pressable>
 
@@ -796,7 +824,7 @@ export function RecordKeypad({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={pendingOp ? '计算结果' : '保存账目'}
+              accessibilityLabel={pendingOp ? '计算结果' : saveAccessibilityLabel}
               disabled={disabled || saving}
               onPress={handlePrimaryAction}
               style={({ pressed }) => [

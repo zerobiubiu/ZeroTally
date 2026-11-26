@@ -1,9 +1,11 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 快捷记账下半屏窗口：与 SettingsDrawer 同级叠加于主 Tab 顶层（非原生 Modal），支持从底栏无停顿 1:1 跟手向上拉起，且内部弹居中模板编辑浮窗零双 Modal 冲突
- * - 全区双向手势：整个面板任意位置（无需按住顶部横条）均支持向下跟手滑关、向上跟手拉升跨越阈值伴随震动无缝展开完整「记一笔」
- * - 横向左右分页：快捷选项采用 3×2（每页 6 格）圆润卡片横向分页轨道，基于 RNGH 横向手势与整窗竖向手势正交隔离，支持跟手滑动翻页、边缘阻尼、切页震动与底部圆点指示器
- * - 一键极速入账：点击图标卡片免输入直接写入今日账目并联动余额 + 震动 + 3.5 秒内一键撤销；优先展示自定义模板，空自定义时自动回退近 30 天高频推荐
+ * - 快捷记账非全屏浮窗：与 SettingsDrawer 同级叠加于主 Tab 顶层（零独立 Modal），支持从底栏无停顿 1:1 跟手向上拉起
+ * - 网格态（约 52% 屏高）：
+ *   1. 全区任意位置均支持向下滑关、向上滑跨越阈值无缝二次展开完整「记一笔」；
+ *   2. 快捷选项 3×2（每页 6 格）横向左右分页滑动，配底部圆点分页指示；
+ *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（顶部同步浮现高清实时调节 HUD），长按不动松手切入编辑态。
+ * - 新增/编辑态（约 80% 屏高，上方保留暗罩透出底页绝不全屏铺满）：直接内嵌 QuickTemplateComposer 复用完整记一笔的二级分类选择器与计算键盘，原备注位改为「快捷卡片名称」且隐藏日期。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -11,7 +13,10 @@ import {
   Animated,
   BackHandler,
   Easing,
+  Keyboard,
+  KeyboardAvoidingView,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -22,7 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
 import {
   hapticLight,
-  hapticMedium,
+  hapticLongAlert,
   hapticSelection,
   hapticSuccess,
   hapticWarning,
@@ -35,6 +40,7 @@ import type { Account } from '../../accounts/types';
 import { listCategories } from '../../categories/service';
 import type { Category } from '../../categories/types';
 import { deleteTransaction } from '../../transactions/service';
+import { resolveAmountScrubStepCents, type QuickScrubAxis } from '../scrub-rules';
 import {
   createQuickTemplate,
   deleteQuickTemplate,
@@ -44,9 +50,15 @@ import {
 } from '../service';
 import type { CreateQuickTemplateInput, QuickRecordButtonItem } from '../types';
 import {
-  QuickTemplateEditorDialog,
-  type QuickTemplateEditorInitialValue,
-} from './QuickTemplateEditorDialog';
+  QUICK_UNDO_DURATION_MS,
+  QuickRecordTile,
+  type ActiveQuickScrubState,
+  type QuickCardUndoState,
+} from './QuickRecordTile';
+import {
+  QuickTemplateComposer,
+  type QuickTemplateComposerInitialValue,
+} from './QuickTemplateComposer';
 
 const GRID_COLUMNS = 3;
 const GRID_ROWS_PER_PAGE = 2;
@@ -62,10 +74,17 @@ export function computeQuickSheetHeight(windowHeight: number): number {
   );
 }
 
+function computeComposerSheetHeight(windowHeight: number): number {
+  return Math.min(
+    Math.max(540, Math.round(windowHeight * 0.8)),
+    Math.round(windowHeight * 0.84)
+  );
+}
+
 export interface QuickRecordSheetProps {
   open: boolean;
   onClose: () => void;
-  /** 上滑跨越阈值或点击「完整记账」时，展开完整记一笔页面 */
+  /** 上滑跨越阈值或轻点顶部拖动条时，展开完整记一笔页面 */
   onExpandFullRecord: () => void;
   /** 由主布局共享的拉起进度（0 = 藏于底边，1 = 占下半屏就位） */
   pullProgress?: Animated.Value;
@@ -73,11 +92,8 @@ export interface QuickRecordSheetProps {
   pullingOpen?: boolean;
 }
 
-interface RecentToastState {
-  txId: string;
-  label: string;
-  amountText: string;
-  type: 'expense' | 'income';
+interface QuickBannerToast {
+  text: string;
 }
 
 type GridCell =
@@ -113,7 +129,8 @@ export function QuickRecordSheet({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { db, revision, notifyChange } = useDatabase();
 
-  const sheetHeight = computeQuickSheetHeight(windowHeight);
+  const gridSheetHeight = computeQuickSheetHeight(windowHeight);
+  const composerSheetHeight = computeComposerSheetHeight(windowHeight);
   const shouldShow = open || pullingOpen;
 
   const [mounted, setMounted] = useState(shouldShow);
@@ -132,14 +149,22 @@ export function QuickRecordSheet({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [recordingId, setRecordingId] = useState<string | null>(null);
-  const [recentToast, setRecentToast] = useState<RecentToastState | null>(null);
-  const [undoing, setUndoing] = useState(false);
+  const [undoCards, setUndoCards] = useState<Record<string, QuickCardUndoState>>({});
+  const [bannerToast, setBannerToast] = useState<QuickBannerToast | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [readyToExpandFull, setReadyToExpandFull] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
 
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [editorInitial, setEditorInitial] = useState<QuickTemplateEditorInitialValue | null>(null);
+  /** 单卡长按上下/左右微调实时态 */
+  const [activeScrub, setActiveScrub] = useState<ActiveQuickScrubState | null>(null);
+
+  /** 内嵌新增/编辑视图态（非独立 Modal，直接在同一非全屏浮层内平滑舒展） */
+  const [composing, setComposing] = useState(false);
+  const [composerInitial, setComposerInitial] =
+    useState<QuickTemplateComposerInitialValue | null>(null);
+  const [composerSessionKey, setComposerSessionKey] = useState(0);
+
+  const activeSheetHeight = composing ? composerSheetHeight : gridSheetHeight;
 
   const pages = useMemo(() => {
     if (items.length === 0) {
@@ -152,28 +177,31 @@ export function QuickRecordSheet({
 
   const pageCount = Math.max(1, pages.length);
   const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
+  const activeAccounts = useMemo(() => accounts.filter((a) => !a.isArchived), [accounts]);
 
   const openRef = useRef(open);
   const pullingOpenRef = useRef(pullingOpen);
-  const sheetHeightRef = useRef(sheetHeight);
+  const sheetHeightRef = useRef(activeSheetHeight);
   const windowWidthRef = useRef(windowWidth);
   const pageIndexRef = useRef(clampedPageIndex);
   const pageCountRef = useRef(pageCount);
+  const composingRef = useRef(composing);
   const draggingVerticalRef = useRef(false);
   const draggingHorizontalRef = useRef(false);
   const expandHintFiredRef = useRef(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     openRef.current = open;
     pullingOpenRef.current = pullingOpen;
-    sheetHeightRef.current = sheetHeight;
+    sheetHeightRef.current = activeSheetHeight;
     windowWidthRef.current = windowWidth;
     pageIndexRef.current = clampedPageIndex;
     pageCountRef.current = pageCount;
-  }, [clampedPageIndex, open, pageCount, pullingOpen, sheetHeight, windowWidth]);
+    composingRef.current = composing;
+  }, [activeSheetHeight, clampedPageIndex, composing, open, pageCount, pullingOpen, windowWidth]);
 
-  // 窗口宽度或页数缩减时同步水平分页位置
   useEffect(() => {
     if (draggingHorizontalRef.current) {
       return;
@@ -181,7 +209,6 @@ export function QuickRecordSheet({
     pagerTranslateX.setValue(-clampedPageIndex * windowWidth);
   }, [clampedPageIndex, pagerTranslateX, windowWidth]);
 
-  // 打开或底层数据刷新时加载快捷按钮、活跃分类与账户
   const reloadData = useCallback(async () => {
     const [buttonData, allCats, allAccs] = await Promise.all([
       listQuickRecordButtons(db),
@@ -220,6 +247,13 @@ export function QuickRecordSheet({
     };
   }, [db, mounted, revision]);
 
+  const clearAllUndoTimers = useCallback(() => {
+    for (const timer of Object.values(undoTimersRef.current)) {
+      clearTimeout(timer);
+    }
+    undoTimersRef.current = {};
+  }, []);
+
   // 控制半屏进场与收起动画
   useEffect(() => {
     if (!mounted || pullingOpen) {
@@ -236,6 +270,7 @@ export function QuickRecordSheet({
         mass: 0.9,
       }).start();
     } else {
+      Keyboard.dismiss();
       Animated.parallel([
         Animated.timing(progress, {
           toValue: 0,
@@ -250,54 +285,65 @@ export function QuickRecordSheet({
         }),
       ]).start(({ finished }) => {
         if (finished && !openRef.current && !pullingOpenRef.current) {
+          clearAllUndoTimers();
+          setUndoCards({});
           setMounted(false);
           setReadyToExpandFull(false);
           setActionError(null);
+          setActiveScrub(null);
+          setComposing(false);
           setPageIndex(0);
         }
       });
     }
-  }, [expandLiftY, mounted, open, progress, pullingOpen]);
+  }, [clearAllUndoTimers, expandLiftY, mounted, open, progress, pullingOpen]);
 
-  // 自动消退撤销横条
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
       }
+      clearAllUndoTimers();
     };
-  }, []);
+  }, [clearAllUndoTimers]);
 
-  // 展开且未打开浮窗时拦截 Android 硬件返回键收起半屏
+  // Android 硬件返回键：编辑态先退回网格态，网格态则关闭半屏窗
   useEffect(() => {
-    if (!open || editorVisible) {
+    if (!open) {
       return;
     }
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       hapticLight();
-      onClose();
+      if (composingRef.current) {
+        Keyboard.dismiss();
+        setComposing(false);
+      } else {
+        onClose();
+      }
       return true;
     });
     return () => {
       sub.remove();
     };
-  }, [editorVisible, onClose, open]);
+  }, [onClose, open]);
 
-  const showQuickToast = useCallback((toast: RecentToastState) => {
+  const showToast = useCallback((toast: QuickBannerToast) => {
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
     }
-    setRecentToast(toast);
+    setBannerToast(toast);
     toastTimerRef.current = setTimeout(() => {
-      setRecentToast(null);
+      setBannerToast(null);
       toastTimerRef.current = null;
     }, 3500);
   }, []);
 
   const triggerExpandFull = useCallback(() => {
+    Keyboard.dismiss();
     hapticLight();
     expandHintFiredRef.current = false;
     setReadyToExpandFull(false);
+    setComposing(false);
     expandLiftY.setValue(0);
     onExpandFullRecord();
   }, [expandLiftY, onExpandFullRecord]);
@@ -324,9 +370,9 @@ export function QuickRecordSheet({
     [pagerTranslateX]
   );
 
-  // 全区竖向手势：面板任意位置向下滑动直接收起，向上滑动二次展开完整记一笔
-  const sheetPanGesture = usePanGesture({
-    enabled: open && !editorVisible,
+  // 网格态全区竖向手势：面板任意位置向下滑关，向上滑二次展开完整记一笔
+  const gridVerticalPanGesture = usePanGesture({
+    enabled: open && !composing && activeScrub === null,
     disableReanimated: true,
     runOnJS: true,
     activeOffsetY: [-10, 10],
@@ -370,7 +416,6 @@ export function QuickRecordSheet({
       draggingVerticalRef.current = false;
       const h = Math.max(1, sheetHeightRef.current);
 
-      // 向下滑动收起判定
       if (event.translationY > 0) {
         const projectedDown = event.translationY + event.velocityY * 0.14;
         if (projectedDown > h * 0.22 || (event.velocityY > 620 && event.translationY > 24)) {
@@ -388,7 +433,6 @@ export function QuickRecordSheet({
         return;
       }
 
-      // 向上滑动二次展开完整记一笔判定
       const upDistance = -event.translationY;
       const projectedUp = upDistance - event.velocityY * 0.12;
       if (projectedUp > 74 || (event.velocityY < -620 && upDistance > 22)) {
@@ -431,9 +475,62 @@ export function QuickRecordSheet({
     },
   });
 
-  // 快捷选项横向分页手势：与外层整窗竖向手势物理正交，互不打架
+  // 编辑态顶部抓手下滑退回/收起手势（不干扰内部二级分类 ScrollView 滚动）
+  const composerHandlePanGesture = usePanGesture({
+    enabled: open && composing,
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetY: 10,
+    failOffsetX: [-20, 20],
+    onActivate: () => {
+      Keyboard.dismiss();
+      draggingVerticalRef.current = true;
+    },
+    onUpdate: (event) => {
+      if (!draggingVerticalRef.current) {
+        return;
+      }
+      const h = Math.max(1, sheetHeightRef.current);
+      const nextProgress = Math.max(0, 1 - Math.max(0, event.translationY) / h);
+      progress.setValue(nextProgress);
+    },
+    onDeactivate: (event) => {
+      if (!draggingVerticalRef.current) {
+        return;
+      }
+      draggingVerticalRef.current = false;
+      const h = Math.max(1, sheetHeightRef.current);
+      const projectedDown = event.translationY + event.velocityY * 0.14;
+      if (projectedDown > h * 0.22 || (event.velocityY > 620 && event.translationY > 28)) {
+        hapticLight();
+        onClose();
+      } else {
+        Animated.spring(progress, {
+          toValue: 1,
+          useNativeDriver: true,
+          stiffness: 300,
+          damping: 30,
+          mass: 0.9,
+        }).start();
+      }
+    },
+    onFinalize: () => {
+      if (draggingVerticalRef.current) {
+        draggingVerticalRef.current = false;
+        Animated.spring(progress, {
+          toValue: openRef.current ? 1 : 0,
+          useNativeDriver: true,
+          stiffness: 300,
+          damping: 30,
+          mass: 0.9,
+        }).start();
+      }
+    },
+  });
+
+  // 快捷选项横向分页手势：与整窗竖向手势正交隔离，单卡微调时暂停
   const horizontalPagerGesture = usePanGesture({
-    enabled: open && !editorVisible && pages.length > 1,
+    enabled: open && !composing && activeScrub === null && pages.length > 1,
     disableReanimated: true,
     runOnJS: true,
     activeOffsetX: [-10, 10],
@@ -485,71 +582,155 @@ export function QuickRecordSheet({
     },
   });
 
-  const handleQuickTap = async (item: QuickRecordButtonItem) => {
-    if (recordingId) {
-      return;
-    }
-    setRecordingId(item.id);
-    setActionError(null);
-    try {
-      const created = await executeQuickRecord(db, item);
-      hapticSuccess();
-      notifyChange();
-      showQuickToast({
-        txId: created.id,
-        label: item.name,
-        amountText: `${item.type === 'expense' ? '-' : '+'}${formatCentsToYuan(item.amountCents)}`,
-        type: item.type,
-      });
-    } catch (err) {
-      hapticWarning();
-      setActionError(err instanceof Error ? err.message : '快捷记账失败');
-    } finally {
-      setRecordingId(null);
-    }
-  };
-
-  const handleUndoToast = async () => {
-    if (!recentToast || undoing) {
-      return;
-    }
-    setUndoing(true);
-    try {
-      await deleteTransaction(db, recentToast.txId);
-      hapticLight();
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = null;
+  const handleQuickTap = useCallback(
+    async (item: QuickRecordButtonItem) => {
+      if (recordingId) {
+        return;
       }
-      setRecentToast(null);
-      notifyChange();
-    } catch (err) {
-      hapticWarning();
-      setActionError(err instanceof Error ? err.message : '撤销失败');
-    } finally {
-      setUndoing(false);
-    }
-  };
+      setRecordingId(item.id);
+      setActionError(null);
+      try {
+        const created = await executeQuickRecord(db, item);
+        // 输入轻震动，原卡片原地变身为 3 秒圆环倒计时撤销卡片
+        hapticLight();
+        notifyChange();
 
-  const handleOpenAddEditor = () => {
+        if (undoTimersRef.current[item.id]) {
+          clearTimeout(undoTimersRef.current[item.id]);
+        }
+        setUndoCards((prev) => ({
+          ...prev,
+          [item.id]: {
+            txId: created.id,
+            startedAt: Date.now(),
+            amountCents: item.amountCents,
+            type: item.type,
+          },
+        }));
+        undoTimersRef.current[item.id] = setTimeout(() => {
+          delete undoTimersRef.current[item.id];
+          setUndoCards((prev) => {
+            if (!(item.id in prev)) {
+              return prev;
+            }
+            const next = { ...prev };
+            delete next[item.id];
+            return next;
+          });
+        }, QUICK_UNDO_DURATION_MS);
+      } catch (err) {
+        hapticWarning();
+        setActionError(err instanceof Error ? err.message : '快捷记账失败');
+      } finally {
+        setRecordingId(null);
+      }
+    },
+    [db, notifyChange, recordingId]
+  );
+
+  const handleUndoCardTap = useCallback(
+    async (item: QuickRecordButtonItem, txId: string) => {
+      if (recordingId) {
+        return;
+      }
+      if (undoTimersRef.current[item.id]) {
+        clearTimeout(undoTimersRef.current[item.id]);
+        delete undoTimersRef.current[item.id];
+      }
+      setRecordingId(item.id);
+      setActionError(null);
+      try {
+        await deleteTransaction(db, txId);
+        // 撤回长震动提醒，与轻震动输入形成清晰体感区分
+        hapticLongAlert();
+        setUndoCards((prev) => {
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
+        notifyChange();
+      } catch (err) {
+        hapticWarning();
+        setActionError(err instanceof Error ? err.message : '撤销失败');
+      } finally {
+        setRecordingId(null);
+      }
+    },
+    [db, notifyChange, recordingId]
+  );
+
+  const handleOpenAddComposer = useCallback(() => {
     hapticLight();
-    setEditorInitial(null);
-    setEditorVisible(true);
-  };
+    setActiveScrub(null);
+    setComposerInitial(null);
+    setComposerSessionKey((k) => k + 1);
+    setComposing(true);
+  }, []);
 
-  const handleOpenEditEditor = (item: QuickRecordButtonItem) => {
-    hapticMedium();
-    setEditorInitial({
+  const handleOpenEditComposer = useCallback((item: QuickRecordButtonItem) => {
+    setActiveScrub(null);
+    setComposerInitial({
       id: item.source === 'template' ? item.id : undefined,
       name: item.name,
       type: item.type,
       amountCents: item.amountCents,
       categoryId: item.categoryId,
       accountId: item.accountId,
-      note: item.note,
     });
-    setEditorVisible(true);
-  };
+    setComposerSessionKey((k) => k + 1);
+    setComposing(true);
+  }, []);
+
+  // 单卡长按滑动结束：若金额或账户有变更则直接持久化保存（推荐项自动保存为自定义快捷卡）
+  const handleScrubEnd = useCallback(
+    async (
+      item: QuickRecordButtonItem,
+      result: { axis: QuickScrubAxis; amountCents: number; accountId: string }
+    ) => {
+      setActiveScrub(null);
+      if (result.axis === 'none') {
+        return;
+      }
+      const changed =
+        result.amountCents !== item.amountCents || result.accountId !== item.accountId;
+      if (!changed) {
+        return;
+      }
+
+      setActionError(null);
+      try {
+        const nextPayload: CreateQuickTemplateInput = {
+          name: item.name,
+          type: item.type,
+          amountCents: result.amountCents,
+          categoryId: item.categoryId,
+          accountId: result.accountId,
+          note: '',
+        };
+        if (item.source === 'template') {
+          await updateQuickTemplate(db, item.id, nextPayload);
+        } else {
+          await createQuickTemplate(db, nextPayload);
+        }
+        hapticSuccess();
+        notifyChange();
+        await reloadData();
+        const accName =
+          activeAccounts.find((a) => a.id === result.accountId)?.name ?? item.accountName;
+        const sign = item.type === 'expense' ? '-' : '+';
+        showToast({
+          text:
+            result.axis === 'amount'
+              ? `已调金额 · ${item.name} ${sign}${formatCentsToYuan(result.amountCents)}`
+              : `已切账户 · ${item.name} · ${accName}`,
+        });
+      } catch (err) {
+        hapticWarning();
+        setActionError(err instanceof Error ? err.message : '保存微调失败');
+      }
+    },
+    [activeAccounts, db, notifyChange, reloadData, showToast]
+  );
 
   const handleSaveTemplate = async (input: CreateQuickTemplateInput, editingId?: string) => {
     if (editingId) {
@@ -573,7 +754,7 @@ export function QuickRecordSheet({
 
   const baseTranslateY = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [sheetHeight + 24, 0],
+    outputRange: [activeSheetHeight + 24, 0],
     extrapolate: 'clamp',
   });
 
@@ -583,52 +764,61 @@ export function QuickRecordSheet({
     extrapolate: 'clamp',
   });
 
-  return (
-    <View
-      style={[StyleSheet.absoluteFill, styles.overlayRoot]}
-      pointerEvents={open ? 'auto' : 'none'}
+  const scrubStepYuan = activeScrub
+    ? formatCentsToYuan(resolveAmountScrubStepCents(activeScrub.item.amountCents))
+    : '';
+
+  const sheetCard = (
+    <Animated.View
+      style={[
+        styles.sheet,
+        theme.elevation.floating,
+        {
+          height: activeSheetHeight,
+          backgroundColor: theme.colors.surfaceRaised,
+          borderTopLeftRadius: theme.radius.lg,
+          borderTopRightRadius: theme.radius.lg,
+          paddingBottom: Math.max(insets.bottom, theme.spacing.sm),
+          transform: [{ translateY: baseTranslateY }, { translateY: expandLiftY }],
+        },
+      ]}
     >
-      {/* 背景暗色遮罩 */}
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: theme.colors.scrim, opacity: scrimOpacity },
-        ]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="关闭快捷记账面板"
-          onPress={() => {
-            hapticLight();
-            onClose();
-          }}
-          style={StyleSheet.absoluteFill}
-        />
-      </Animated.View>
+      {/* 二次向上滑动拉升垫底，防止屏底露出缝隙 */}
+      <View
+        pointerEvents="none"
+        style={[styles.overdragFiller, { backgroundColor: theme.colors.surfaceRaised }]}
+      />
 
-      {/* 下半屏主容器：整张面板全区任意位置均支持上下滑动展开或收起 */}
-      <GestureDetector gesture={sheetPanGesture}>
-        <Animated.View
-          style={[
-            styles.sheet,
-            theme.elevation.floating,
-            {
-              height: sheetHeight,
-              backgroundColor: theme.colors.surfaceRaised,
-              borderTopLeftRadius: theme.radius.lg,
-              borderTopRightRadius: theme.radius.lg,
-              paddingBottom: Math.max(insets.bottom, theme.spacing.sm),
-              transform: [{ translateY: baseTranslateY }, { translateY: expandLiftY }],
-            },
-          ]}
-        >
-          {/* 二次向上滑动拉升垫底，防止屏底露出缝隙 */}
-          <View
-            pointerEvents="none"
-            style={[styles.overdragFiller, { backgroundColor: theme.colors.surfaceRaised }]}
+      {composing ? (
+        /* ========== 内嵌非全屏新增/编辑态：复用完整记一笔 UI ========== */
+        <View style={styles.flex}>
+          <GestureDetector gesture={composerHandlePanGesture}>
+            <View style={styles.handleZone}>
+              <View
+                style={[
+                  styles.handleBar,
+                  {
+                    backgroundColor: theme.colors.borderStrong,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              />
+            </View>
+          </GestureDetector>
+
+          <QuickTemplateComposer
+            key={composerSessionKey}
+            initialValue={composerInitial}
+            categories={categories}
+            accounts={accounts}
+            onBack={() => setComposing(false)}
+            onSave={handleSaveTemplate}
+            onDelete={handleDeleteTemplate}
           />
-
-          {/* 顶部抓手与标题栏 */}
+        </View>
+      ) : (
+        /* ========== 网格态：全区上下滑收起/展开 + 3×2 横向分页 + 单卡长按调金额/切账户 ========== */
+        <View style={styles.flex}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="向上滑动展开完整记一笔，向下滑动收起"
@@ -708,7 +898,7 @@ export function QuickRecordSheet({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="新增快捷项"
-                onPress={handleOpenAddEditor}
+                onPress={handleOpenAddComposer}
                 hitSlop={6}
                 style={({ pressed }) => [
                   styles.headerIconBtn,
@@ -722,41 +912,134 @@ export function QuickRecordSheet({
               >
                 <AppIcon name="add" size={18} color={theme.colors.text} />
               </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="展开完整记一笔"
-                onPress={triggerExpandFull}
-                hitSlop={6}
-                style={({ pressed }) => [
-                  styles.expandBtn,
-                  {
-                    backgroundColor: theme.colors.actionSubtle,
-                    borderRadius: theme.radius.full,
-                  },
-                  pressed && { opacity: theme.opacity.pressed },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: theme.colors.actionTextOnSubtle,
-                    fontSize: theme.fontSize.xs,
-                    fontWeight: theme.fontWeight.semibold,
-                  }}
-                >
-                  完整记账
-                </Text>
-                <AppIcon
-                  name="chevron-up"
-                  size={14}
-                  color={theme.colors.actionTextOnSubtle}
-                />
-              </Pressable>
             </View>
           </View>
 
-          {/* 一键入账即时反馈 + 可撤销条 */}
-          {recentToast ? (
+          {/* 实时微调 HUD / 一键入账反馈 / 错误提示 */}
+          {activeScrub ? (
+            <View
+              style={[
+                styles.scrubHud,
+                {
+                  marginHorizontal: theme.spacing.lg,
+                  marginTop: theme.spacing.sm,
+                  backgroundColor: theme.colors.actionSubtle,
+                  borderRadius: theme.radius.md,
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.xs + 2,
+                },
+              ]}
+            >
+              {activeScrub.axis === 'amount' ? (
+                <View style={styles.scrubRow}>
+                  <View style={styles.scrubTitleLeft}>
+                    <AppIcon
+                      name="swap-vertical"
+                      size={15}
+                      color={theme.colors.actionTextOnSubtle}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: theme.colors.actionTextOnSubtle,
+                        fontSize: theme.fontSize.xs,
+                        fontWeight: theme.fontWeight.semibold,
+                        marginLeft: 5,
+                      }}
+                    >
+                      {activeScrub.item.name} · 上下调金额（步长 {scrubStepYuan}）
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.tabular,
+                      {
+                        color:
+                          activeScrub.item.type === 'expense'
+                            ? theme.colors.expense
+                            : theme.colors.income,
+                        fontSize: theme.fontSize.base,
+                        fontWeight: theme.fontWeight.semibold,
+                      },
+                    ]}
+                  >
+                    {activeScrub.item.type === 'expense' ? '-' : '+'}
+                    {formatCentsToYuan(activeScrub.amountCents)}
+                  </Text>
+                </View>
+              ) : activeScrub.axis === 'account' ? (
+                <View style={styles.scrubAccountWrap}>
+                  <View style={styles.scrubTitleLeft}>
+                    <AppIcon
+                      name="swap-horizontal"
+                      size={15}
+                      color={theme.colors.actionTextOnSubtle}
+                    />
+                    <Text
+                      style={{
+                        color: theme.colors.actionTextOnSubtle,
+                        fontSize: theme.fontSize.xs,
+                        fontWeight: theme.fontWeight.semibold,
+                        marginLeft: 5,
+                      }}
+                    >
+                      {activeAccounts.length > 1 ? '左右切换账户' : '当前仅 1 个可用账户'}
+                    </Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.scrubAccountsRow}
+                  >
+                    {activeAccounts.map((acc) => {
+                      const active = acc.id === activeScrub.accountId;
+                      return (
+                        <View
+                          key={acc.id}
+                          style={[
+                            styles.scrubAccChip,
+                            {
+                              backgroundColor: active
+                                ? theme.colors.action
+                                : theme.colors.surfaceRaised,
+                              borderRadius: theme.radius.full,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: active ? theme.colors.onAction : theme.colors.textSecondary,
+                              fontSize: 11,
+                              fontWeight: active
+                                ? theme.fontWeight.semibold
+                                : theme.fontWeight.regular,
+                            }}
+                          >
+                            {acc.name}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : (
+                <View style={styles.scrubRow}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      color: theme.colors.actionTextOnSubtle,
+                      fontSize: theme.fontSize.xs,
+                      fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    ↑↓ 滑动调金额 · ←→ 滑动切账户 · 直接松手编辑
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : bannerToast ? (
             <View
               style={[
                 styles.toastBanner,
@@ -770,7 +1053,11 @@ export function QuickRecordSheet({
                 },
               ]}
             >
-              <AppIcon name="checkmark-circle" size={16} color={theme.colors.actionTextOnSubtle} />
+              <AppIcon
+                name="checkmark-circle"
+                size={16}
+                color={theme.colors.actionTextOnSubtle}
+              />
               <Text
                 numberOfLines={1}
                 style={[
@@ -784,33 +1071,8 @@ export function QuickRecordSheet({
                   },
                 ]}
               >
-                已记 · {recentToast.label} {recentToast.amountText}
+                {bannerToast.text}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="撤销刚才的一键记账"
-                disabled={undoing}
-                onPress={() => void handleUndoToast()}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.undoBtn,
-                  {
-                    backgroundColor: theme.colors.surfaceRaised,
-                    borderRadius: theme.radius.full,
-                  },
-                  pressed && { opacity: theme.opacity.pressed },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: theme.colors.action,
-                    fontSize: 11,
-                    fontWeight: theme.fontWeight.semibold,
-                  }}
-                >
-                  {undoing ? '撤销中' : '撤销'}
-                </Text>
-              </Pressable>
             </View>
           ) : actionError ? (
             <View
@@ -882,12 +1144,12 @@ export function QuickRecordSheet({
                   textAlign: 'center',
                 }}
               >
-                把高频消费设成快捷按钮；面板内任意位置上滑进完整记一笔，下滑收起
+                把高频消费设成快捷卡片；长按可上下调金额、左右切账户
               </Text>
               <View style={[styles.emptyBtnRow, { marginTop: theme.spacing.md }]}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={handleOpenAddEditor}
+                  onPress={handleOpenAddComposer}
                   style={({ pressed }) => [
                     styles.emptyPrimaryBtn,
                     {
@@ -951,8 +1213,8 @@ export function QuickRecordSheet({
                                   <Pressable
                                     key="add_quick_tile"
                                     accessibilityRole="button"
-                                    accessibilityLabel="添加快捷记账按钮"
-                                    onPress={handleOpenAddEditor}
+                                    accessibilityLabel="添加快捷记账卡片"
+                                    onPress={handleOpenAddComposer}
                                     style={({ pressed }) => [
                                       styles.quickTile,
                                       styles.addTile,
@@ -997,96 +1259,29 @@ export function QuickRecordSheet({
                                         marginTop: 2,
                                       }}
                                     >
-                                      长按卡片编辑
+                                      长按可微调
                                     </Text>
                                   </Pressable>
                                 );
                               }
 
                               const { item } = cell;
-                              const busy = recordingId === item.id;
-                              const amountColor =
-                                item.type === 'expense'
-                                  ? theme.colors.expense
-                                  : theme.colors.income;
-                              const signedAmount = `${item.type === 'expense' ? '-' : '+'}${formatCentsToYuan(item.amountCents)}`;
-
                               return (
-                                <Pressable
+                                <QuickRecordTile
                                   key={item.id}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={`快捷记账 ${item.name} ${signedAmount}，账户 ${item.accountName}，长按编辑`}
+                                  item={item}
+                                  accounts={activeAccounts}
+                                  busy={recordingId === item.id}
                                   disabled={Boolean(recordingId)}
-                                  onPress={() => void handleQuickTap(item)}
-                                  onLongPress={() => handleOpenEditEditor(item)}
-                                  delayLongPress={320}
-                                  style={({ pressed }) => [
-                                    styles.quickTile,
-                                    {
-                                      backgroundColor: theme.colors.surface,
-                                      borderColor: theme.colors.border,
-                                      borderWidth: theme.borderWidth.hairline,
-                                      borderRadius: theme.radius.lg,
-                                      opacity: busy ? theme.opacity.disabled : 1,
-                                    },
-                                    pressed && { transform: [{ scale: 0.96 }], opacity: 0.85 },
-                                  ]}
-                                >
-                                  <View
-                                    style={[
-                                      styles.tileIconCircle,
-                                      {
-                                        backgroundColor: `${item.categoryColor}20`,
-                                        borderRadius: theme.radius.full,
-                                      },
-                                    ]}
-                                  >
-                                    {busy ? (
-                                      <ActivityIndicator size="small" color={item.categoryColor} />
-                                    ) : (
-                                      <AppIcon
-                                        name={item.categoryIcon}
-                                        size={20}
-                                        color={item.categoryColor}
-                                      />
-                                    )}
-                                  </View>
-                                  <Text
-                                    numberOfLines={1}
-                                    style={{
-                                      color: theme.colors.text,
-                                      fontSize: theme.fontSize.xs,
-                                      fontWeight: theme.fontWeight.semibold,
-                                      marginTop: 6,
-                                    }}
-                                  >
-                                    {item.name}
-                                  </Text>
-                                  <Text
-                                    numberOfLines={1}
-                                    style={[
-                                      styles.tabular,
-                                      {
-                                        color: amountColor,
-                                        fontSize: theme.fontSize.xs,
-                                        fontWeight: theme.fontWeight.semibold,
-                                        marginTop: 2,
-                                      },
-                                    ]}
-                                  >
-                                    {signedAmount}
-                                  </Text>
-                                  <Text
-                                    numberOfLines={1}
-                                    style={{
-                                      color: theme.colors.textMuted,
-                                      fontSize: 10,
-                                      marginTop: 1,
-                                    }}
-                                  >
-                                    {item.accountName}
-                                  </Text>
-                                </Pressable>
+                                  undoState={undoCards[item.id] ?? null}
+                                  scrubPreview={activeScrub}
+                                  onQuickTap={(tapped) => void handleQuickTap(tapped)}
+                                  onUndoTap={(tapped, txId) => void handleUndoCardTap(tapped, txId)}
+                                  onOpenEdit={handleOpenEditComposer}
+                                  onScrubStart={setActiveScrub}
+                                  onScrubChange={setActiveScrub}
+                                  onScrubEnd={(target, res) => void handleScrubEnd(target, res)}
+                                />
                               );
                             })}
                           </View>
@@ -1097,7 +1292,7 @@ export function QuickRecordSheet({
                 </View>
               </GestureDetector>
 
-              {/* 底部极简分页指示圆点（多于 1 页时显示，支持点击直达对应页） */}
+              {/* 底部极简分页指示圆点 */}
               {pages.length > 1 ? (
                 <View style={styles.dotsRow}>
                   {pages.map((_, idx) => {
@@ -1126,27 +1321,57 @@ export function QuickRecordSheet({
               ) : null}
             </View>
           )}
-        </Animated.View>
-      </GestureDetector>
+        </View>
+      )}
+    </Animated.View>
+  );
 
-      {/* 居中新增/编辑快捷项浮窗 */}
-      <QuickTemplateEditorDialog
-        visible={editorVisible}
-        initialValue={editorInitial}
-        categories={categories}
-        accounts={accounts}
-        onClose={() => setEditorVisible(false)}
-        onSave={handleSaveTemplate}
-        onDelete={handleDeleteTemplate}
-      />
+  return (
+    <View
+      style={[StyleSheet.absoluteFill, styles.overlayRoot]}
+      pointerEvents={open ? 'auto' : 'none'}
+    >
+      {/* 背景暗色遮罩 */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: theme.colors.scrim, opacity: scrimOpacity },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="关闭快捷记账面板"
+          onPress={() => {
+            Keyboard.dismiss();
+            hapticLight();
+            onClose();
+          }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+
+      {composing ? (
+        <KeyboardAvoidingView style={styles.composerAvoidWrap} behavior="padding">
+          {sheetCard}
+        </KeyboardAvoidingView>
+      ) : (
+        <GestureDetector gesture={gridVerticalPanGesture}>{sheetCard}</GestureDetector>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   overlayRoot: {
     zIndex: 95,
     elevation: 14,
+    justifyContent: 'flex-end',
+  },
+  composerAvoidWrap: {
+    width: '100%',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -1197,21 +1422,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  expandBtn: {
+  scrubHud: {},
+  scrubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    height: 30,
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  scrubTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  scrubAccountWrap: {
+    gap: 6,
+  },
+  scrubAccountsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  scrubAccChip: {
     paddingHorizontal: 10,
+    paddingVertical: 3,
   },
   toastBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  undoBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    marginLeft: 8,
   },
   pagerSection: {
     flex: 1,
