@@ -54,7 +54,7 @@ export function SettingsPanel({
   };
 
   const navigateTo = (
-    pathname: '/categories' | '/cloud-backup' | '/security' | '/about' | '/advanced-settings'
+    pathname: '/categories' | '/budgets' | '/cloud-backup' | '/security' | '/about' | '/advanced-settings'
   ) => {
     hapticLight();
     onClose?.();
@@ -72,6 +72,12 @@ export function SettingsPanel({
       label: '分类管理',
       icon: 'pricetags-outline',
       onPress: () => navigateTo('/categories'),
+    },
+    {
+      key: 'budgets',
+      label: '预算管理',
+      icon: 'pie-chart-outline',
+      onPress: () => navigateTo('/budgets'),
     },
     {
       key: 'cloud-backup',

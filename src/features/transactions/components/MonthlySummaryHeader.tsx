@@ -11,6 +11,7 @@ import { hapticLight, hapticSelection } from '../../../shared/haptics/haptics';
 import { formatCentsToYuan } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
+import type { BudgetProgress } from '../../budgets/types';
 import { maskSensitiveAmount } from '../../security/rules';
 import { useSecurity } from '../../security/security-context';
 import type { LedgerPeriodMode, MonthlySummary } from '../types';
@@ -23,6 +24,9 @@ interface MonthlySummaryHeaderProps {
   onNextPeriod: () => void;
   onPressPeriod: () => void;
   onPressAnalytics?: () => void;
+  /** 可选月度预算进度条（仅当用户在设置中开启预算且配置总额时传入） */
+  budgetProgress?: BudgetProgress | null;
+  onPressBudget?: () => void;
 }
 
 const MAX_SWIPE_PREVIEW = 48;
@@ -36,6 +40,8 @@ export function MonthlySummaryHeader({
   onNextPeriod,
   onPressPeriod,
   onPressAnalytics,
+  budgetProgress,
+  onPressBudget,
 }: MonthlySummaryHeaderProps): React.JSX.Element {
   const { theme } = useTheme();
   const { config, amountsHidden, toggleAmountsHidden } = useSecurity();
@@ -386,6 +392,61 @@ export function MonthlySummaryHeader({
           </View>
         </View>
       </Pressable>
+
+      {mode === 'month' && budgetProgress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="查看月度预算"
+          onPress={() => {
+            hapticLight();
+            onPressBudget?.();
+          }}
+          style={({ pressed }) => [
+            styles.budgetBarWrap,
+            { borderTopColor: theme.colors.heroDivider },
+            pressed && { opacity: theme.opacity.pressed },
+          ]}
+        >
+          <View style={styles.budgetBarHead}>
+            <Text style={{ color: theme.colors.heroSubtext, fontSize: 11 }}>
+              月预算 {budgetProgress.usedPercent}%
+            </Text>
+            <Text
+              style={[
+                styles.tabular,
+                {
+                  color:
+                    budgetProgress.status === 'exceeded'
+                      ? theme.colors.expenseSubtle
+                      : theme.colors.heroText,
+                  fontSize: 11,
+                  fontWeight: theme.fontWeight.semibold,
+                },
+              ]}
+            >
+              {budgetProgress.remainingCents >= 0
+                ? `剩 ${maskSensitiveAmount(formatCentsToYuan(budgetProgress.remainingCents), amountsHidden)}`
+                : `超支 ${maskSensitiveAmount(formatCentsToYuan(Math.abs(budgetProgress.remainingCents)), amountsHidden)}`}
+            </Text>
+          </View>
+          <View style={[styles.budgetTrack, { backgroundColor: theme.colors.heroDivider }]}>
+            <View
+              style={[
+                styles.budgetFill,
+                {
+                  width: `${Math.min(100, budgetProgress.usedPercent)}%`,
+                  backgroundColor:
+                    budgetProgress.status === 'exceeded'
+                      ? theme.colors.expense
+                      : budgetProgress.status === 'warning'
+                        ? theme.colors.warning
+                        : theme.colors.heroSubtext,
+                },
+              ]}
+            />
+          </View>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -447,6 +508,26 @@ const styles = StyleSheet.create({
   },
   metricCol: {
     flex: 1,
+  },
+  budgetBarWrap: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  budgetBarHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  budgetTrack: {
+    height: 4,
+    borderRadius: 9999,
+    overflow: 'hidden',
+  },
+  budgetFill: {
+    height: '100%',
+    borderRadius: 9999,
   },
   tabular: {
     fontVariant: ['tabular-nums'],

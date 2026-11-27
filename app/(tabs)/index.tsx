@@ -10,6 +10,9 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { RefreshControl, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../src/db/database-context';
+import { getBudgetConfig } from '../../src/features/budgets/repository';
+import { computeBudgetProgress, DEFAULT_BUDGET_CONFIG } from '../../src/features/budgets/rules';
+import type { BudgetConfig } from '../../src/features/budgets/types';
 import { useMainDrawer } from '../../src/features/navigation/drawer-context';
 import { MonthlySummaryHeader } from '../../src/features/transactions/components/MonthlySummaryHeader';
 import { PeriodPickerSheet } from '../../src/features/transactions/components/PeriodPickerSheet';
@@ -75,6 +78,7 @@ export default function LedgerScreen(): React.JSX.Element {
   }
 
   const [summary, setSummary] = useState<MonthlySummary>(EMPTY_SUMMARY);
+  const [budgetConfig, setBudgetConfig] = useState<BudgetConfig>(DEFAULT_BUDGET_CONFIG);
   const [items, setItems] = useState<TransactionListItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -116,19 +120,23 @@ export default function LedgerScreen(): React.JSX.Element {
     loadingMoreRef.current = false;
 
     void (async () => {
-      const page = await getPeriodLedgerPage(db, {
-        mode: periodMode,
-        monthKey,
-        year,
-        limit: initialLimit,
-        offset: 0,
-      });
+      const [page, cfg] = await Promise.all([
+        getPeriodLedgerPage(db, {
+          mode: periodMode,
+          monthKey,
+          year,
+          limit: initialLimit,
+          offset: 0,
+        }),
+        getBudgetConfig(db),
+      ]);
       if (requestSeqRef.current !== seq) {
         return;
       }
       loadedCountRef.current = page.items.length;
       hasMoreRef.current = page.hasMore;
       setSummary(page.summary);
+      setBudgetConfig(cfg);
       setItems(page.items);
       setHasMore(page.hasMore);
       setLoadingMore(false);
@@ -216,6 +224,16 @@ export default function LedgerScreen(): React.JSX.Element {
   }, [db, monthKey, periodMode, year]);
 
   const sections = useMemo(() => groupTransactionsByDay(items), [items]);
+  const monthlyBudgetProgress = useMemo(() => {
+    if (periodMode !== 'month' || !budgetConfig.enabled || budgetConfig.monthlyTotalCents <= 0) {
+      return null;
+    }
+    return computeBudgetProgress({
+      budgetCents: budgetConfig.monthlyTotalCents,
+      spentCents: summary.expenseCents,
+      warningPercent: budgetConfig.warningPercent,
+    });
+  }, [budgetConfig, periodMode, summary.expenseCents]);
 
   const periodLabel =
     periodMode === 'month'
@@ -296,6 +314,8 @@ export default function LedgerScreen(): React.JSX.Element {
               },
             })
           }
+          budgetProgress={monthlyBudgetProgress}
+          onPressBudget={() => router.push('/budgets')}
         />
 
         {sections.length === 0 ? (

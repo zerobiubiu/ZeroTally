@@ -181,6 +181,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="budgets"
+          options={{
+            title: '预算管理',
+          }}
+        />
+        <Stack.Screen
           name="about"
           options={{
             title: '关于',
