@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-11-27T04:56:50Z",
-  "updated_at": "2026-11-27T07:56:08Z",
+  "updated_at": "2026-11-27T13:12:26Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -17,15 +17,15 @@
     },
     ".github/workflows/release-apk.yml": {
       "role": "index",
-      "sha256": "0c52254bb7687d59a017adbcb369e7df0c360b2fdbcb949bf770da89e4d156c8",
-      "size": 6313,
-      "normalized_sha256": "0c52254bb7687d59a017adbcb369e7df0c360b2fdbcb949bf770da89e4d156c8"
+      "sha256": "61ac02ca3c81cea8ac8497675be87863cb36603adc8eaf37857c4bd0b286ef88",
+      "size": 7227,
+      "normalized_sha256": "61ac02ca3c81cea8ac8497675be87863cb36603adc8eaf37857c4bd0b286ef88"
     },
     ".gitignore": {
       "role": "index",
-      "sha256": "cd7a7d76d365a1c6ff4d13b261b08bc4d7f557da43ca4e49dc86df5778ccb485",
-      "size": 529,
-      "normalized_sha256": "cd7a7d76d365a1c6ff4d13b261b08bc4d7f557da43ca4e49dc86df5778ccb485"
+      "sha256": "7489b1fcaeffe08bb0f53aacc0f7f05a0ab6573311974c4f2e16ae0523ffe386",
+      "size": 573,
+      "normalized_sha256": "7489b1fcaeffe08bb0f53aacc0f7f05a0ab6573311974c4f2e16ae0523ffe386"
     },
     "AGENTS.md": {
       "role": "index",
@@ -35,9 +35,9 @@
     },
     "CHANGELOG.md": {
       "role": "index",
-      "sha256": "358c206eee133ed32dee34634321088410af8666a184bbac8b04ab881ff662fe",
-      "size": 39689,
-      "normalized_sha256": "358c206eee133ed32dee34634321088410af8666a184bbac8b04ab881ff662fe"
+      "sha256": "19acd28c87d3ec4799f88c3b24aeb9ca6920dcd6fca1b04492226d5e38601db9",
+      "size": 55808,
+      "normalized_sha256": "19acd28c87d3ec4799f88c3b24aeb9ca6920dcd6fca1b04492226d5e38601db9"
     },
     "LICENSE": {
       "role": "index",
@@ -53,9 +53,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "b067958e58884968e7959f768f58a38f979ad8112cb9fc5a2dccaa6b476c4cec",
-      "size": 74279,
-      "normalized_sha256": "b067958e58884968e7959f768f58a38f979ad8112cb9fc5a2dccaa6b476c4cec"
+      "sha256": "d7c5fc3805fa10d861ff631c0347139558f2a05336c5033b9d66f6c115831f55",
+      "size": 101478,
+      "normalized_sha256": "d7c5fc3805fa10d861ff631c0347139558f2a05336c5033b9d66f6c115831f55"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -71,15 +71,15 @@
     },
     "app.json": {
       "role": "index",
-      "sha256": "5514a34a42b9ca2583c5c6a5e667d3870e9f7bf678a72b87b2394ee58b3c6931",
-      "size": 964,
-      "normalized_sha256": "5514a34a42b9ca2583c5c6a5e667d3870e9f7bf678a72b87b2394ee58b3c6931"
+      "sha256": "2c13e3972b1532317b2c1e2f1fb69612420c96637cc936ea1cf79d4cffbe5822",
+      "size": 1242,
+      "normalized_sha256": "2c13e3972b1532317b2c1e2f1fb69612420c96637cc936ea1cf79d4cffbe5822"
     },
     "app/(tabs)/_layout.tsx": {
       "role": "index",
-      "sha256": "febdde0e327c252a42cfc865841f3d3924e0811ca74f7ebd08ff3d9662dd05d1",
-      "size": 38376,
-      "normalized_sha256": "febdde0e327c252a42cfc865841f3d3924e0811ca74f7ebd08ff3d9662dd05d1"
+      "sha256": "a55849b02eee772a8cb4df8fdf79bebc5a9bc8526975b441c67e476fedc36d98",
+      "size": 40757,
+      "normalized_sha256": "a55849b02eee772a8cb4df8fdf79bebc5a9bc8526975b441c67e476fedc36d98"
     },
     "app/(tabs)/assets.tsx": {
       "role": "index",
@@ -89,51 +89,63 @@
     },
     "app/(tabs)/index.tsx": {
       "role": "index",
-      "sha256": "986fc0111f00e2d316b448f7a70082c046dd2ed01ec917c2d904f741f01a3010",
-      "size": 11082,
-      "normalized_sha256": "986fc0111f00e2d316b448f7a70082c046dd2ed01ec917c2d904f741f01a3010"
+      "sha256": "2a6fc730efb39b8019c1d9c2939341791d27b4da05cf86fe830cb536c45e6205",
+      "size": 16174,
+      "normalized_sha256": "2a6fc730efb39b8019c1d9c2939341791d27b4da05cf86fe830cb536c45e6205"
     },
     "app/_layout.tsx": {
       "role": "index",
-      "sha256": "377b42350878965b9bd1b4c5413d069d59219200bf29b3703f1b22446cb82500",
-      "size": 5654,
-      "normalized_sha256": "377b42350878965b9bd1b4c5413d069d59219200bf29b3703f1b22446cb82500"
+      "sha256": "81b8d780ad140097ef95e6d217a941a76f6db88def0c7655ef0dc59720bcf4b9",
+      "size": 8597,
+      "normalized_sha256": "81b8d780ad140097ef95e6d217a941a76f6db88def0c7655ef0dc59720bcf4b9"
     },
     "app/about.tsx": {
       "role": "index",
-      "sha256": "4d276248fd253f483d0e5ff91b147e92efd22a8caf177eb7a77f900868bb976d",
-      "size": 7596,
-      "normalized_sha256": "4d276248fd253f483d0e5ff91b147e92efd22a8caf177eb7a77f900868bb976d"
+      "sha256": "9e28f755ff46c264a159a46329fe43e6ac29bb999462cbde768e1d995c5eae1b",
+      "size": 6709,
+      "normalized_sha256": "9e28f755ff46c264a159a46329fe43e6ac29bb999462cbde768e1d995c5eae1b"
     },
     "app/account-detail.tsx": {
       "role": "index",
-      "sha256": "e14b7a909b17e08b013de4d8524bdd744610dc04714e8555e23366ffeb2d1f67",
-      "size": 21632,
-      "normalized_sha256": "e14b7a909b17e08b013de4d8524bdd744610dc04714e8555e23366ffeb2d1f67"
+      "sha256": "08a68505d539fb978ce455d250ee0700fdc3cf2a1d7d712c442dd1396ac25775",
+      "size": 36000,
+      "normalized_sha256": "08a68505d539fb978ce455d250ee0700fdc3cf2a1d7d712c442dd1396ac25775"
     },
     "app/account-form.tsx": {
       "role": "index",
-      "sha256": "c05377bf1f33db8e7dbb2f6b9ef62365b4288525c74646a669fb3184533b539d",
-      "size": 31540,
-      "normalized_sha256": "c05377bf1f33db8e7dbb2f6b9ef62365b4288525c74646a669fb3184533b539d"
+      "sha256": "f794872d9aba076e96f29838a609e8bb9259fc1ab08be82a5ac64670659f3207",
+      "size": 46685,
+      "normalized_sha256": "f794872d9aba076e96f29838a609e8bb9259fc1ab08be82a5ac64670659f3207"
     },
     "app/advanced-settings.tsx": {
       "role": "index",
-      "sha256": "df4c48395866a6a1ed0484b1209761bca1f17b7c652916feee1bf41636c53b8f",
-      "size": 18425,
-      "normalized_sha256": "df4c48395866a6a1ed0484b1209761bca1f17b7c652916feee1bf41636c53b8f"
+      "sha256": "ee06111d8c9bdbced72639a31a3f0e55ca37b027e333dfef7efd50cc9ba1370e",
+      "size": 14822,
+      "normalized_sha256": "ee06111d8c9bdbced72639a31a3f0e55ca37b027e333dfef7efd50cc9ba1370e"
     },
     "app/analytics.tsx": {
       "role": "index",
-      "sha256": "0e4506e5423c1d52ab019f65909372a189c7234b684e7d3145bee31b9777985c",
-      "size": 31697,
-      "normalized_sha256": "0e4506e5423c1d52ab019f65909372a189c7234b684e7d3145bee31b9777985c"
+      "sha256": "3880a04c63ac2c3c59d27770f4d1a36ac53a8c8f28df7d9da9820813b0af514b",
+      "size": 51914,
+      "normalized_sha256": "3880a04c63ac2c3c59d27770f4d1a36ac53a8c8f28df7d9da9820813b0af514b"
     },
     "app/archived-accounts.tsx": {
       "role": "index",
       "sha256": "95e99915d9ef249e9476c8b6bb783df6103af7a454ae7deffaec3b9ecb90c3e4",
       "size": 2907,
       "normalized_sha256": "95e99915d9ef249e9476c8b6bb783df6103af7a454ae7deffaec3b9ecb90c3e4"
+    },
+    "app/batch-record.tsx": {
+      "role": "index",
+      "sha256": "de6c8f6e5f3f7dd090eb354ce51c20957b11a537421961043ebf98f273a02dba",
+      "size": 20577,
+      "normalized_sha256": "de6c8f6e5f3f7dd090eb354ce51c20957b11a537421961043ebf98f273a02dba"
+    },
+    "app/budgets.tsx": {
+      "role": "index",
+      "sha256": "d3a287443fecd378e2631b032ec5bf558d0ed106cd448351ed74239ac8201907",
+      "size": 19537,
+      "normalized_sha256": "d3a287443fecd378e2631b032ec5bf558d0ed106cd448351ed74239ac8201907"
     },
     "app/categories.tsx": {
       "role": "index",
@@ -147,11 +159,59 @@
       "size": 39232,
       "normalized_sha256": "aa1a3fd4212ae0b0991f0bc9245fadc773e9511eaeacabb0f35e01168d70e85a"
     },
+    "app/gestures-guide.tsx": {
+      "role": "index",
+      "sha256": "4352c24350554cb01e9563f486c950c63a038fea04b1d33a875d7a9f23cca1c2",
+      "size": 4309,
+      "normalized_sha256": "4352c24350554cb01e9563f486c950c63a038fea04b1d33a875d7a9f23cca1c2"
+    },
+    "app/privacy.tsx": {
+      "role": "index",
+      "sha256": "8fae699e460f881dc274a4c1cfe6594f4699ec843a56267ee390dd4d20b2e14b",
+      "size": 4209,
+      "normalized_sha256": "8fae699e460f881dc274a4c1cfe6594f4699ec843a56267ee390dd4d20b2e14b"
+    },
     "app/record.tsx": {
       "role": "index",
       "sha256": "4b1590a8d55f5fc8353bb3f94df03fd34867cf835ec95020963302dbaeefa9b0",
       "size": 35837,
       "normalized_sha256": "4b1590a8d55f5fc8353bb3f94df03fd34867cf835ec95020963302dbaeefa9b0"
+    },
+    "app/recurring.tsx": {
+      "role": "index",
+      "sha256": "81aa73c723cc4b1b773a043502d34f7692337eee91b518535446b2576162e79a",
+      "size": 22697,
+      "normalized_sha256": "81aa73c723cc4b1b773a043502d34f7692337eee91b518535446b2576162e79a"
+    },
+    "app/reimbursements.tsx": {
+      "role": "index",
+      "sha256": "53e1baec815e0bf80c09f62370a337aa3036fcb75a6e07136f8a6f2fc9a8ad11",
+      "size": 27753,
+      "normalized_sha256": "53e1baec815e0bf80c09f62370a337aa3036fcb75a6e07136f8a6f2fc9a8ad11"
+    },
+    "app/reminders.tsx": {
+      "role": "index",
+      "sha256": "be4a2f419b4fec79c16ce815caf55359651ddd063e2f71464976867e8f5c6675",
+      "size": 13265,
+      "normalized_sha256": "be4a2f419b4fec79c16ce815caf55359651ddd063e2f71464976867e8f5c6675"
+    },
+    "app/repayment.tsx": {
+      "role": "index",
+      "sha256": "dd818a1e178438a43084d75004a70c7b6fd71103c1e9ea9f812780982f2836d4",
+      "size": 41626,
+      "normalized_sha256": "dd818a1e178438a43084d75004a70c7b6fd71103c1e9ea9f812780982f2836d4"
+    },
+    "app/search.tsx": {
+      "role": "index",
+      "sha256": "08089bdec518d3a035cdd7c62fa931c36d99f50a2fef51d548091662d33912f4",
+      "size": 40212,
+      "normalized_sha256": "08089bdec518d3a035cdd7c62fa931c36d99f50a2fef51d548091662d33912f4"
+    },
+    "app/security.tsx": {
+      "role": "index",
+      "sha256": "00cec27da6645685a434dcd38208847610829ff2f3726eb4855393bed80c7bad",
+      "size": 14935,
+      "normalized_sha256": "00cec27da6645685a434dcd38208847610829ff2f3726eb4855393bed80c7bad"
     },
     "app/settings.tsx": {
       "role": "index",
@@ -222,9 +282,9 @@
     },
     "bun.lock": {
       "role": "index",
-      "sha256": "20d563c6f1a0f4222bfc3018121938cca622af7f5cc019e0d333b60db775ff59",
-      "size": 221068,
-      "normalized_sha256": "20d563c6f1a0f4222bfc3018121938cca622af7f5cc019e0d333b60db775ff59"
+      "sha256": "d3d50fb48317d1a0ed818494af40b5927a17a1dc0539b4a6cb2dfe8fcd495a6f",
+      "size": 222789,
+      "normalized_sha256": "d3d50fb48317d1a0ed818494af40b5927a17a1dc0539b4a6cb2dfe8fcd495a6f"
     },
     "bunfig.toml": {
       "role": "index",
@@ -234,9 +294,9 @@
     },
     "docs/README.md": {
       "role": "index",
-      "sha256": "29677a58a9508c9cf2ab3f36419d857910aa31fdd6cd340de2b0403b5248b4df",
-      "size": 11976,
-      "normalized_sha256": "29677a58a9508c9cf2ab3f36419d857910aa31fdd6cd340de2b0403b5248b4df"
+      "sha256": "7e04e448df4e0e229608004f9c0bafa11e5bb7571512878bbc9f1e7b54aa7aca",
+      "size": 16030,
+      "normalized_sha256": "7e04e448df4e0e229608004f9c0bafa11e5bb7571512878bbc9f1e7b54aa7aca"
     },
     "docs/architecture/README.md": {
       "role": "index",
@@ -246,9 +306,9 @@
     },
     "docs/architecture/overview.md": {
       "role": "index",
-      "sha256": "acd2c58ae492c9011738b1ae6917cd126db0b1878c9e7890c7764c4fbd0a9b53",
-      "size": 14719,
-      "normalized_sha256": "acd2c58ae492c9011738b1ae6917cd126db0b1878c9e7890c7764c4fbd0a9b53"
+      "sha256": "cb76f33ad862209a25c3711b0991903d87f2014af6ca21e2ef2bb3fd7f3248c3",
+      "size": 16957,
+      "normalized_sha256": "cb76f33ad862209a25c3711b0991903d87f2014af6ca21e2ef2bb3fd7f3248c3"
     },
     "docs/assets/banner-dark.png": {
       "role": "index",
@@ -492,11 +552,101 @@
       "size": 7168,
       "normalized_sha256": "7d8cc88664ecd8275aa5d257bb8a8272bf097623da0e8060f19eb997e99e27f3"
     },
+    "docs/changes/0038-account-detail-floating-cta-and-keypad-repayment.md": {
+      "role": "index",
+      "sha256": "c5630ee992ca36ab098789569ae8ed1542d52c12dd3f2fd63d6f515e0fabe4af",
+      "size": 7373,
+      "normalized_sha256": "c5630ee992ca36ab098789569ae8ed1542d52c12dd3f2fd63d6f515e0fabe4af"
+    },
+    "docs/changes/0039-account-form-ui-refactor.md": {
+      "role": "index",
+      "sha256": "416fdaba1cd83c7d2cada7fde8499d3e5c8071220076dc4648ae91cf4504a2ae",
+      "size": 7823,
+      "normalized_sha256": "416fdaba1cd83c7d2cada7fde8499d3e5c8071220076dc4648ae91cf4504a2ae"
+    },
+    "docs/changes/0040-transaction-search-and-filters.md": {
+      "role": "index",
+      "sha256": "e6a48344ec94296ae8e069b65758017630d97c35b53acb16fda2bf7358d5edcb",
+      "size": 3700,
+      "normalized_sha256": "e6a48344ec94296ae8e069b65758017630d97c35b53acb16fda2bf7358d5edcb"
+    },
+    "docs/changes/0041-lazy-pagination-ledger-and-account-detail.md": {
+      "role": "index",
+      "sha256": "7466e65aaf63dd49c2dd27264947820f1c3ee43f3a457a7f320fd5e20f44ff71",
+      "size": 3066,
+      "normalized_sha256": "7466e65aaf63dd49c2dd27264947820f1c3ee43f3a457a7f320fd5e20f44ff71"
+    },
+    "docs/changes/0042-error-boundary-and-privacy-consistency.md": {
+      "role": "index",
+      "sha256": "f31c15b192dfa0009f4c7bca41fe5b6af65dcaf2dda3c71159f60620e50a6e77",
+      "size": 2378,
+      "normalized_sha256": "f31c15b192dfa0009f4c7bca41fe5b6af65dcaf2dda3c71159f60620e50a6e77"
+    },
+    "docs/changes/0043-privacy-and-security-center.md": {
+      "role": "index",
+      "sha256": "f84e8f6fd232c804a0129713bc77e1da79cc78d5a161dd0369b87f7fc020ffa9",
+      "size": 3616,
+      "normalized_sha256": "f84e8f6fd232c804a0129713bc77e1da79cc78d5a161dd0369b87f7fc020ffa9"
+    },
+    "docs/changes/0044-strict-release-signing-and-r8-shrink.md": {
+      "role": "index",
+      "sha256": "272dd9fb550758c0b1eee5fedd8508a4493925531395b6dc6d5f298ea7055c06",
+      "size": 5022,
+      "normalized_sha256": "272dd9fb550758c0b1eee5fedd8508a4493925531395b6dc6d5f298ea7055c06"
+    },
+    "docs/changes/0045-optional-budget-management.md": {
+      "role": "index",
+      "sha256": "8f76761fbe669100a94933c5af79fc6e3c2d33e89f1b1b9f6929c6c7f4b7e541",
+      "size": 2767,
+      "normalized_sha256": "8f76761fbe669100a94933c5af79fc6e3c2d33e89f1b1b9f6929c6c7f4b7e541"
+    },
+    "docs/changes/0046-recurring-bills-salary-mortgage-and-credit-cycle.md": {
+      "role": "index",
+      "sha256": "2a4bb2e263c39262e2c5ce95bbb4fafa4c209dcf9eb136383173ccc3905fca2e",
+      "size": 3493,
+      "normalized_sha256": "2a4bb2e263c39262e2c5ce95bbb4fafa4c209dcf9eb136383173ccc3905fca2e"
+    },
+    "docs/changes/0047-quick-batch-recording.md": {
+      "role": "index",
+      "sha256": "b5ecc5e93dc587caa55738054f16e462138dcf3771490faec72ac72a16ac6696",
+      "size": 2577,
+      "normalized_sha256": "b5ecc5e93dc587caa55738054f16e462138dcf3771490faec72ac72a16ac6696"
+    },
+    "docs/changes/0048-analytics-drilldown-and-comparison.md": {
+      "role": "index",
+      "sha256": "a66b18a886f40401e8d1ecf81e299ba908fc24dac28a808adad10a7670ac3539",
+      "size": 3106,
+      "normalized_sha256": "a66b18a886f40401e8d1ecf81e299ba908fc24dac28a808adad10a7670ac3539"
+    },
+    "docs/changes/0049-onboarding-and-gestures-guide.md": {
+      "role": "index",
+      "sha256": "6498c56c683752453f808744d5542261bf6fe6d525deebd8c8d8eb6e17062d64",
+      "size": 3743,
+      "normalized_sha256": "6498c56c683752453f808744d5542261bf6fe6d525deebd8c8d8eb6e17062d64"
+    },
+    "docs/changes/0050-optional-reimbursement-tracking.md": {
+      "role": "index",
+      "sha256": "9df565bf4c39b3bc427e14764dff16d4c8a070eed2afcdeac2eb261554106e59",
+      "size": 3335,
+      "normalized_sha256": "9df565bf4c39b3bc427e14764dff16d4c8a070eed2afcdeac2eb261554106e59"
+    },
+    "docs/changes/0051-android-widget-and-daily-reminder.md": {
+      "role": "index",
+      "sha256": "32da3f252465c6cee40e8ae32004e95cccd95ac92ffb272a640b1b42f8ca5a40",
+      "size": 3398,
+      "normalized_sha256": "32da3f252465c6cee40e8ae32004e95cccd95ac92ffb272a640b1b42f8ca5a40"
+    },
+    "docs/changes/0052-v2-ui-unification-and-release.md": {
+      "role": "index",
+      "sha256": "9c224d5b37570e1f3f46a214fe303a07c40e04ae3ec1cbd7611e6e525f0792f0",
+      "size": 5044,
+      "normalized_sha256": "9c224d5b37570e1f3f46a214fe303a07c40e04ae3ec1cbd7611e6e525f0792f0"
+    },
     "docs/changes/README.md": {
       "role": "index",
-      "sha256": "be3558d7696db495de3533c5b818647bf94ab83fb52c57874ee704b5073e42b9",
-      "size": 9992,
-      "normalized_sha256": "be3558d7696db495de3533c5b818647bf94ab83fb52c57874ee704b5073e42b9"
+      "sha256": "2c9e7797c6ced812684f6c9b1054ca8ef6102040a7aee7b8648a360537a75ae2",
+      "size": 14192,
+      "normalized_sha256": "2c9e7797c6ced812684f6c9b1054ca8ef6102040a7aee7b8648a360537a75ae2"
     },
     "docs/decisions/0001-tech-stack-and-architecture.md": {
       "role": "index",
@@ -536,9 +686,21 @@
     },
     "package.json": {
       "role": "index",
-      "sha256": "3a871431cf5b4cdc17e3f95a8697ea9ab9fb7114d6bdf876b8f17c45a5e75d52",
-      "size": 1543,
-      "normalized_sha256": "3a871431cf5b4cdc17e3f95a8697ea9ab9fb7114d6bdf876b8f17c45a5e75d52"
+      "sha256": "dfbdb26edc0b7738e66cae670cdfe233d8ad053cf3579e8856794b932d923656",
+      "size": 1730,
+      "normalized_sha256": "dfbdb26edc0b7738e66cae670cdfe233d8ad053cf3579e8856794b932d923656"
+    },
+    "plugins/with-android-quick-widget.js": {
+      "role": "index",
+      "sha256": "d807da45b3b18ed13952c75a93e3990c1fa4a3a01ea5f32374b59188b42c759f",
+      "size": 13889,
+      "normalized_sha256": "d807da45b3b18ed13952c75a93e3990c1fa4a3a01ea5f32374b59188b42c759f"
+    },
+    "plugins/with-release-signing-and-shrink.js": {
+      "role": "index",
+      "sha256": "4c238b87eeb0e878aaa471e0426e4bc1a78f82c35260bce8cfd3efcb359faf46",
+      "size": 3481,
+      "normalized_sha256": "4c238b87eeb0e878aaa471e0426e4bc1a78f82c35260bce8cfd3efcb359faf46"
     },
     "plugins/with-windows-cmake-path-fix.js": {
       "role": "index",
@@ -548,15 +710,21 @@
     },
     "scripts/build-android-apk.mjs": {
       "role": "index",
-      "sha256": "ea6fbdce032aa68f6c679accb5ec1213d638c06b6b4384aff7cbcce2428f3265",
-      "size": 3726,
-      "normalized_sha256": "ea6fbdce032aa68f6c679accb5ec1213d638c06b6b4384aff7cbcce2428f3265"
+      "sha256": "300bfa47628d6fa0a2726eb29d230633058366c9d4e3ec51b52c25f2a7195d4d",
+      "size": 6673,
+      "normalized_sha256": "300bfa47628d6fa0a2726eb29d230633058366c9d4e3ec51b52c25f2a7195d4d"
     },
     "scripts/check-version.mjs": {
       "role": "index",
       "sha256": "a73adfaeaa400de2e8714d0f4ccc7ba25194b9293098fca5a4cf4a7d4812ccdf",
       "size": 1016,
       "normalized_sha256": "a73adfaeaa400de2e8714d0f4ccc7ba25194b9293098fca5a4cf4a7d4812ccdf"
+    },
+    "scripts/generate-release-keystore.mjs": {
+      "role": "index",
+      "sha256": "7ad1b7943e88c18d35d495ddec26539c9656ae299698de02ef198583fa069f04",
+      "size": 4005,
+      "normalized_sha256": "7ad1b7943e88c18d35d495ddec26539c9656ae299698de02ef198583fa069f04"
     },
     "src/db/database-context.tsx": {
       "role": "index",
@@ -606,23 +774,53 @@
       "size": 15186,
       "normalized_sha256": "66f3d8d3edbb8c93a78a6815a0f8f61e8a656703c2555f5ac4df91ad8ea7ebee"
     },
+    "src/features/accounts/components/AccountIconPickerSheet.tsx": {
+      "role": "index",
+      "sha256": "46378213419a2ddaf7522f523b82d44e8154758d026630f164332a157caaa9e5",
+      "size": 4391,
+      "normalized_sha256": "46378213419a2ddaf7522f523b82d44e8154758d026630f164332a157caaa9e5"
+    },
     "src/features/accounts/components/AccountRow.tsx": {
       "role": "index",
-      "sha256": "23f6dd681bd05bc328333412745e4c77b61173b3a42757e1b865a1488b012442",
-      "size": 4196,
-      "normalized_sha256": "23f6dd681bd05bc328333412745e4c77b61173b3a42757e1b865a1488b012442"
+      "sha256": "2ae21fd2da98539bcdfb589b403d96e1d2d98102e4e0acbace5261252de04f87",
+      "size": 4398,
+      "normalized_sha256": "2ae21fd2da98539bcdfb589b403d96e1d2d98102e4e0acbace5261252de04f87"
     },
     "src/features/accounts/components/NetWorthCard.tsx": {
       "role": "index",
-      "sha256": "b747ace658f0a99bd0438bfbcec8b38401fec07c7edf15dcc2cc1d75b94eeca7",
-      "size": 3546,
-      "normalized_sha256": "b747ace658f0a99bd0438bfbcec8b38401fec07c7edf15dcc2cc1d75b94eeca7"
+      "sha256": "41c2a61881586e3e4bee4539fb8a323d0b4057c3076c837c7b3bc4e29e5ceddd",
+      "size": 4784,
+      "normalized_sha256": "41c2a61881586e3e4bee4539fb8a323d0b4057c3076c837c7b3bc4e29e5ceddd"
     },
     "src/features/accounts/components/SettleBalanceSheet.tsx": {
       "role": "index",
       "sha256": "b87b52dbe9b9cac5edd6f3fa06ff751bddfa6a7506e95273f75b528e50f32f24",
       "size": 17771,
       "normalized_sha256": "b87b52dbe9b9cac5edd6f3fa06ff751bddfa6a7506e95273f75b528e50f32f24"
+    },
+    "src/features/accounts/detail-scroll-rules.test.ts": {
+      "role": "observe",
+      "sha256": "a32d4578e799830174161bc1b457a30388eb3630de287880526393b451d2eca5",
+      "size": 1772,
+      "normalized_sha256": "a32d4578e799830174161bc1b457a30388eb3630de287880526393b451d2eca5"
+    },
+    "src/features/accounts/detail-scroll-rules.ts": {
+      "role": "index",
+      "sha256": "465215251fb12e19f0b2e7d226785a829f4d9cbc95e2f9f08cc83f8c8cb860ee",
+      "size": 2765,
+      "normalized_sha256": "465215251fb12e19f0b2e7d226785a829f4d9cbc95e2f9f08cc83f8c8cb860ee"
+    },
+    "src/features/accounts/form-rules.test.ts": {
+      "role": "observe",
+      "sha256": "f7746843f24f9c252ea28aaee976e8fd105d9d8746fa786122c8a2fbd008bab6",
+      "size": 1474,
+      "normalized_sha256": "f7746843f24f9c252ea28aaee976e8fd105d9d8746fa786122c8a2fbd008bab6"
+    },
+    "src/features/accounts/form-rules.ts": {
+      "role": "index",
+      "sha256": "85de54ad70278f716172b9792a7f00894eb9b457c8ce65ecbd0ee0b52d8aadf3",
+      "size": 1565,
+      "normalized_sha256": "85de54ad70278f716172b9792a7f00894eb9b457c8ce65ecbd0ee0b52d8aadf3"
     },
     "src/features/accounts/repository.ts": {
       "role": "index",
@@ -662,33 +860,57 @@
     },
     "src/features/analytics/rules.test.ts": {
       "role": "observe",
-      "sha256": "2b39265b3c4e450a9e468eac42f95dd116a59d049cc50b6018198754d4f999b6",
-      "size": 4666,
-      "normalized_sha256": "2b39265b3c4e450a9e468eac42f95dd116a59d049cc50b6018198754d4f999b6"
+      "sha256": "ba9f8b4a280ff1d0b1c50e7a0fd0224e5b88c56507e3a214b144244587fc2faa",
+      "size": 7425,
+      "normalized_sha256": "ba9f8b4a280ff1d0b1c50e7a0fd0224e5b88c56507e3a214b144244587fc2faa"
     },
     "src/features/analytics/rules.ts": {
       "role": "index",
-      "sha256": "21051d16cde8a6e2cc2245cf9dad36360e88a33af61e61b53cd3916dfb25c218",
-      "size": 9673,
-      "normalized_sha256": "21051d16cde8a6e2cc2245cf9dad36360e88a33af61e61b53cd3916dfb25c218"
+      "sha256": "02a5a744d4257858c04e432a6b948c040f1101e116bee010314f529f2b999acb",
+      "size": 15345,
+      "normalized_sha256": "02a5a744d4257858c04e432a6b948c040f1101e116bee010314f529f2b999acb"
     },
     "src/features/analytics/service.test.ts": {
       "role": "observe",
-      "sha256": "04d1ac238843440b9e5bdfc2ca6a67e9823b5000be494e0a497cbe0f524af5bb",
-      "size": 7245,
-      "normalized_sha256": "04d1ac238843440b9e5bdfc2ca6a67e9823b5000be494e0a497cbe0f524af5bb"
+      "sha256": "bc73596f1e7642037ee2cb4cd2c25e4ba6822dd336da242e0191099821abf48b",
+      "size": 9177,
+      "normalized_sha256": "bc73596f1e7642037ee2cb4cd2c25e4ba6822dd336da242e0191099821abf48b"
     },
     "src/features/analytics/service.ts": {
       "role": "index",
-      "sha256": "40d18981fbe96042388c4aaa427f8eac0fb851477b131aff46ddb5297be464f3",
-      "size": 5460,
-      "normalized_sha256": "40d18981fbe96042388c4aaa427f8eac0fb851477b131aff46ddb5297be464f3"
+      "sha256": "503351009baf6b929688d3cdf30247c5819e47622e9c297ce00083e7cadb3b0f",
+      "size": 7504,
+      "normalized_sha256": "503351009baf6b929688d3cdf30247c5819e47622e9c297ce00083e7cadb3b0f"
     },
     "src/features/analytics/types.ts": {
       "role": "index",
-      "sha256": "637f39136e508c9dd84c0535ad7ff93bcbad4958fff1cd4866cd56dea1acccc8",
-      "size": 2024,
-      "normalized_sha256": "637f39136e508c9dd84c0535ad7ff93bcbad4958fff1cd4866cd56dea1acccc8"
+      "sha256": "f16b7701196d281e028fbacec5cb63b503701ad73f96e5d3dd74bdb072fe86cc",
+      "size": 3954,
+      "normalized_sha256": "f16b7701196d281e028fbacec5cb63b503701ad73f96e5d3dd74bdb072fe86cc"
+    },
+    "src/features/budgets/repository.ts": {
+      "role": "index",
+      "sha256": "0de89582a8c7f4f7d034c44fec19854727f6b2ca1ffbec8775b489f7caac3679",
+      "size": 1721,
+      "normalized_sha256": "0de89582a8c7f4f7d034c44fec19854727f6b2ca1ffbec8775b489f7caac3679"
+    },
+    "src/features/budgets/rules.test.ts": {
+      "role": "observe",
+      "sha256": "6f724b9f50cc6cc36ffe11bc8365964fee943a002fd0b4b670a8997e118599aa",
+      "size": 1908,
+      "normalized_sha256": "6f724b9f50cc6cc36ffe11bc8365964fee943a002fd0b4b670a8997e118599aa"
+    },
+    "src/features/budgets/rules.ts": {
+      "role": "index",
+      "sha256": "7cab3528b5e126270c4eb85af780c3be8479bacdb4c178f881f47ddccbb71fd0",
+      "size": 2686,
+      "normalized_sha256": "7cab3528b5e126270c4eb85af780c3be8479bacdb4c178f881f47ddccbb71fd0"
+    },
+    "src/features/budgets/types.ts": {
+      "role": "index",
+      "sha256": "7fccf241fe1c4ed9f4e5b2208b06fb342d8946b75218e49fda03d97ca8083171",
+      "size": 1102,
+      "normalized_sha256": "7fccf241fe1c4ed9f4e5b2208b06fb342d8946b75218e49fda03d97ca8083171"
     },
     "src/features/categories/components/CategoryDeleteDialog.tsx": {
       "role": "index",
@@ -894,6 +1116,30 @@
       "size": 2519,
       "normalized_sha256": "e57827dac22a858213a2c9da88ecc10058ea64f3fc776215fc6c4bc7a977a278"
     },
+    "src/features/onboarding/components/FirstLaunchGuideSheet.tsx": {
+      "role": "index",
+      "sha256": "740e0e19848235f3181355c0d07f7384a53cabf39890efad0d2f3de1f8d5633e",
+      "size": 6838,
+      "normalized_sha256": "740e0e19848235f3181355c0d07f7384a53cabf39890efad0d2f3de1f8d5633e"
+    },
+    "src/features/onboarding/repository.ts": {
+      "role": "index",
+      "sha256": "a9700d46c71e5ad8e83cf35071208f4301e918d9cc1468541395a722a2096875",
+      "size": 552,
+      "normalized_sha256": "a9700d46c71e5ad8e83cf35071208f4301e918d9cc1468541395a722a2096875"
+    },
+    "src/features/onboarding/rules.test.ts": {
+      "role": "observe",
+      "sha256": "c43dad09de478e254a7dd9131851deb9917478c13d248bda0edffc926acd70dc",
+      "size": 972,
+      "normalized_sha256": "c43dad09de478e254a7dd9131851deb9917478c13d248bda0edffc926acd70dc"
+    },
+    "src/features/onboarding/rules.ts": {
+      "role": "index",
+      "sha256": "b729513017e7699cef68a873cec07dadb6eb34349c2dd96d80892442a5f5d921",
+      "size": 3891,
+      "normalized_sha256": "b729513017e7699cef68a873cec07dadb6eb34349c2dd96d80892442a5f5d921"
+    },
     "src/features/quick-record/components/QuickRadialOverlay.tsx": {
       "role": "index",
       "sha256": "97c34c0b2beafa17a46d0eecb160235fb73a864f0dd05827f282223587278140",
@@ -902,9 +1148,9 @@
     },
     "src/features/quick-record/components/QuickRecordSheet.tsx": {
       "role": "index",
-      "sha256": "14887f822d0af5d1771779e8033f5c00ef00682c8333f13ef6f12cf77febec42",
-      "size": 43911,
-      "normalized_sha256": "14887f822d0af5d1771779e8033f5c00ef00682c8333f13ef6f12cf77febec42"
+      "sha256": "1303bba6b5f2bf0dcb88335c94171760dda3bd899a305418f59d3dfb681ec61e",
+      "size": 44798,
+      "normalized_sha256": "1303bba6b5f2bf0dcb88335c94171760dda3bd899a305418f59d3dfb681ec61e"
     },
     "src/features/quick-record/components/QuickRecordTile.tsx": {
       "role": "index",
@@ -972,6 +1218,168 @@
       "size": 1073,
       "normalized_sha256": "85ec89758a713c7c8046158ae5f6d9c2a518cf401d35ecf80c0d8cd982896bb8"
     },
+    "src/features/recurring/components/MortgagePrepaySheet.tsx": {
+      "role": "index",
+      "sha256": "6534d9ee703616e5f4a31b95d2aeee2b4c09371820e9079fb6e258949ce61315",
+      "size": 11852,
+      "normalized_sha256": "6534d9ee703616e5f4a31b95d2aeee2b4c09371820e9079fb6e258949ce61315"
+    },
+    "src/features/recurring/components/RecurringEditorSheet.tsx": {
+      "role": "index",
+      "sha256": "c0eafe7beda197201fd39bd6f50993c7ea77d3000ae4cceed74ccd53ee532912",
+      "size": 28910,
+      "normalized_sha256": "c0eafe7beda197201fd39bd6f50993c7ea77d3000ae4cceed74ccd53ee532912"
+    },
+    "src/features/recurring/components/SalaryPostSheet.tsx": {
+      "role": "index",
+      "sha256": "7afd43ac1f125414ae0613d6109adc6f97b719a21fc19b76b041a3efaee2757c",
+      "size": 10111,
+      "normalized_sha256": "7afd43ac1f125414ae0613d6109adc6f97b719a21fc19b76b041a3efaee2757c"
+    },
+    "src/features/recurring/mortgage-rules.test.ts": {
+      "role": "observe",
+      "sha256": "5f7613a3267ce3a0a2bd7f9a0daaa2998c9a79ad28ceed5abb5c4caf1f04d586",
+      "size": 3594,
+      "normalized_sha256": "5f7613a3267ce3a0a2bd7f9a0daaa2998c9a79ad28ceed5abb5c4caf1f04d586"
+    },
+    "src/features/recurring/mortgage-rules.ts": {
+      "role": "index",
+      "sha256": "c62a730a5b9bfe72ec8d2c65e7360842011bbadc01030c3f8382ca1308b31f3a",
+      "size": 8358,
+      "normalized_sha256": "c62a730a5b9bfe72ec8d2c65e7360842011bbadc01030c3f8382ca1308b31f3a"
+    },
+    "src/features/recurring/rules.test.ts": {
+      "role": "observe",
+      "sha256": "33f06691663d85b1a8ce3d43401460245e62169ffbbce25fb16d785547ee6372",
+      "size": 2864,
+      "normalized_sha256": "33f06691663d85b1a8ce3d43401460245e62169ffbbce25fb16d785547ee6372"
+    },
+    "src/features/recurring/rules.ts": {
+      "role": "index",
+      "sha256": "3e1e0ca51d45a226d1167e6c43a61f76f4b999e10d2f6804664300cef85cdb10",
+      "size": 5718,
+      "normalized_sha256": "3e1e0ca51d45a226d1167e6c43a61f76f4b999e10d2f6804664300cef85cdb10"
+    },
+    "src/features/recurring/service.test.ts": {
+      "role": "observe",
+      "sha256": "8da5aa6a378d5603af3e2cfb77bece58a8bc200997607bd78831766fad785537",
+      "size": 4363,
+      "normalized_sha256": "8da5aa6a378d5603af3e2cfb77bece58a8bc200997607bd78831766fad785537"
+    },
+    "src/features/recurring/service.ts": {
+      "role": "index",
+      "sha256": "6da80fbdf703a56ec62009eba4d2e85c82445845cedff9d55de56667892bf243",
+      "size": 10414,
+      "normalized_sha256": "6da80fbdf703a56ec62009eba4d2e85c82445845cedff9d55de56667892bf243"
+    },
+    "src/features/recurring/types.ts": {
+      "role": "index",
+      "sha256": "e15579f83480b1bea3c37f870656f8ac2d41d588a4b495844f76ab9c5fb3a767",
+      "size": 4288,
+      "normalized_sha256": "e15579f83480b1bea3c37f870656f8ac2d41d588a4b495844f76ab9c5fb3a767"
+    },
+    "src/features/reimbursement/repository.ts": {
+      "role": "index",
+      "sha256": "7ffaaec1055d44e67c75a93ffd53b6d55e913353a540fd36f3e5730199982497",
+      "size": 3647,
+      "normalized_sha256": "7ffaaec1055d44e67c75a93ffd53b6d55e913353a540fd36f3e5730199982497"
+    },
+    "src/features/reimbursement/rules.test.ts": {
+      "role": "observe",
+      "sha256": "df40437e7fdcf1eb9826f7be1ec96e92019f3de83e4a17b9ec30c7dd088ad694",
+      "size": 2580,
+      "normalized_sha256": "df40437e7fdcf1eb9826f7be1ec96e92019f3de83e4a17b9ec30c7dd088ad694"
+    },
+    "src/features/reimbursement/rules.ts": {
+      "role": "index",
+      "sha256": "3626a98210f2cd0f033931a8aced9460f7e791c4642061bb1674c190344463f7",
+      "size": 5075,
+      "normalized_sha256": "3626a98210f2cd0f033931a8aced9460f7e791c4642061bb1674c190344463f7"
+    },
+    "src/features/reimbursement/service.test.ts": {
+      "role": "observe",
+      "sha256": "ac37bf42863c67957dca17b99a39b1b00fef13782818bc7fea9f2baffa3b160a",
+      "size": 3777,
+      "normalized_sha256": "ac37bf42863c67957dca17b99a39b1b00fef13782818bc7fea9f2baffa3b160a"
+    },
+    "src/features/reimbursement/service.ts": {
+      "role": "index",
+      "sha256": "e0c034a7b4d96d71af87da53f1d982d689b0e65c8fec0a849a4c328eb57939fd",
+      "size": 7497,
+      "normalized_sha256": "e0c034a7b4d96d71af87da53f1d982d689b0e65c8fec0a849a4c328eb57939fd"
+    },
+    "src/features/reimbursement/types.ts": {
+      "role": "index",
+      "sha256": "3678cd6e5e67d93faea335b14d64035e084016ea86919cbeeb17c1ca6ed0072c",
+      "size": 1165,
+      "normalized_sha256": "3678cd6e5e67d93faea335b14d64035e084016ea86919cbeeb17c1ca6ed0072c"
+    },
+    "src/features/reminders/native-reminder.ts": {
+      "role": "index",
+      "sha256": "1e22f1dc1d770a8ba49c975abb009d2ce65900e430ce636ef4fe26a24c38d843",
+      "size": 3578,
+      "normalized_sha256": "1e22f1dc1d770a8ba49c975abb009d2ce65900e430ce636ef4fe26a24c38d843"
+    },
+    "src/features/reminders/repository.ts": {
+      "role": "index",
+      "sha256": "aac403a80cb514e9563ff3450b6a52fb20b32eaed2920001b961d464e975bb20",
+      "size": 788,
+      "normalized_sha256": "aac403a80cb514e9563ff3450b6a52fb20b32eaed2920001b961d464e975bb20"
+    },
+    "src/features/reminders/rules.test.ts": {
+      "role": "observe",
+      "sha256": "979e9879a507bb0be9829554e5b12137fc13c35ce20a3fbb71a562a4b49cf3fa",
+      "size": 1100,
+      "normalized_sha256": "979e9879a507bb0be9829554e5b12137fc13c35ce20a3fbb71a562a4b49cf3fa"
+    },
+    "src/features/reminders/rules.ts": {
+      "role": "index",
+      "sha256": "7a6ffb7727cf67d4255a23130080e68adc47dbe18393ce112e9146fc5cb3eb2e",
+      "size": 2618,
+      "normalized_sha256": "7a6ffb7727cf67d4255a23130080e68adc47dbe18393ce112e9146fc5cb3eb2e"
+    },
+    "src/features/reminders/types.ts": {
+      "role": "index",
+      "sha256": "01cb1b2978f79bdaf7fb39c3557b21c49b6c31bdcb92e67bb6d8dd99ad9262cc",
+      "size": 303,
+      "normalized_sha256": "01cb1b2978f79bdaf7fb39c3557b21c49b6c31bdcb92e67bb6d8dd99ad9262cc"
+    },
+    "src/features/security/components/AppLockOverlay.tsx": {
+      "role": "index",
+      "sha256": "ebdd92a7485435bc079e10566023ac801c0e4ec63e9168051d009d227112e277",
+      "size": 13032,
+      "normalized_sha256": "ebdd92a7485435bc079e10566023ac801c0e4ec63e9168051d009d227112e277"
+    },
+    "src/features/security/native-security.ts": {
+      "role": "index",
+      "sha256": "9d3dd74d8e836619e65553cf4af74f1271a4cc5c2ac64b80e095267acda1fec0",
+      "size": 4512,
+      "normalized_sha256": "9d3dd74d8e836619e65553cf4af74f1271a4cc5c2ac64b80e095267acda1fec0"
+    },
+    "src/features/security/rules.test.ts": {
+      "role": "observe",
+      "sha256": "e1be5bff8a8520ffe5eb4fc41e3093f26cede067052f5672ff81530e200f6c9f",
+      "size": 3188,
+      "normalized_sha256": "e1be5bff8a8520ffe5eb4fc41e3093f26cede067052f5672ff81530e200f6c9f"
+    },
+    "src/features/security/rules.ts": {
+      "role": "index",
+      "sha256": "9daebbafa156716f562b87da0ebc850bd85faffd0a4459db50fbcd54707b3e50",
+      "size": 3523,
+      "normalized_sha256": "9daebbafa156716f562b87da0ebc850bd85faffd0a4459db50fbcd54707b3e50"
+    },
+    "src/features/security/security-context.tsx": {
+      "role": "index",
+      "sha256": "d6a5edce0a41a8083eaec1d7e899abb7f1a3109e61754ff096e1c803ebc3f933",
+      "size": 8145,
+      "normalized_sha256": "d6a5edce0a41a8083eaec1d7e899abb7f1a3109e61754ff096e1c803ebc3f933"
+    },
+    "src/features/security/types.ts": {
+      "role": "index",
+      "sha256": "94a67e70b6316c85eb7c38f1cb136e6c8836016c62228c9605590dbdc05a81f0",
+      "size": 1156,
+      "normalized_sha256": "94a67e70b6316c85eb7c38f1cb136e6c8836016c62228c9605590dbdc05a81f0"
+    },
     "src/features/settings/components/ClearLedgerDialog.tsx": {
       "role": "index",
       "sha256": "a256a0a7a0d5064fbae293af607eb288399ef5cfb87fa4b14cde0a72c59e1e41",
@@ -986,9 +1394,9 @@
     },
     "src/features/settings/components/SettingsPanel.tsx": {
       "role": "index",
-      "sha256": "1e0db2376472d698953d87b99452a02e4cc01890cf79c8967760a1a7e0528ceb",
-      "size": 8435,
-      "normalized_sha256": "1e0db2376472d698953d87b99452a02e4cc01890cf79c8967760a1a7e0528ceb"
+      "sha256": "0ba7e25b993ce090aac3aa209d8acdb24120331e25510ec67c2c520b2afb45e2",
+      "size": 7827,
+      "normalized_sha256": "0ba7e25b993ce090aac3aa209d8acdb24120331e25510ec67c2c520b2afb45e2"
     },
     "src/features/settings/repository.ts": {
       "role": "index",
@@ -1028,9 +1436,9 @@
     },
     "src/features/transactions/components/MonthlySummaryHeader.tsx": {
       "role": "index",
-      "sha256": "21301bfdc89c2b3ab5a831e0f582a9807d19db4754d70dcf0fb5d74c6bc9c1c0",
-      "size": 12681,
-      "normalized_sha256": "21301bfdc89c2b3ab5a831e0f582a9807d19db4754d70dcf0fb5d74c6bc9c1c0"
+      "sha256": "ba398ee6eb11e6aa10e0785b00a40b54c65257f2d4bc43552eb7148475fcc3a2",
+      "size": 16672,
+      "normalized_sha256": "ba398ee6eb11e6aa10e0785b00a40b54c65257f2d4bc43552eb7148475fcc3a2"
     },
     "src/features/transactions/components/PeriodPickerSheet.tsx": {
       "role": "index",
@@ -1040,9 +1448,9 @@
     },
     "src/features/transactions/components/RecordKeypad.tsx": {
       "role": "index",
-      "sha256": "6038220be184c8b5dbfd60b0a3b8876f6bd89ae760b2612b2208c34949d290ac",
-      "size": 31282,
-      "normalized_sha256": "6038220be184c8b5dbfd60b0a3b8876f6bd89ae760b2612b2208c34949d290ac"
+      "sha256": "5f3319e30c763fff655fc27cb478d57c68259111761b78966c00bfa92297332e",
+      "size": 32691,
+      "normalized_sha256": "5f3319e30c763fff655fc27cb478d57c68259111761b78966c00bfa92297332e"
     },
     "src/features/transactions/components/RefundSheet.tsx": {
       "role": "index",
@@ -1058,9 +1466,9 @@
     },
     "src/features/transactions/components/TransactionDetailSheet.tsx": {
       "role": "index",
-      "sha256": "6246efb8707f07fa67a1b766517d9a0b7c18f296249389a4e99ed103b9fb0ebf",
-      "size": 27004,
-      "normalized_sha256": "6246efb8707f07fa67a1b766517d9a0b7c18f296249389a4e99ed103b9fb0ebf"
+      "sha256": "5e4910e05a7fd97bf592991ec385616563a7f35317cb959bf58125692a8ed84b",
+      "size": 31969,
+      "normalized_sha256": "5e4910e05a7fd97bf592991ec385616563a7f35317cb959bf58125692a8ed84b"
     },
     "src/features/transactions/components/TransactionRow.tsx": {
       "role": "index",
@@ -1076,15 +1484,27 @@
     },
     "src/features/transactions/components/useTransactionListInteractions.tsx": {
       "role": "index",
-      "sha256": "fe89f064bdec9e75689a63816a9fe6d5ae6e5c6f0c98737b9151bd95771ecb39",
-      "size": 5242,
-      "normalized_sha256": "fe89f064bdec9e75689a63816a9fe6d5ae6e5c6f0c98737b9151bd95771ecb39"
+      "sha256": "4e01a797c2431bcd9cb597a8c576fb5dae3eec1c6d03ac6734320b9f16171f55",
+      "size": 4925,
+      "normalized_sha256": "4e01a797c2431bcd9cb597a8c576fb5dae3eec1c6d03ac6734320b9f16171f55"
+    },
+    "src/features/transactions/pagination-rules.test.ts": {
+      "role": "observe",
+      "sha256": "c4b4be3d374130dd0090616e4b2156dfc00a47b87f45e6f3ebe55989b9c1be6e",
+      "size": 2376,
+      "normalized_sha256": "c4b4be3d374130dd0090616e4b2156dfc00a47b87f45e6f3ebe55989b9c1be6e"
+    },
+    "src/features/transactions/pagination-rules.ts": {
+      "role": "index",
+      "sha256": "839f0495ebb7619594287eafa4e282c679782b30f66c03d8cdff87396c74c52a",
+      "size": 1828,
+      "normalized_sha256": "839f0495ebb7619594287eafa4e282c679782b30f66c03d8cdff87396c74c52a"
     },
     "src/features/transactions/repository.ts": {
       "role": "index",
-      "sha256": "a47416b93cb9ba3fab0cebbaf5d795bbc6abbe5ed2da61dc4d23a62b66370bcd",
-      "size": 9923,
-      "normalized_sha256": "a47416b93cb9ba3fab0cebbaf5d795bbc6abbe5ed2da61dc4d23a62b66370bcd"
+      "sha256": "9cb0295301aa5593ec01aa467bee4d66ade7588fa9a9d4975f436a94c0705fb6",
+      "size": 15732,
+      "normalized_sha256": "9cb0295301aa5593ec01aa467bee4d66ade7588fa9a9d4975f436a94c0705fb6"
     },
     "src/features/transactions/rules.test.ts": {
       "role": "observe",
@@ -1098,23 +1518,35 @@
       "size": 11735,
       "normalized_sha256": "cc88449209861981e15787ba510713feb9e2cd2dea03c0869f76d55a367a85c7"
     },
+    "src/features/transactions/search-rules.test.ts": {
+      "role": "observe",
+      "sha256": "6674059f16383da95869a4f0686bfba96033ddb15360935a151673c4036ba05e",
+      "size": 2568,
+      "normalized_sha256": "6674059f16383da95869a4f0686bfba96033ddb15360935a151673c4036ba05e"
+    },
+    "src/features/transactions/search-rules.ts": {
+      "role": "index",
+      "sha256": "44b9381594a811781b72ce851025a5f514599d13d64645c2c3bc742129e766dc",
+      "size": 4668,
+      "normalized_sha256": "44b9381594a811781b72ce851025a5f514599d13d64645c2c3bc742129e766dc"
+    },
     "src/features/transactions/service.test.ts": {
       "role": "observe",
-      "sha256": "7eccff30625a67716e5359bc5f97111dd9aa2a3fd504ce78e5caff18876c567c",
-      "size": 25767,
-      "normalized_sha256": "7eccff30625a67716e5359bc5f97111dd9aa2a3fd504ce78e5caff18876c567c"
+      "sha256": "fdccc8cf23c9f37f39124cb64d5a9d9d8eed4f3b460f22148feb5f9646fcc81b",
+      "size": 31935,
+      "normalized_sha256": "fdccc8cf23c9f37f39124cb64d5a9d9d8eed4f3b460f22148feb5f9646fcc81b"
     },
     "src/features/transactions/service.ts": {
       "role": "index",
-      "sha256": "446b40065d322373acdd28adc0c4009568d5d24f33e59f5113fb37b8a0c1dcdd",
-      "size": 24387,
-      "normalized_sha256": "446b40065d322373acdd28adc0c4009568d5d24f33e59f5113fb37b8a0c1dcdd"
+      "sha256": "d85407e5dff01e093e79324571f75ce365d0b6d914dd1372f61a1376a3b297c0",
+      "size": 28123,
+      "normalized_sha256": "d85407e5dff01e093e79324571f75ce365d0b6d914dd1372f61a1376a3b297c0"
     },
     "src/features/transactions/types.ts": {
       "role": "index",
-      "sha256": "3c33a158d9c0c6f8160581cb2829a87e47e0cefd23a7793f12b79d3fe56dec07",
-      "size": 4641,
-      "normalized_sha256": "3c33a158d9c0c6f8160581cb2829a87e47e0cefd23a7793f12b79d3fe56dec07"
+      "sha256": "2fe13978b24511901d7d59124315a97c9acd830289e97d3af1d9029cef595762",
+      "size": 6457,
+      "normalized_sha256": "2fe13978b24511901d7d59124315a97c9acd830289e97d3af1d9029cef595762"
     },
     "src/shared/date/date.test.ts": {
       "role": "observe",
@@ -1164,6 +1596,12 @@
       "size": 5277,
       "normalized_sha256": "5f841a0f5bb9950cfb301435ad96cee01a3344f66ddd0a3d99ff0e86caaee516"
     },
+    "src/shared/ui/AppErrorBoundary.tsx": {
+      "role": "index",
+      "sha256": "3feb06e2e390a8a9ae9441f172eb6a1ce3d554d3c3f0993d6b6e65005a00bd98",
+      "size": 4649,
+      "normalized_sha256": "3feb06e2e390a8a9ae9441f172eb6a1ce3d554d3c3f0993d6b6e65005a00bd98"
+    },
     "src/shared/ui/AppIcon.tsx": {
       "role": "index",
       "sha256": "5c4abbadc38f57f7d626da8118d3d9b6d6f937ff30c23c00322ca94862dd7676",
@@ -1200,17 +1638,53 @@
       "size": 2349,
       "normalized_sha256": "d2cac765428a5a7cc3c0439f776b397a4543117ebd2ddf8ea17639218c18c65a"
     },
+    "src/shared/ui/InlineNotice.tsx": {
+      "role": "index",
+      "sha256": "c23ed8de1011c5afb77a6be332b5e6974ddd6dd57502e00ccc3e2f148f4153c5",
+      "size": 2512,
+      "normalized_sha256": "c23ed8de1011c5afb77a6be332b5e6974ddd6dd57502e00ccc3e2f148f4153c5"
+    },
+    "src/shared/ui/InsetDivider.tsx": {
+      "role": "index",
+      "sha256": "a7ca42d277d8c671ac98bc89a4e14b03ab73cfb826c7e7135890f6d5186e4461",
+      "size": 698,
+      "normalized_sha256": "a7ca42d277d8c671ac98bc89a4e14b03ab73cfb826c7e7135890f6d5186e4461"
+    },
+    "src/shared/ui/OptionChip.tsx": {
+      "role": "index",
+      "sha256": "14c0e5f2d2e56192d6b6c09c974abec549c403b6a5846bd9b373146cc95f8762",
+      "size": 1895,
+      "normalized_sha256": "14c0e5f2d2e56192d6b6c09c974abec549c403b6a5846bd9b373146cc95f8762"
+    },
     "src/shared/ui/SafeScreen.tsx": {
       "role": "index",
       "sha256": "42487d00607b74434c850f1aae1b7d5dbb6ee9f855544078a885508f4892c5b1",
       "size": 2512,
       "normalized_sha256": "42487d00607b74434c850f1aae1b7d5dbb6ee9f855544078a885508f4892c5b1"
     },
+    "src/shared/ui/SectionHeader.tsx": {
+      "role": "index",
+      "sha256": "55b6e3ead6e7ecec5413caf1388b2dbcfec044722d4e082fa0d5b5209ab7df8f",
+      "size": 1210,
+      "normalized_sha256": "55b6e3ead6e7ecec5413caf1388b2dbcfec044722d4e082fa0d5b5209ab7df8f"
+    },
+    "src/shared/ui/SettingRow.tsx": {
+      "role": "index",
+      "sha256": "360752a5d322fe01849659a5c134db33299b131afa2d0bd9760fea56da0b8f0c",
+      "size": 6015,
+      "normalized_sha256": "360752a5d322fe01849659a5c134db33299b131afa2d0bd9760fea56da0b8f0c"
+    },
     "src/shared/ui/SlidingSegmentedControl.tsx": {
       "role": "index",
       "sha256": "b3c0775e941825beaf0cee30b9a64711c5b9d55203ebf99377026552451feefc",
       "size": 11027,
       "normalized_sha256": "b3c0775e941825beaf0cee30b9a64711c5b9d55203ebf99377026552451feefc"
+    },
+    "src/shared/ui/SurfaceCard.tsx": {
+      "role": "index",
+      "sha256": "e087024ef981a03d23016f035da1f7e3b5cf776906e686c987e011947f67ba41",
+      "size": 1047,
+      "normalized_sha256": "e087024ef981a03d23016f035da1f7e3b5cf776906e686c987e011947f67ba41"
     },
     "src/shared/ui/bottom-sheet-rules.test.ts": {
       "role": "observe",
@@ -1268,9 +1742,9 @@
     },
     "src/theme/tokens.ts": {
       "role": "index",
-      "sha256": "5d910eb18c2ad4dc25066ee1aa052a166634d5a26957dfa154e3d0b182b6c4f3",
-      "size": 5256,
-      "normalized_sha256": "5d910eb18c2ad4dc25066ee1aa052a166634d5a26957dfa154e3d0b182b6c4f3"
+      "sha256": "986adaa74aa7d9ae975ceaedebf040be273e14425af89fa943d94ebbd9eddd8f",
+      "size": 6085,
+      "normalized_sha256": "986adaa74aa7d9ae975ceaedebf040be273e14425af89fa943d94ebbd9eddd8f"
     },
     "tsconfig.json": {
       "role": "index",
