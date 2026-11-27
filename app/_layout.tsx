@@ -1,16 +1,21 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
+import { runAutoCloudBackupIfNeeded } from '../src/features/cloud-backup/service';
 import { getThemePreferenceSetting } from '../src/features/settings/repository';
 import { ThemeProvider, useTheme } from '../src/theme/theme-context';
+
+/** 账本变动后防抖触发自动云备份的延迟毫秒数 */
+const AUTO_CLOUD_BACKUP_DEBOUNCE_MS = 15_000;
 
 function RootNavigator(): React.JSX.Element {
   const { theme, setPreference } = useTheme();
   const { db, isReady, error, revision } = useDatabaseContext();
+  const lastObservedRevisionRef = useRef(0);
 
   // 启动及导入全量备份后，从本地 SQLite 同步持久化的外观主题偏好
   useEffect(() => {
@@ -28,6 +33,20 @@ function RootNavigator(): React.JSX.Element {
       active = false;
     };
   }, [db, isReady, revision, setPreference]);
+
+  // 账本数据变更后防抖静默触发自动云备份（跳过首次启动 revision=0，不影响记账交互）
+  useEffect(() => {
+    if (!isReady || !db || revision === 0 || revision === lastObservedRevisionRef.current) {
+      return;
+    }
+    lastObservedRevisionRef.current = revision;
+    const timer = setTimeout(() => {
+      void runAutoCloudBackupIfNeeded(db);
+    }, AUTO_CLOUD_BACKUP_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [db, isReady, revision]);
 
   if (error) {
     return (
@@ -127,6 +146,12 @@ function RootNavigator(): React.JSX.Element {
           name="categories"
           options={{
             title: '分类管理',
+          }}
+        />
+        <Stack.Screen
+          name="cloud-backup"
+          options={{
+            title: '云备份',
           }}
         />
         <Stack.Screen

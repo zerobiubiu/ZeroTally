@@ -54,6 +54,7 @@
 | [changes/0033-fix-expanded-bottom-sheet-swipe-down.md](changes/0033-fix-expanded-bottom-sheet-swipe-down.md) | 变更记录 | 已执行 | 修复 RNGH v3 `onActivate` 位移归零导致底部手势卡片上滑展开后与单段滚动区下滑收起失效的问题（v1.2.1） |
 | [changes/0034-quick-card-sizing-and-velocity-scrub-steps.md](changes/0034-quick-card-sizing-and-velocity-scrub-steps.md) | 变更记录 | 已执行 | 统一快捷卡片与添加快捷尺寸对齐，并将长按调金额升级为 0.01~1 元五档速度自适应步进（v1.3.0） |
 | [changes/0035-account-model-overhaul-archive-settle-delete.md](changes/0035-account-model-overhaul-archive-settle-delete.md) | 变更记录 | 已执行 | 账户体系重构：类型驱动性质、三独立开关、银行卡信息、归档/平账/删除升级（v1.4.0） |
+| [changes/0036-cloud-backup-webdav-and-google-drive.md](changes/0036-cloud-backup-webdav-and-google-drive.md) | 变更记录 | 已执行 | 设置侧栏接入双通道云备份（WebDAV 与 Google Drive OAuth PKCE）、多版本快照恢复与自动备份（v1.5.0） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

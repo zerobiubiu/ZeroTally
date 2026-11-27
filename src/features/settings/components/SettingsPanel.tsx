@@ -1,7 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
  * - 极简无分组布局：彻底去除统计头、「配置/数据导出/系统」二级分组标题、存储行与独立版本条目
- * - 信息顺序（严格按用户设计）：顶栏右侧「i」图标直达关于（移除右上角 X）-> 外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 高级设置 -> 最底部居中版本号
+ * - 信息顺序（严格按用户设计）：顶栏右侧「i」图标直达关于（移除右上角 X）-> 外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 云备份 -> 高级设置 -> 最底部居中版本号
  * - 复用形态：同时支持左侧抽屉（variant="drawer"）与独立设置页（variant="page"），外观切换即时落盘 SQLite
  */
 import Constants from 'expo-constants';
@@ -53,7 +53,9 @@ export function SettingsPanel({
     void setThemePreferenceSetting(db, next).catch(() => {});
   };
 
-  const navigateTo = (pathname: '/categories' | '/about' | '/advanced-settings') => {
+  const navigateTo = (
+    pathname: '/categories' | '/cloud-backup' | '/about' | '/advanced-settings'
+  ) => {
     hapticLight();
     onClose?.();
     router.push(pathname);
@@ -70,6 +72,12 @@ export function SettingsPanel({
       label: '分类管理',
       icon: 'pricetags-outline',
       onPress: () => navigateTo('/categories'),
+    },
+    {
+      key: 'cloud-backup',
+      label: '云备份',
+      icon: 'cloud-upload-outline',
+      onPress: () => navigateTo('/cloud-backup'),
     },
     {
       key: 'advanced',

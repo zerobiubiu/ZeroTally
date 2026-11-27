@@ -2,6 +2,17 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.5.0] - 2026-11-27
+
+### 新增与优化
+
+- **新增双通道云备份与多版本历史快照恢复（WebDAV + Google Drive）**（`src/features/cloud-backup/`、`app/cloud-backup.tsx`、`SettingsPanel.tsx`）：
+  - 在设置侧栏新增「云备份」独立入口（位于「分类管理」与「高级设置」之间），提供顶部同步概览卡、双通道状态卡片与备份策略配置。
+  - **WebDAV 通道**：支持坚果云 / Nextcloud / 自定义服务一键预设，默认强制 HTTPS（局域网场景可显式开启 HTTP 明文开关并附安全警示），支持连接测试（`PROPFIND`）、自动逐级创建目录（`MKCOL`）、上传（`PUT`）、安全解析多版本快照列表、下载与删除。
+  - **Google Drive 通道**：采用系统浏览器 OAuth 2.0 PKCE（`S256` + `state` 防 CSRF 校验），支持编译期预置 `EXPO_PUBLIC_GOOGLE_DRIVE_ANDROID_CLIENT_ID` 或应用内自填 Android OAuth Client ID，申请最小权限 `drive.file` 并在根目录自动维护可见的 `ZeroTally/` 文件夹，访问令牌临近过期自动静默续期，断开时尽力吊销并清理本地凭据。
+  - **硬件安全凭据隔离**：引入 `expo-secure-store`、`expo-web-browser`、`expo-crypto`，WebDAV 密码与 Google Drive OAuth 令牌独立加密存储在 Android Keystore / iOS Keychain，绝不写入本地 SQLite、备份 JSON 或日志。
+  - **多版本历史快照与自动备份**：云端备份复用统一可读 Schema v4 完整 JSON（含 FNV-1a 校验指纹），与手动导出 100% 互通；保留多份时间戳历史快照（可配置保留 5 / 10 / 20 份或不限，超限自动清理最旧快照），支持通过统一 `BottomSheet` 浏览任一历史版本、下载校验预览并单事务原子恢复，以及可选开启「账本变动自动云备份」（15 秒防抖 + 60 秒冷却 + 恢复后抑制保护，静默上传不阻塞记账）。
+
 ## [1.4.0] - 2026-11-27
 
 ### 新增与优化

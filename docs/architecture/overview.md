@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.4.0
+- **生效版本**：v1.5.0
 
 ## 结论概览
 
@@ -18,8 +18,9 @@
 | `src/features/categories/` | 收支分类职责 | 预设分类种子、居中弹窗新增/编辑、长按拖拽同级排序、左滑/删除账务原子迁移、分类树独立 JSON 校验增量/覆盖导入导出 | 账目记账、账户余额 | `app/`、`transactions`、`quick-record`、`export` |
 | `src/features/quick-record/` | 快捷记账半屏窗与扇形极速入口职责 | 自定义快捷模板 CRUD、近 30 天高频推荐聚合、底栏长按 `+` 扇形滑选浮层、单卡 3 秒圆环倒计时原地撤销、单卡长按调金额/切账户（顶层半透明 HUD）与全屏复用记一笔 UI 编辑器 | 完整记账日期/备注/转账、报表分析 | `app/(tabs)/`、`export` |
 | `src/features/analytics/` | 多周期账务分析职责 | 分类占比排行、账户资金分布、日均支出、结余率与月/年/全量收支趋势聚合 | 交易写入、余额变更 | `app/` |
-| `src/features/export/` | 完整 JSON 备份导入导出职责 | Schema v4 完整 JSON 备份（含外观/账户三开关与卡信息/分类/快捷模板/明细与 FNV-1a 校验指纹，兼容 v2/v3 导入）生成、严格校验、单事务原子恢复及 Android 原生文件读写 | 单笔业务记账规则 | `app/` |
-| `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（顶栏右侧纯「i」关于图标、置顶外观切换持久化、分类管理、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export` |
+| `src/features/export/` | 完整 JSON 备份导入导出职责 | Schema v4 完整 JSON 备份（含外观/账户三开关与卡信息/分类/快捷模板/明细与 FNV-1a 校验指纹，兼容 v2/v3 导入）生成、严格校验、单事务原子恢复及 Android 原生文件读写 | 单笔业务记账规则 | `app/`、`cloud-backup` |
+| `src/features/cloud-backup/` | 双通道云备份与多版本快照恢复职责 | WebDAV（HTTPS 默认校验、`PROPFIND`/`MKCOL`/`PUT`/`GET`/`DELETE`）与 Google Drive（OAuth 2.0 PKCE `S256` + `drive.file` + `ZeroTally/` 文件夹 + Token 自动续期）、硬件安全凭据隔离（`expo-secure-store`）、多版本历史快照管理/超限清理与防抖自动云备份编排 | 账本 JSON 序列化/反序列化规则（复用 `export`）、核心账目与资产业务规则 | `app/` |
+| `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（顶栏右侧纯「i」关于图标、置顶外观切换持久化、分类管理、云备份、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export`、`cloud-backup` |
 | `src/features/navigation/` | 主导航路由与共享顶栏上下文职责 | Expo Router 双页 Tab 占位描述符补齐、固定顺序规范化纯逻辑及主界面共享顶栏/抽屉上下文 | 具体页面渲染与业务规则 | `app/(tabs)/` |
 | `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema v5 迁移（含 `app_settings`、`quick_templates` 与账户三开关/卡信息列）、幂等默认单一钱包与分类种子、Expo/Node 适配器、变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
 | `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化与正数输入规整、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、统一可拖拽 `BottomSheet`（内置标准顶栏/滚动手势协同/两段展开与非展开禁上拉）/ 统一滑动分段控件 `SlidingSegmentedControl` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |
@@ -68,6 +69,7 @@ flowchart TD
 | 记账金额键盘表达式解析与分精度加减求值 | `src/features/transactions/amount-expression.ts` | `app/record.tsx`、`RecordKeypad.tsx` | `transactions` | `src/features/transactions/amount-expression.test.ts` |
 | 收支分类账户记忆四层回退规则（精确分类 → 一级大类 → 同收支类型 → 默认首活跃账户）与单次手动锁定策略 | `src/features/transactions/rules.ts` | `src/features/transactions/repository.ts`、`app/record.tsx` | `transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
 | 账务分析分类占比按一级分类聚合（二级并入所属一级） | `src/features/analytics/rules.ts` | `src/features/analytics/service.ts` | `analytics` | `src/features/analytics/rules.test.ts`、`service.test.ts` |
+| 云备份安全边界（WebDAV 默认 HTTPS 与防路径穿越、Google OAuth PKCE `S256` + `state` 防 CSRF、凭据硬件加密存储、历史快照时间戳命名与保留上限淘汰） | `src/features/cloud-backup/rules.ts`、`native-runtime.ts` | `src/features/cloud-backup/service.ts`、`webdav-provider.ts`、`google-drive-provider.ts` | `cloud-backup`、`app/cloud-backup.tsx`、`app/_layout.tsx` | `src/features/cloud-backup/rules.test.ts`、`service.test.ts` |
 
 ## 用例导航索引
 
@@ -83,6 +85,7 @@ flowchart TD
 | UC-08 多周期账务分析（按月/按年/全部、分类占比、趋势与账户分布） | `app/analytics.tsx`（点击明细顶部总览卡进入） | `analytics/service.ts` (`getScopedAnalytics` / `getMonthlyAnalytics`) | `analytics/rules.ts` | `analytics/rules.test.ts`、`service.test.ts` |
 | UC-09 完整 JSON 备份导出与校验原子导入恢复 | `app/advanced-settings.tsx` | `export/service.ts`、`export/native-io.ts` | `export/formatter.ts`、`shared/integrity/checksum.ts` | `export/formatter.test.ts`、`service.test.ts` |
 | UC-10 底栏上滑快捷记账半屏窗、长按 `+` 扇形极速记账与原地 3 秒倒计时撤销 | `app/(tabs)/_layout.tsx` | `quick-record/components/QuickRecordSheet.tsx`、`QuickRadialOverlay.tsx`、`quick-record/service.ts` | `quick-record/repository.ts`、`scrub-rules.ts`、`radial-menu-rules.ts` | `quick-record/service.test.ts`、`scrub-rules.test.ts`、`radial-menu-rules.test.ts` |
+| UC-11 双通道云备份（WebDAV / Google Drive）、多版本快照恢复与账本变动自动云备份 | `app/cloud-backup.tsx`、`SettingsPanel.tsx`、`app/_layout.tsx` | `cloud-backup/service.ts`、`WebDavConfigSheet.tsx`、`GoogleDriveConfigSheet.tsx`、`CloudSnapshotsSheet.tsx` | `cloud-backup/rules.ts`、`config-repository.ts`、`webdav-provider.ts`、`google-drive-provider.ts`、`native-runtime.ts` | `cloud-backup/rules.test.ts`、`service.test.ts` |
 
 ## 变更场景模拟验证
 

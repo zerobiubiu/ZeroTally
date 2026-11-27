@@ -9,6 +9,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
 import { getDatabaseStats, resetDatabase, type DatabaseStats } from '../src/db/seed';
+import { suppressAutoCloudBackup } from '../src/features/cloud-backup/service';
 import {
   pickJsonFileText,
   saveExportArtifactToDirectory,
@@ -142,6 +143,7 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
     setImporting(true);
     setImportError(null);
     try {
+      suppressAutoCloudBackup(25_000);
       const summary = await importFullLedgerBackup(db, pendingImport.validated.payload);
       setPreference(summary.themePreference);
       setPendingImport(null);
@@ -175,6 +177,7 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
     setClearing(true);
     setClearError(null);
     try {
+      suppressAutoCloudBackup(25_000);
       await resetDatabase(db);
       setClearConfirmSheetOpen(false);
       notifyChange();
