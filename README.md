@@ -47,13 +47,13 @@ ZeroTally `v2.0.0` 是面向 Android 的本地离线个人记账与资产管理�
 ### 核心功能与浅色模式
 
 <p align="center">
-  <img src="docs/assets/preview-screens.png" alt="ZeroTally 核心界面预览：明细首页、记一笔、账务分析、资产与负债管理" width="100%" />
+  <img src="docs/assets/preview-screens.png" alt="ZeroTally v2.0.0 核心界面预览：共享顶栏与懒加载明细、二级分类与计算键盘记账、多周期账务分析下钻、无描边资产与负债管理" width="100%" />
 </p>
 
-### 深色模式与结构化备份预览
+### 深色模式、设置抽屉与 Schema v5 备份预览
 
 <p align="center">
-  <img src="docs/assets/preview-dark-export.png" alt="ZeroTally 深色模式与结构化 JSON 备份预览" width="100%" />
+  <img src="docs/assets/preview-dark-export.png" alt="ZeroTally v2.0.0 深色模式、侧边设置抽屉、Schema v5 校验 JSON 备份、双通道云备份隐私安全与原生 4x2 桌面小组件预览" width="100%" />
 </p>
 
 > 界面示意图基于项目语义设计令牌（[src/theme/tokens.ts](src/theme/tokens.ts)）与布局结构绘制。34 组核心浅色与深色前背景配对均通过 WCAG AA 4.5:1 对比度校验，设计规范见 [src/theme/DESIGN.md](src/theme/DESIGN.md)。
