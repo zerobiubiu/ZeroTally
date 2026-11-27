@@ -60,6 +60,7 @@ export function SettingsPanel({
       | '/budgets'
       | '/cloud-backup'
       | '/security'
+      | '/gestures-guide'
       | '/about'
       | '/advanced-settings'
   ) => {
@@ -103,6 +104,12 @@ export function SettingsPanel({
       label: '隐私与安全',
       icon: 'shield-checkmark-outline',
       onPress: () => navigateTo('/security'),
+    },
+    {
+      key: 'gestures-guide',
+      label: '手势与快捷技巧',
+      icon: 'hand-left-outline',
+      onPress: () => navigateTo('/gestures-guide'),
     },
     {
       key: 'advanced',

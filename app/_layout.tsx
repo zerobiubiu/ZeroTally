@@ -216,6 +216,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="gestures-guide"
+          options={{
+            title: '手势与快捷技巧',
+          }}
+        />
+        <Stack.Screen
           name="about"
           options={{
             title: '关于',

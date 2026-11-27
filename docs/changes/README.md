@@ -56,3 +56,4 @@
 
 | [0047-quick-batch-recording.md](0047-quick-batch-recording.md) | 变更记录 | 已执行 | v1.9.2 | 新增快捷批量记账页（由快捷面板进入，支持模板一键追加多行与单事务原子批量入账） |
 | [0048-analytics-drilldown-and-comparison.md](0048-analytics-drilldown-and-comparison.md) | 变更记录 | 已执行 | 财务分析深度增强：环比/同比增幅、二级分类展开、大额单笔 Top 5 与全链路明细下钻（v1.9.3） |
+| [0049-onboarding-and-gestures-guide.md](0049-onboarding-and-gestures-guide.md) | 变更记录 | 已执行 | 新增首次启动极轻量手势提示与设置「手势与快捷技巧」页，完成 P1 阶段 APK 构建校验（v1.9.4） |

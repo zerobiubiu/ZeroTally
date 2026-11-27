@@ -49,6 +49,11 @@ import {
   computeSettingsDrawerWidth,
   SettingsDrawer,
 } from '../../src/features/settings/components/SettingsDrawer';
+import { FirstLaunchGuideSheet } from '../../src/features/onboarding/components/FirstLaunchGuideSheet';
+import {
+  getShouldShowFirstLaunchGuide,
+  markFirstLaunchGuideSeen,
+} from '../../src/features/onboarding/repository';
 import type { LedgerPeriodMode } from '../../src/features/transactions/types';
 import {
   hapticLight,
@@ -843,10 +848,42 @@ export default function TabsLayout(): React.JSX.Element {
   const [radialItems, setRadialItems] = useState<QuickRecordButtonItem[]>([]);
   const [radialActiveIndex, setRadialActiveIndex] = useState<number | null>(null);
   const [radialDoneNotice, setRadialDoneNotice] = useState<string | null>(null);
+  const [showFirstLaunchGuide, setShowFirstLaunchGuide] = useState(false);
 
+  const onboardingCheckedRef = useRef(false);
   const radialItemsRef = useRef<QuickRecordButtonItem[]>([]);
   const radialActiveIndexRef = useRef<number | null>(null);
   const radialToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 首次启动时检查是否已看过极轻量手势引导，仅展示一次
+  useEffect(() => {
+    if (onboardingCheckedRef.current) {
+      return;
+    }
+    onboardingCheckedRef.current = true;
+    let active = true;
+    void getShouldShowFirstLaunchGuide(db)
+      .then((shouldShow) => {
+        if (active && shouldShow) {
+          setShowFirstLaunchGuide(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [db]);
+
+  const dismissFirstLaunchGuide = useCallback(() => {
+    setShowFirstLaunchGuide(false);
+    void markFirstLaunchGuideSeen(db).catch(() => {});
+  }, [db]);
+
+  const openFullGesturesGuide = useCallback(() => {
+    setShowFirstLaunchGuide(false);
+    void markFirstLaunchGuideSeen(db).catch(() => {});
+    router.push('/gestures-guide');
+  }, [db, router]);
 
   useEffect(() => {
     let active = true;
@@ -1085,6 +1122,12 @@ export default function TabsLayout(): React.JSX.Element {
             onClose={closeDrawer}
             dragProgress={drawerProgress}
             draggingOpen={isPullingDrawer}
+          />
+
+          <FirstLaunchGuideSheet
+            visible={showFirstLaunchGuide}
+            onDismiss={dismissFirstLaunchGuide}
+            onOpenFullGuide={openFullGesturesGuide}
           />
         </View>
       </DrawerGestureBridgeContext.Provider>
