@@ -8,17 +8,19 @@ interface AccountRow {
   category: AccountCategory;
   balance_cents: number;
   include_in_net_worth: number;
+  include_in_total_assets: number;
+  is_selectable: number;
   icon: string;
   color: string;
   note: string;
+  card_number: string;
+  bank_name: string;
+  bank_branch: string;
+  opened_on: string;
   is_archived: number;
   sort_order: number;
   created_at: string;
   updated_at: string;
-}
-
-interface CountRow {
-  count: number;
 }
 
 interface MaxSortRow {
@@ -33,9 +35,15 @@ function mapAccountRow(row: AccountRow): Account {
     category: row.category,
     balanceCents: row.balance_cents,
     includeInNetWorth: row.include_in_net_worth === 1,
+    includeInTotalAssets: row.include_in_total_assets === 1,
+    isSelectable: row.is_selectable === 1,
     icon: row.icon,
     color: row.color,
     note: row.note,
+    cardNumber: row.card_number,
+    bankName: row.bank_name,
+    bankBranch: row.bank_branch,
+    openedOn: row.opened_on,
     isArchived: row.is_archived === 1,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
@@ -67,9 +75,10 @@ export async function getNextAccountSortOrder(db: SqlExecutor): Promise<number> 
 export async function insertAccountRow(db: SqlExecutor, account: Account): Promise<void> {
   await db.run(
     `INSERT INTO accounts (
-      id, name, kind, category, balance_cents, include_in_net_worth,
-      icon, color, note, is_archived, sort_order, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, kind, category, balance_cents, include_in_net_worth, include_in_total_assets,
+      is_selectable, icon, color, note, card_number, bank_name, bank_branch, opened_on,
+      is_archived, sort_order, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       account.id,
       account.name,
@@ -77,9 +86,15 @@ export async function insertAccountRow(db: SqlExecutor, account: Account): Promi
       account.category,
       account.balanceCents,
       account.includeInNetWorth ? 1 : 0,
+      account.includeInTotalAssets ? 1 : 0,
+      account.isSelectable ? 1 : 0,
       account.icon,
       account.color,
       account.note,
+      account.cardNumber,
+      account.bankName,
+      account.bankBranch,
+      account.openedOn,
       account.isArchived ? 1 : 0,
       account.sortOrder,
       account.createdAt,
@@ -96,25 +111,38 @@ export async function updateAccountRow(
     kind: AccountKind;
     category: AccountCategory;
     includeInNetWorth: boolean;
+    includeInTotalAssets: boolean;
+    isSelectable: boolean;
     icon: string;
     color: string;
     note: string;
+    cardNumber: string;
+    bankName: string;
+    bankBranch: string;
+    openedOn: string;
     updatedAt: string;
   }
 ): Promise<number> {
   const res = await db.run(
     `UPDATE accounts
-     SET name = ?, kind = ?, category = ?, include_in_net_worth = ?,
-         icon = ?, color = ?, note = ?, updated_at = ?
+     SET name = ?, kind = ?, category = ?, include_in_net_worth = ?, include_in_total_assets = ?,
+         is_selectable = ?, icon = ?, color = ?, note = ?,
+         card_number = ?, bank_name = ?, bank_branch = ?, opened_on = ?, updated_at = ?
      WHERE id = ?`,
     [
       fields.name,
       fields.kind,
       fields.category,
       fields.includeInNetWorth ? 1 : 0,
+      fields.includeInTotalAssets ? 1 : 0,
+      fields.isSelectable ? 1 : 0,
       fields.icon,
       fields.color,
       fields.note,
+      fields.cardNumber,
+      fields.bankName,
+      fields.bankBranch,
+      fields.openedOn,
       fields.updatedAt,
       id,
     ]
@@ -170,13 +198,6 @@ export async function setAccountArchivedFlag(
   return res.changes;
 }
 
-export async function countAccountTransactions(db: SqlExecutor, id: string): Promise<number> {
-  const row = await db.getFirst<CountRow>(
-    `SELECT COUNT(*) AS count FROM transactions WHERE account_id = ? OR to_account_id = ?`,
-    [id, id]
-  );
-  return row?.count ?? 0;
-}
 
 export async function deleteAccountRow(db: SqlExecutor, id: string): Promise<number> {
   const res = await db.run('DELETE FROM accounts WHERE id = ?', [id]);

@@ -94,7 +94,8 @@ export function RefundSheet({
 
       const currentRefundAccountId = target.mode === 'edit' ? target.refund.accountId : null;
       const visibleAccounts = allAccounts.filter(
-        (acc) => !acc.isArchived || acc.id === currentRefundAccountId
+        (acc) =>
+          (!acc.isArchived && acc.isSelectable) || acc.id === currentRefundAccountId
       );
       setAccounts(visibleAccounts);
       setOriginalExpense(resolvedOriginal);

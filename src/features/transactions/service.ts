@@ -1,8 +1,17 @@
 import type { SqlExecutor } from '../../db/types';
-import { getMonthDateRange, getYearDateRange } from '../../shared/date/date';
+import { getMonthDateRange, getTodayIsoDate, getYearDateRange } from '../../shared/date/date';
 import { createId } from '../../shared/id/id';
-import { applyAccountBalanceDelta, findAccountById } from '../accounts/repository';
-import { findCategoryById } from '../categories/repository';
+import { formatCentsPlain } from '../../shared/money/money';
+import {
+  applyAccountBalanceDelta,
+  deleteAccountRow,
+  findAccountById,
+  findAllAccounts,
+  setAccountBalanceExact,
+} from '../accounts/repository';
+import { validateAccountBalanceCents } from '../accounts/rules';
+import type { Account } from '../accounts/types';
+import { findCategories, findCategoryById } from '../categories/repository';
 import {
   deleteRefundsByOriginalId,
   deleteTransactionRow,
@@ -52,7 +61,10 @@ async function verifyTransactionReferences(
   }
   const keepingOldSource = existing && existing.accountId === input.accountId;
   if (sourceAccount.isArchived && !keepingOldSource) {
-    throw new Error(`账户「${sourceAccount.name}」已停用，无法用于新账目`);
+    throw new Error(`账户「${sourceAccount.name}」已归档，无法用于新账目`);
+  }
+  if (!sourceAccount.isSelectable && !keepingOldSource) {
+    throw new Error(`账户「${sourceAccount.name}」已设为不可选，无法用于新账目`);
   }
 
   if (input.type === 'transfer') {
@@ -62,7 +74,10 @@ async function verifyTransactionReferences(
     }
     const keepingOldTarget = existing && existing.toAccountId === input.toAccountId;
     if (targetAccount.isArchived && !keepingOldTarget) {
-      throw new Error(`转入账户「${targetAccount.name}」已停用，无法转入`);
+      throw new Error(`转入账户「${targetAccount.name}」已归档，无法转入`);
+    }
+    if (!targetAccount.isSelectable && !keepingOldTarget) {
+      throw new Error(`转入账户「${targetAccount.name}」已设为不可选，无法转入`);
     }
     return;
   }
@@ -204,7 +219,10 @@ export async function createRefundTransaction(
       throw new Error('所选退款账户不存在');
     }
     if (targetAccount.isArchived) {
-      throw new Error(`账户「${targetAccount.name}」已停用，无法作为退款入账账户`);
+      throw new Error(`账户「${targetAccount.name}」已归档，无法作为退款入账账户`);
+    }
+    if (!targetAccount.isSelectable) {
+      throw new Error(`账户「${targetAccount.name}」已设为不可选，无法作为退款入账账户`);
     }
 
     const record: Transaction = {
@@ -262,7 +280,10 @@ export async function updateRefundTransaction(
       throw new Error('所选退款账户不存在');
     }
     if (targetAccount.isArchived && normalized.accountId !== existing.accountId) {
-      throw new Error(`账户「${targetAccount.name}」已停用，无法作为退款入账账户`);
+      throw new Error(`账户「${targetAccount.name}」已归档，无法作为退款入账账户`);
+    }
+    if (!targetAccount.isSelectable && normalized.accountId !== existing.accountId) {
+      throw new Error(`账户「${targetAccount.name}」已设为不可选，无法作为退款入账账户`);
     }
 
     const updated: Transaction = {
@@ -318,6 +339,163 @@ export async function deleteTransaction(db: SqlExecutor, id: string): Promise<vo
       await applyAccountBalanceDelta(tx, delta.accountId, delta.deltaCents, now);
     }
   });
+}
+
+export interface SettleAccountBalanceOptions {
+  /** 是否生成一笔平账收支记录（默认不生成，仅修改余额） */
+  generateRecord?: boolean;
+  /** 生成记录时的归属分类；缺省自动落到「其他收入 / 其他支出」 */
+  categoryId?: string;
+}
+
+/**
+ * 平账：将账户净余额直接修改为目标值并返回差额；
+ * 可选在同一事务内生成一笔收入 / 支出平账记录（备注「平账(旧 ~ 新)」），保证余额与流水自洽。
+ */
+export async function settleAccountBalance(
+  db: SqlExecutor,
+  id: string,
+  targetBalanceCents: number,
+  options?: SettleAccountBalanceOptions
+): Promise<{ account: Account; deltaCents: number; record: Transaction | null }> {
+  const validated = validateAccountBalanceCents(targetBalanceCents);
+
+  return db.withTransaction(async (tx) => {
+    const existing = await findAccountById(tx, id);
+    if (!existing) {
+      throw new Error('账户不存在');
+    }
+    if (existing.isArchived) {
+      throw new Error('已归档账户不可平账，请先恢复归档');
+    }
+    const deltaCents = validated - existing.balanceCents;
+    const now = new Date().toISOString();
+
+    let record: Transaction | null = null;
+    if (options?.generateRecord && deltaCents !== 0) {
+      const type = deltaCents > 0 ? 'income' : 'expense';
+      let categoryId = options.categoryId ?? null;
+      if (categoryId) {
+        const category = await findCategoryById(tx, categoryId);
+        if (!category || category.isArchived || category.type !== type) {
+          throw new Error('所选平账分类不可用');
+        }
+      } else {
+        const fallbackId = type === 'income' ? 'cat_inc_other' : 'cat_exp_other';
+        const categories = await findCategories(tx, { type });
+        categoryId =
+          categories.find((c) => c.id === fallbackId)?.id ??
+          categories.find((c) => c.parentId === null)?.id ??
+          null;
+        if (!categoryId) {
+          throw new Error('缺少可用的收入 / 支出分类，无法生成平账记录');
+        }
+      }
+
+      record = {
+        id: createId('tx'),
+        type,
+        amountCents: Math.abs(deltaCents),
+        categoryId,
+        accountId: id,
+        toAccountId: null,
+        refundOfId: null,
+        occurredOn: getTodayIsoDate(),
+        note: `平账(${formatCentsPlain(existing.balanceCents)} ~ ${formatCentsPlain(validated)})`,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await insertTransactionRow(tx, record);
+    }
+
+    await setAccountBalanceExact(tx, id, validated, now);
+    const updated = await findAccountById(tx, id);
+    if (!updated) {
+      throw new Error('平账后读取账户失败');
+    }
+    return { account: updated, deltaCents, record };
+  });
+}
+
+/**
+ * 删除账户：在同一事务内连带清除该账户全部关联记录（流水 / 退款 / 平账 / 快捷模板）与账户行，
+ * 并复用余额增量规则回滚其对其他账户的影响（转账对手方 / 退款入账方）；
+ * 本账户自身余额随账户行删除，无需回滚。被删支出的悬空退款一并清除。
+ */
+export async function deleteAccountWithTransactions(
+  db: SqlExecutor,
+  id: string
+): Promise<{ removedTransactionCount: number }> {
+  return db.withTransaction(async (tx) => {
+    const existing = await findAccountById(tx, id);
+    if (!existing) {
+      throw new Error('账户不存在');
+    }
+    const activeAccounts = await findAllAccounts(tx, false);
+    if (!existing.isArchived && activeAccounts.length <= 1) {
+      throw new Error('至少需要保留一个可用账户');
+    }
+    // 删除最后一个可选账户同样会让记一笔无账户可用
+    if (!existing.isArchived && existing.isSelectable) {
+      const remainingSelectable = activeAccounts.filter(
+        (acc) => acc.id !== id && acc.isSelectable
+      );
+      if (remainingSelectable.length === 0) {
+        throw new Error('至少需要保留一个可选账户');
+      }
+    }
+
+    const now = new Date().toISOString();
+    const all = await findAllTransactions(tx);
+    const related = all.filter((item) => item.accountId === id || item.toAccountId === id);
+    const removedIds = new Set(related.map((item) => item.id));
+
+    // 原支出被连带删除后，其退款若入账到其他账户则成为悬空记录，一并清除并回滚
+    const orphanRefunds = all.filter(
+      (item) =>
+        item.type === 'refund' &&
+        item.refundOfId !== null &&
+        removedIds.has(item.refundOfId) &&
+        !removedIds.has(item.id)
+    );
+    const removed = [...related, ...orphanRefunds];
+    const rawDeltas: BalanceDelta[] = [];
+    for (const item of removed) {
+      for (const delta of invertBalanceDeltas(computeBalanceDeltas(item))) {
+        if (delta.accountId !== id) {
+          rawDeltas.push(delta);
+        }
+      }
+    }
+    // 先删退款再删原支出，满足 refund_of_id 自引用外键
+    for (const item of removed.filter((t) => t.type === 'refund')) {
+      await deleteTransactionRow(tx, item.id);
+    }
+    for (const item of removed.filter((t) => t.type !== 'refund')) {
+      await deleteTransactionRow(tx, item.id);
+    }
+    for (const delta of mergeBalanceDeltas(rawDeltas)) {
+      await applyAccountBalanceDelta(tx, delta.accountId, delta.deltaCents, now);
+    }
+
+    await tx.run('DELETE FROM quick_templates WHERE account_id = ?', [id]);
+    await deleteAccountRow(tx, id);
+
+    return { removedTransactionCount: removed.length };
+  });
+}
+
+/** 统计账户关联流水笔数（含转账对手方及将被连带清除的跨账户悬空退款），与删除实际清除笔数严格一致 */
+export async function countAccountTransactions(db: SqlExecutor, id: string): Promise<number> {
+  const row = await db.getFirst<{ count: number }>(
+    `SELECT COUNT(*) AS count
+     FROM transactions
+     WHERE account_id = ?
+        OR to_account_id = ?
+        OR refund_of_id IN (SELECT id FROM transactions WHERE account_id = ?)`,
+    [id, id, id]
+  );
+  return row?.count ?? 0;
 }
 
 export async function getTransactionById(

@@ -118,6 +118,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="archived-accounts"
+          options={{
+            title: '已归档账户',
+          }}
+        />
+        <Stack.Screen
           name="categories"
           options={{
             title: '分类管理',

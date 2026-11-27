@@ -32,6 +32,8 @@ export interface ConfirmDialogProps {
   loading?: boolean;
   error?: string | null;
   children?: React.ReactNode;
+  /** 渲染在两个操作按钮下方的弱化内容槽（如「继续删除」三级入口） */
+  footer?: React.ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -48,6 +50,7 @@ export function ConfirmDialog({
   loading = false,
   error = null,
   children,
+  footer,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps): React.JSX.Element | null {
@@ -265,6 +268,8 @@ export function ConfirmDialog({
               )}
             </Pressable>
           </View>
+
+          {footer ? <View style={{ marginTop: theme.spacing.sm }}>{footer}</View> : null}
         </Animated.View>
       </View>
     </Modal>

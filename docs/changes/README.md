@@ -40,3 +40,4 @@
 | [0032-refund-input-and-unified-bottom-sheet.md](0032-refund-input-and-unified-bottom-sheet.md) | 变更记录 | 已执行 | v1.2.0 | 退款金额改占位默认、自动两位截断/规整并放开金额上限；升级统一可手势拖拽 BottomSheet 基座并收口全仓 6 处弹窗 |
 | [0033-fix-expanded-bottom-sheet-swipe-down.md](0033-fix-expanded-bottom-sheet-swipe-down.md) | 变更记录 | 已执行 | v1.2.1 | 修复 RNGH v3 `onActivate` 位移归零导致底部手势卡片上滑展开后与单段滚动区下滑收起失效的问题 |
 | [0034-quick-card-sizing-and-velocity-scrub-steps.md](0034-quick-card-sizing-and-velocity-scrub-steps.md) | 变更记录 | 已执行 | v1.3.0 | 统一快捷卡片与「添加快捷」卡片等宽等高对齐，并将长按上下滑调金额升级为 0.01~1 元五档速度自适应步进 |
+| [0035-account-model-overhaul-archive-settle-delete.md](0035-account-model-overhaul-archive-settle-delete.md) | 变更记录 | 已执行 | v1.4.0 | 账户类型驱动性质、三独立统计开关与银行卡信息（Schema v5）、停用改归档并移出资产一级页、平账可选生成记录、删除账户三重确认与级联清除 |

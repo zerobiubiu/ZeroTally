@@ -13,8 +13,10 @@ import {
 import { listCategories } from '../categories/service';
 import { resolveRememberedAccountId } from './rules';
 import {
+  countAccountTransactions,
   createRefundTransaction,
   createTransaction,
+  deleteAccountWithTransactions,
   deleteTransaction,
   getAllLedger,
   getCategoryAccountMemory,
@@ -23,6 +25,7 @@ import {
   getYearlyLedger,
   listAccountTransactions,
   listTransactionRefunds,
+  settleAccountBalance,
   updateRefundTransaction,
   updateTransaction,
 } from './service';
@@ -321,7 +324,7 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     expect(all.sections[2]?.occurredOn).toBe('2025-12-30');
   });
 
-  it('从历史流水派生分类账户记忆：支持两级回退、排除退款/转账、停用账户自动退回并随删改实时自洽', async () => {
+  it('从历史流水派生分类账户记忆：支持两级回退、排除退款/转账、归档账户自动退回并随删改实时自洽', async () => {
     const categories = await listCategories(db);
     const activeAccounts = await listAccounts(db);
 
@@ -419,5 +422,120 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     const memoryAfterDelete = await getCategoryAccountMemory(db);
     expect(memoryAfterDelete.byCategoryId.cat_exp_food_dinner).toBeUndefined();
     expect(memoryAfterDelete.byRootCategoryId.cat_exp_food).toBe('acc_wechat');
+  });
+
+  it('平账可选生成记录：不生成仅改余额，生成时同事务写入收入/支出并保持余额流水自洽', async () => {
+    // 不生成记录：10000 -> 11070.45 元，仅改余额
+    const plain = await settleAccountBalance(db, 'acc_bank', 1_107_045);
+    expect(plain.deltaCents).toBe(107_045);
+    expect(plain.record).toBeNull();
+    expect(plain.account.balanceCents).toBe(1_107_045);
+    const txsPlain = await listAccountTransactions(db, 'acc_bank');
+    expect(txsPlain).toHaveLength(0);
+
+    // 生成记录：向上平账 99631 元，落「其他收入」，备注含旧新余额
+    const up = await settleAccountBalance(db, 'acc_bank', 11_070_145, { generateRecord: true });
+    expect(up.deltaCents).toBe(9_963_100);
+    expect(up.record?.type).toBe('income');
+    expect(up.record?.categoryId).toBe('cat_inc_other');
+    expect(up.record?.note).toBe('平账(11,070.45 ~ 110,701.45)');
+    expect(up.account.balanceCents).toBe(11_070_145);
+
+    // 向下平账 1000 元，落「其他支出」；删除该平账记录后余额同步回滚
+    const down = await settleAccountBalance(db, 'acc_bank', 10_970_145, { generateRecord: true });
+    expect(down.record?.type).toBe('expense');
+    expect(down.record?.categoryId).toBe('cat_exp_other');
+    await deleteTransaction(db, down.record!.id);
+    const bank = await getAccountById(db, 'acc_bank');
+    expect(bank?.balanceCents).toBe(11_070_145);
+
+    // 指定已归档分类被拒绝
+    await db.run('UPDATE categories SET is_archived = 1 WHERE id = ?', ['cat_inc_other']);
+    await expect(
+      settleAccountBalance(db, 'acc_bank', 12_000_000, {
+        generateRecord: true,
+        categoryId: 'cat_inc_other',
+      })
+    ).rejects.toThrow('平账分类不可用');
+
+    // 已归档账户禁止平账
+    await archiveAccount(db, 'acc_bank');
+    await expect(settleAccountBalance(db, 'acc_bank', 10_000_000)).rejects.toThrow(
+      '已归档账户不可平账'
+    );
+  });
+
+  it('删除账户连带清除全部关联流水并回滚对手方余额，不可选账户拒绝新账目', async () => {
+    // 银行卡 -> 微信转账 200 元；微信支出 30 元后退款 10 元到银行卡
+    await createTransaction(db, {
+      type: 'transfer',
+      amountCents: 20_000,
+      categoryId: null,
+      accountId: 'acc_bank',
+      toAccountId: 'acc_wechat',
+      occurredOn: '2026-11-20',
+    });
+    const expense = await createTransaction(db, {
+      type: 'expense',
+      amountCents: 3_000,
+      categoryId: 'cat_exp_food',
+      accountId: 'acc_wechat',
+      toAccountId: null,
+      occurredOn: '2026-11-21',
+    });
+    await createRefundTransaction(db, {
+      originalTransactionId: expense.id,
+      amountCents: 1_000,
+      accountId: 'acc_bank',
+      occurredOn: '2026-11-22',
+    });
+
+    const bankBefore = await getAccountById(db, 'acc_bank');
+    // 10000 - 200 + 10 = 9810 元
+    expect(bankBefore?.balanceCents).toBe(981_000);
+
+    // 预览统计笔数与实际级联清除笔数严格一致（含跨账户悬空退款 = 3 笔）
+    expect(await countAccountTransactions(db, 'acc_wechat')).toBe(3);
+
+    // 删除微信：其支出与转账被清除，退款原支出悬空一并清除；银行卡回滚 +200 -10
+    const result = await deleteAccountWithTransactions(db, 'acc_wechat');
+    expect(result.removedTransactionCount).toBe(3);
+    expect(await getAccountById(db, 'acc_wechat')).toBeNull();
+    const bankAfter = await getAccountById(db, 'acc_bank');
+    expect(bankAfter?.balanceCents).toBe(1_000_000);
+    expect(await listAccountTransactions(db, 'acc_bank')).toHaveLength(0);
+
+    // 关闭可选后拒绝新账目，但历史编辑不受影响
+    await db.run('UPDATE accounts SET is_selectable = 0 WHERE id = ?', ['acc_alipay']);
+    await expect(
+      createTransaction(db, {
+        type: 'expense',
+        amountCents: 100,
+        categoryId: 'cat_exp_food',
+        accountId: 'acc_alipay',
+        toAccountId: null,
+        occurredOn: '2026-11-23',
+      })
+    ).rejects.toThrow('不可选');
+
+    // 保护最后一个可用账户
+    await deleteAccountWithTransactions(db, 'acc_bank');
+    await deleteAccountWithTransactions(db, 'acc_alipay');
+    await deleteAccountWithTransactions(db, 'acc_cash');
+    await deleteAccountWithTransactions(db, 'acc_credit');
+    await expect(deleteAccountWithTransactions(db, 'acc_wallet')).rejects.toThrow(
+      '至少需要保留一个可用账户'
+    );
+  });
+
+  it('删除最后一个可选账户被拒绝（剩余账户均不可选）', async () => {
+    await db.run('UPDATE accounts SET is_selectable = 0 WHERE id != ?', ['acc_wallet']);
+    await expect(deleteAccountWithTransactions(db, 'acc_wallet')).rejects.toThrow(
+      '至少需要保留一个可选账户'
+    );
+    // 归档后的可选账户不受该保护约束（本就已不可选）
+    await db.run('UPDATE accounts SET is_archived = 1 WHERE id = ?', ['acc_bank']);
+    await deleteAccountWithTransactions(db, 'acc_bank');
+    expect(await getAccountById(db, 'acc_bank')).toBeNull();
   });
 });

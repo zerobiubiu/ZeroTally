@@ -69,7 +69,7 @@ export async function findQuickTemplateById(
   return row ? mapTemplateRow(row) : null;
 }
 
-/** 查询当前所有可用（对应分类与账户均未停用）的自定义快捷模板展示列表 */
+/** 查询当前所有可用（对应分类未停用，账户未归档且可选）的自定义快捷模板展示列表 */
 export async function findActiveQuickTemplateButtons(
   db: SqlExecutor
 ): Promise<QuickRecordButtonItem[]> {
@@ -82,7 +82,7 @@ export async function findActiveQuickTemplateButtons(
        a.name AS account_name
      FROM quick_templates q
      INNER JOIN categories c ON c.id = q.category_id AND c.is_archived = 0
-     INNER JOIN accounts a ON a.id = q.account_id AND a.is_archived = 0
+     INNER JOIN accounts a ON a.id = q.account_id AND a.is_archived = 0 AND a.is_selectable = 1
      ORDER BY q.sort_order ASC, q.created_at ASC`
   );
   return rows.map((row) => ({
@@ -122,7 +122,7 @@ export async function findRecommendedQuickButtons(
        COUNT(*) AS usage_count
      FROM transactions t
      INNER JOIN categories c ON c.id = t.category_id AND c.is_archived = 0
-     INNER JOIN accounts a ON a.id = t.account_id AND a.is_archived = 0
+     INNER JOIN accounts a ON a.id = t.account_id AND a.is_archived = 0 AND a.is_selectable = 1
      WHERE t.type IN ('expense', 'income')
        AND t.occurred_on >= ?
      GROUP BY t.type, t.category_id, t.amount_cents, t.account_id

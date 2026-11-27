@@ -1,44 +1,45 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 信息层级：主（账户余额卡）、次（单行等宽 3 动作按钮：记一笔 / 校准 / 编辑 + 流水列表）、弱（停用/删除三级动作）
- * - 布局规整：3 个操作按钮采用 size="sm" + 2-3 字动词确保窄屏单行不换行；校准面板实时计算变动差额
- * - 文案密度：移除重复账面值提示与冗余空状态描述
+ * - 页面结构：顶栏标题 + 账户信息卡片（余额 / 银行卡基础信息含名称逐行复制与一键复制全部）+ 下方直排按日分组流水，无独立「流水」分区
+ * - 平账（原校准）：通过统一单段 BottomSheet（SettleBalanceSheet）直接修改账户余额，可选生成平账收支记录并选择分类；已归档账户隐藏平账入口
+ * - 归档 / 恢复 / 删除全部收纳至「编辑」二级页面，本页不再提供账户管理区
  */
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Clipboard,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
-import { describeAccountBalance, getAccountCategoryMeta } from '../src/features/accounts/rules';
+import { SettleBalanceSheet } from '../src/features/accounts/components/SettleBalanceSheet';
 import {
-  adjustAccountBalance,
-  archiveAccount,
-  deleteAccount,
-  getAccountById,
-  restoreAccount,
-} from '../src/features/accounts/service';
+  describeAccountBalance,
+  formatAccountCardCopyText,
+  getAccountCategoryMeta,
+  supportsCardInfo,
+} from '../src/features/accounts/rules';
+import { getAccountById } from '../src/features/accounts/service';
 import type { Account } from '../src/features/accounts/types';
+import { listCategories } from '../src/features/categories/service';
+import type { Category } from '../src/features/categories/types';
 import { TransactionRow } from '../src/features/transactions/components/TransactionRow';
 import { useTransactionListInteractions } from '../src/features/transactions/components/useTransactionListInteractions';
-import { listAccountTransactions } from '../src/features/transactions/service';
-import type { TransactionListItem } from '../src/features/transactions/types';
+import { groupTransactionsByDay } from '../src/features/transactions/rules';
 import {
-  centsToInputString,
-  formatCentsToYuan,
-  parseSignedYuanToCents,
-  parseYuanToCents,
-} from '../src/shared/money/money';
+  listAccountTransactions,
+  settleAccountBalance,
+} from '../src/features/transactions/service';
+import type { TransactionListItem } from '../src/features/transactions/types';
+import { formatDaySectionTitle, getTodayIsoDate } from '../src/shared/date/date';
+import { hapticLight } from '../src/shared/haptics/haptics';
+import { formatCentsToYuan } from '../src/shared/money/money';
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { Button } from '../src/shared/ui/Button';
-import { ConfirmDialog } from '../src/shared/ui/ConfirmDialog';
 import { EmptyState } from '../src/shared/ui/EmptyState';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
 import { useTheme } from '../src/theme/theme-context';
@@ -58,14 +59,9 @@ export default function AccountDetailScreen(): React.JSX.Element {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjustInput, setAdjustInput] = useState('');
-  const [adjustError, setAdjustError] = useState<string | null>(null);
-  const [submittingAdjust, setSubmittingAdjust] = useState(false);
-  const [accountDialog, setAccountDialog] = useState<'archive' | 'delete' | null>(null);
-  const [accountActionLoading, setAccountActionLoading] = useState(false);
-  const [accountActionError, setAccountActionError] = useState<string | null>(null);
-  const [noticeDialog, setNoticeDialog] = useState<{ title: string; message: string } | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [settleOpen, setSettleOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const interactions = useTransactionListInteractions();
 
   useEffect(() => {
@@ -74,13 +70,15 @@ export default function AccountDetailScreen(): React.JSX.Element {
     }
     let active = true;
     void (async () => {
-      const [acc, txs] = await Promise.all([
+      const [acc, txs, cats] = await Promise.all([
         getAccountById(db, accountId),
-        listAccountTransactions(db, accountId),
+        listAccountTransactions(db, accountId, 1000),
+        listCategories(db),
       ]);
       if (active) {
         setAccount(acc);
         setTransactions(txs);
+        setCategories(cats);
       }
     })();
     return () => {
@@ -88,140 +86,31 @@ export default function AccountDetailScreen(): React.JSX.Element {
     };
   }, [db, accountId, revision]);
 
-  const previewDeltaCents = useMemo(() => {
-    if (!account || !adjustOpen) {
-      return null;
-    }
-    let target: number | null;
-    if (account.kind === 'liability') {
-      const debt = parseYuanToCents(adjustInput);
-      target = debt === null ? null : debt === 0 ? 0 : -debt;
-    } else {
-      target = parseSignedYuanToCents(adjustInput);
-    }
-    if (target === null) {
-      return null;
-    }
-    return target - account.balanceCents;
-  }, [account, adjustOpen, adjustInput]);
-
-  const handleOpenAdjust = () => {
-    if (!account) {
+  useEffect(() => {
+    if (!copiedField) {
       return;
     }
-    setAdjustError(null);
-    if (account.kind === 'liability') {
-      const debtCents = account.balanceCents < 0 ? Math.abs(account.balanceCents) : 0;
-      setAdjustInput(centsToInputString(debtCents));
-    } else {
-      setAdjustInput(centsToInputString(account.balanceCents));
-    }
-    setAdjustOpen((prev) => !prev);
-  };
+    const timer = setTimeout(() => setCopiedField(null), 1500);
+    return () => clearTimeout(timer);
+  }, [copiedField]);
 
-  const handleConfirmAdjust = async () => {
-    if (!account) {
-      return;
-    }
-    setAdjustError(null);
+  const sections = useMemo(() => groupTransactionsByDay(transactions), [transactions]);
+  const todayIso = getTodayIsoDate();
+  const showYearInSections = useMemo(
+    () => transactions.some((item) => item.occurredOn.slice(0, 4) !== todayIso.slice(0, 4)),
+    [transactions, todayIso]
+  );
 
-    let targetBalanceCents: number | null;
-    if (account.kind === 'liability') {
-      const debt = parseYuanToCents(adjustInput);
-      targetBalanceCents = debt === null ? null : debt === 0 ? 0 : -debt;
-    } else {
-      targetBalanceCents = parseSignedYuanToCents(adjustInput);
-    }
-
-    if (targetBalanceCents === null) {
-      setAdjustError('请输入有效金额（最多两位小数）');
-      return;
-    }
-
-    setSubmittingAdjust(true);
-    try {
-      await adjustAccountBalance(db, account.id, targetBalanceCents);
-      notifyChange();
-      setAdjustOpen(false);
-    } catch (err) {
-      setAdjustError(err instanceof Error ? err.message : '校准失败');
-    } finally {
-      setSubmittingAdjust(false);
-    }
-  };
-
-  const handleToggleArchive = () => {
-    if (!account) {
-      return;
-    }
-    if (account.isArchived) {
-      void (async () => {
-        try {
-          await restoreAccount(db, account.id);
-          notifyChange();
-        } catch (err) {
-          setNoticeDialog({
-            title: '恢复失败',
-            message: err instanceof Error ? err.message : '无法恢复账户',
-          });
-        }
-      })();
-      return;
-    }
-
-    setAccountActionError(null);
-    setAccountDialog('archive');
-  };
-
-  const handleDeleteAccount = () => {
-    if (!account) {
-      return;
-    }
-    setAccountActionError(null);
-    setAccountDialog('delete');
-  };
-
-  const handleCancelAccountDialog = () => {
-    if (accountActionLoading) {
-      return;
-    }
-    setAccountDialog(null);
-    setAccountActionError(null);
-  };
-
-  const handleConfirmAccountDialog = async () => {
-    if (!account || !accountDialog || accountActionLoading) {
-      return;
-    }
-    setAccountActionLoading(true);
-    setAccountActionError(null);
-    try {
-      if (accountDialog === 'archive') {
-        await archiveAccount(db, account.id);
-        setAccountDialog(null);
-        notifyChange();
-      } else {
-        await deleteAccount(db, account.id);
-        setAccountDialog(null);
-        notifyChange();
-        router.back();
-      }
-    } catch (err) {
-      setAccountActionError(
-        err instanceof Error
-          ? err.message
-          : accountDialog === 'archive'
-            ? '无法停用账户'
-            : '删除账户失败'
-      );
-    } finally {
-      setAccountActionLoading(false);
-    }
+  const handleCopy = (field: string, value: string) => {
+    Clipboard.setString(value);
+    hapticLight();
+    setCopiedField(field);
   };
 
   if (!account) {
     return (
       <SafeScreen edges={['left', 'right']}>
+        <Stack.Screen options={{ title: '账户详情' }} />
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.base }}>
             账户不存在
@@ -233,28 +122,61 @@ export default function AccountDetailScreen(): React.JSX.Element {
 
   const categoryMeta = getAccountCategoryMeta(account.category);
   const balanceInfo = describeAccountBalance(account);
+  const isBankCardType = supportsCardInfo(account.category);
+
+  const metaParts = [categoryMeta.label];
+  if (!account.includeInTotalAssets && !account.includeInNetWorth) {
+    metaParts.push('不计入统计');
+  } else if (!account.includeInNetWorth) {
+    metaParts.push('不计入净资产');
+  } else if (!account.includeInTotalAssets) {
+    metaParts.push('不计入总资产');
+  }
+  if (!account.isSelectable && !account.isArchived) {
+    metaParts.push('不可选');
+  }
+  if (account.isArchived) {
+    metaParts.push('已归档');
+  }
+
+  const cardInfoRows: { key: string; label: string; value: string }[] = [];
+  if (isBankCardType) {
+    const hasAnyBankExtra = Boolean(
+      account.cardNumber || account.bankName || account.bankBranch || account.openedOn
+    );
+    if (hasAnyBankExtra) {
+      cardInfoRows.push({ key: 'name', label: '名称', value: account.name });
+      if (account.cardNumber) {
+        cardInfoRows.push({ key: 'cardNumber', label: '卡号', value: account.cardNumber });
+      }
+      if (account.bankName) {
+        cardInfoRows.push({ key: 'bankName', label: '银行', value: account.bankName });
+      }
+      if (account.bankBranch) {
+        cardInfoRows.push({ key: 'bankBranch', label: '开户行', value: account.bankBranch });
+      }
+      if (account.openedOn) {
+        cardInfoRows.push({ key: 'openedOn', label: '开户日期', value: account.openedOn });
+      }
+    }
+  }
 
   return (
     <SafeScreen edges={['left', 'right']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={insets.top + 56}
-      >
-        <ScrollView
-          style={{ flex: 1 }}
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={interactions.closeAllSwipes}
-          contentContainerStyle={{
-            padding: theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
-          }}
-        >
-        <Stack.Screen options={{ title: account.name }} />
+      <Stack.Screen options={{ title: account.name }} />
 
+      <ScrollView
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={interactions.closeAllSwipes}
+        contentContainerStyle={{
+          padding: theme.spacing.lg,
+          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
+        }}
+      >
+        {/* 账户信息卡片 */}
         <View
           style={[
-            styles.heroCard,
             theme.elevation.card,
             {
               backgroundColor: theme.colors.surfaceRaised,
@@ -287,22 +209,44 @@ export default function AccountDetailScreen(): React.JSX.Element {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: theme.colors.text,
-                  fontSize: theme.fontSize.lg,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="复制账户名称"
+                onPress={() => handleCopy('heroName', account.name)}
+                style={({ pressed }) => [
+                  styles.nameRow,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
               >
-                {account.name}
-              </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: theme.colors.text,
+                    fontSize: theme.fontSize.lg,
+                    fontWeight: theme.fontWeight.semibold,
+                    flexShrink: 1,
+                  }}
+                >
+                  {account.name}
+                </Text>
+                {copiedField === 'heroName' ? (
+                  <Text
+                    style={{
+                      color: theme.colors.action,
+                      fontSize: theme.fontSize.xs,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginLeft: 6,
+                    }}
+                  >
+                    已复制
+                  </Text>
+                ) : null}
+              </Pressable>
               <Text
                 numberOfLines={1}
                 style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs, marginTop: 2 }}
               >
-                {categoryMeta.label} · {account.includeInNetWorth ? '计入净资产' : '不计入净资产'}
-                {account.isArchived ? ' · 已停用' : ''}
+                {metaParts.join(' · ')}
               </Text>
             </View>
           </View>
@@ -328,6 +272,92 @@ export default function AccountDetailScreen(): React.JSX.Element {
             </Text>
           </View>
 
+          {/* 银行卡基础信息：逐行点按复制 + 一键复制全部 */}
+          {cardInfoRows.length > 0 ? (
+            <View
+              style={{
+                marginTop: theme.spacing.md,
+                borderTopColor: theme.colors.border,
+                borderTopWidth: theme.borderWidth.hairline,
+                paddingTop: theme.spacing.sm,
+              }}
+            >
+              <View style={styles.cardInfoHeader}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs }}>
+                  银行卡信息
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="复制全部银行卡信息"
+                  hitSlop={8}
+                  onPress={() => handleCopy('allCardInfo', formatAccountCardCopyText(account))}
+                  style={({ pressed }) => [
+                    styles.copyAllBtn,
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.action,
+                      fontSize: theme.fontSize.xs,
+                      fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    {copiedField === 'allCardInfo' ? '已复制全部' : '复制全部'}
+                  </Text>
+                </Pressable>
+              </View>
+              {cardInfoRows.map((row) => (
+                <Pressable
+                  key={row.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`复制${row.label}`}
+                  onPress={() => handleCopy(row.key, row.value)}
+                  style={({ pressed }) => [
+                    styles.infoRow,
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      width: 64,
+                      color: theme.colors.textMuted,
+                      fontSize: theme.fontSize.sm,
+                    }}
+                  >
+                    {row.label}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      row.key === 'cardNumber' ? styles.tabular : null,
+                      {
+                        flex: 1,
+                        color: theme.colors.text,
+                        fontSize: theme.fontSize.sm,
+                      },
+                    ]}
+                  >
+                    {row.value}
+                  </Text>
+                  {copiedField === row.key ? (
+                    <Text
+                      style={{
+                        color: theme.colors.action,
+                        fontSize: theme.fontSize.xs,
+                        fontWeight: theme.fontWeight.semibold,
+                      }}
+                    >
+                      已复制
+                    </Text>
+                  ) : (
+                    <AppIcon name="copy-outline" size={16} color={theme.colors.textMuted} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
           {account.note ? (
             <Text
               style={{
@@ -341,7 +371,7 @@ export default function AccountDetailScreen(): React.JSX.Element {
           ) : null}
 
           <View style={[styles.actionsRow, { marginTop: theme.spacing.lg }]}>
-            {!account.isArchived ? (
+            {!account.isArchived && account.isSelectable ? (
               <Button
                 label="记一笔"
                 size="sm"
@@ -351,13 +381,18 @@ export default function AccountDetailScreen(): React.JSX.Element {
                 style={styles.actionBtn}
               />
             ) : null}
-            <Button
-              label="校准"
-              size="sm"
-              variant="secondary"
-              onPress={handleOpenAdjust}
-              style={styles.actionBtn}
-            />
+            {!account.isArchived ? (
+              <Button
+                label="平账"
+                size="sm"
+                variant="secondary"
+                onPress={() => {
+                  hapticLight();
+                  setSettleOpen(true);
+                }}
+                style={styles.actionBtn}
+              />
+            ) : null}
             <Button
               label="编辑"
               size="sm"
@@ -370,349 +405,97 @@ export default function AccountDetailScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {adjustOpen ? (
-          <View
-            style={[
-              styles.adjustCard,
-              {
-                backgroundColor: theme.colors.surfaceRaised,
-                borderColor: theme.colors.action,
-                borderWidth: theme.borderWidth.hairline,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.lg,
-                marginTop: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={styles.adjustHeader}>
-              <Text
-                style={{
-                  color: theme.colors.text,
-                  fontSize: theme.fontSize.base,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
-              >
-                {account.kind === 'liability' ? '实际待还欠款（元）' : '实际余额（元）'}
-              </Text>
-              {previewDeltaCents !== null && previewDeltaCents !== 0 ? (
-                <Text
-                  style={[
-                    styles.tabular,
-                    {
-                      color:
-                        previewDeltaCents > 0 ? theme.colors.income : theme.colors.expense,
+        {/* 流水直排：按日分组，无独立分区标题 */}
+        {transactions.length === 0 ? (
+          <View style={{ marginTop: theme.spacing.xl }}>
+            <EmptyState icon="swap-horizontal-outline" title="暂无流水" />
+          </View>
+        ) : (
+          <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.lg }}>
+            {sections.map((section) => (
+              <View key={section.occurredOn}>
+                <View style={[styles.sectionHeader, { marginBottom: theme.spacing.sm }]}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flexShrink: 1,
+                      color: theme.colors.textSecondary,
                       fontSize: theme.fontSize.xs,
                       fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    {formatDaySectionTitle(section.occurredOn, todayIso, {
+                      showYear: showYearInSections,
+                    })}
+                  </Text>
+                  <View style={styles.sectionTotals}>
+                    {section.expenseCents > 0 ? (
+                      <Text
+                        style={[
+                          styles.tabular,
+                          { color: theme.colors.textMuted, fontSize: theme.fontSize.xs },
+                        ]}
+                      >
+                        支 {formatCentsToYuan(section.expenseCents)}
+                      </Text>
+                    ) : null}
+                    {section.incomeCents > 0 ? (
+                      <Text
+                        style={[
+                          styles.tabular,
+                          { color: theme.colors.textMuted, fontSize: theme.fontSize.xs },
+                        ]}
+                      >
+                        收 {formatCentsToYuan(section.incomeCents)}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.listCard,
+                    theme.elevation.card,
+                    {
+                      backgroundColor: theme.colors.surfaceRaised,
+                      borderRadius: theme.radius.lg,
                     },
                   ]}
                 >
-                  差额 {previewDeltaCents > 0 ? '+' : ''}
-                  {formatCentsToYuan(previewDeltaCents)}
-                </Text>
-              ) : null}
-            </View>
-
-            <TextInput
-              accessibilityLabel="目标金额"
-              value={adjustInput}
-              onChangeText={setAdjustInput}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  color: theme.colors.text,
-                  borderRadius: theme.radius.md,
-                  fontSize: theme.fontSize.lg,
-                  marginTop: theme.spacing.md,
-                },
-              ]}
-            />
-
-            {adjustError ? (
-              <View
-                style={[
-                  styles.errorBox,
-                  {
-                    backgroundColor: theme.colors.expenseSubtle,
-                    borderLeftColor: theme.colors.expense,
-                    borderRadius: theme.radius.sm,
-                    marginTop: theme.spacing.sm,
-                    paddingHorizontal: theme.spacing.sm,
-                    paddingVertical: theme.spacing.xs,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="alert-circle-outline"
-                  size={15}
-                  color={theme.colors.expenseTextOnSubtle}
-                />
-                <Text
-                  style={{
-                    color: theme.colors.expenseTextOnSubtle,
-                    fontSize: theme.fontSize.xs,
-                    fontWeight: theme.fontWeight.semibold,
-                    marginLeft: theme.spacing.xs,
-                    flex: 1,
-                  }}
-                >
-                  {adjustError}
-                </Text>
+                  {section.items.map((item, idx) => (
+                    <TransactionRow
+                      key={item.id}
+                      item={item}
+                      perspectiveAccountId={account.id}
+                      onPress={interactions.handleInspect}
+                      onEdit={interactions.handleEdit}
+                      onRefund={interactions.handleRefund}
+                      onDelete={interactions.handleDelete}
+                      isSwipeOpen={interactions.openSwipeId === item.id}
+                      onSwipeOpen={interactions.handleSwipeOpen}
+                      onSwipeClose={interactions.handleSwipeClose}
+                      showDivider={idx < section.items.length - 1}
+                    />
+                  ))}
+                </View>
               </View>
-            ) : null}
-
-            <View style={[styles.actionsRow, { marginTop: theme.spacing.md }]}>
-              <Button
-                label="取消"
-                size="sm"
-                variant="secondary"
-                onPress={() => setAdjustOpen(false)}
-                style={styles.actionBtn}
-              />
-              <Button
-                label="确认"
-                size="sm"
-                onPress={() => void handleConfirmAdjust()}
-                loading={submittingAdjust}
-                style={styles.actionBtn}
-              />
-            </View>
+            ))}
           </View>
-        ) : null}
+        )}
+      </ScrollView>
 
-        <View style={{ marginTop: theme.spacing.xl }}>
-          <Text
-            style={{
-              color: theme.colors.textSecondary,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              marginBottom: theme.spacing.sm,
-              paddingHorizontal: 4,
-            }}
-          >
-            流水（{transactions.length}）
-          </Text>
-
-          {transactions.length === 0 ? (
-            <EmptyState icon="swap-horizontal-outline" title="暂无流水" />
-          ) : (
-            <View
-              style={[
-                styles.listCard,
-                theme.elevation.card,
-                {
-                  backgroundColor: theme.colors.surfaceRaised,
-                  borderRadius: theme.radius.lg,
-                },
-              ]}
-            >
-              {transactions.map((item, idx) => (
-                <TransactionRow
-                  key={item.id}
-                  item={item}
-                  perspectiveAccountId={account.id}
-                  onPress={interactions.handleInspect}
-                  onEdit={interactions.handleEdit}
-                  onRefund={interactions.handleRefund}
-                  onDelete={interactions.handleDelete}
-                  isSwipeOpen={interactions.openSwipeId === item.id}
-                  onSwipeOpen={interactions.handleSwipeOpen}
-                  onSwipeClose={interactions.handleSwipeClose}
-                  showDivider={idx < transactions.length - 1}
-                />
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={{ marginTop: theme.spacing.xl }}>
-          <Text
-            style={{
-              color: theme.colors.textSecondary,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              marginBottom: theme.spacing.sm,
-              paddingHorizontal: 4,
-            }}
-          >
-            账户管理
-          </Text>
-          <View
-            style={[
-              styles.listCard,
-              theme.elevation.card,
-              {
-                backgroundColor: theme.colors.surfaceRaised,
-                borderRadius: theme.radius.lg,
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={account.isArchived ? '恢复账户' : '停用账户'}
-              onPress={handleToggleArchive}
-              style={({ pressed }) => [
-                styles.manageRow,
-                {
-                  paddingHorizontal: theme.spacing.lg,
-                  borderBottomColor: theme.colors.border,
-                  borderBottomWidth: theme.borderWidth.hairline,
-                },
-                pressed && { opacity: theme.opacity.pressed },
-              ]}
-            >
-              <View style={styles.manageLeft}>
-                <AppIcon
-                  name={account.isArchived ? 'refresh-outline' : 'pause-circle-outline'}
-                  size={20}
-                  color={account.isArchived ? theme.colors.action : theme.colors.warning}
-                />
-                <Text
-                  style={{
-                    color: account.isArchived ? theme.colors.action : theme.colors.text,
-                    fontSize: theme.fontSize.base,
-                    fontWeight: theme.fontWeight.semibold,
-                    marginLeft: theme.spacing.md,
-                  }}
-                >
-                  {account.isArchived ? '恢复账户' : '停用账户'}
-                </Text>
-              </View>
-              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="删除账户"
-              onPress={handleDeleteAccount}
-              style={({ pressed }) => [
-                styles.manageRow,
-                { paddingHorizontal: theme.spacing.lg },
-                pressed && { opacity: theme.opacity.pressed },
-              ]}
-            >
-              <View style={styles.manageLeft}>
-                <AppIcon name="trash-outline" size={20} color={theme.colors.expense} />
-                <Text
-                  style={{
-                    color: theme.colors.expense,
-                    fontSize: theme.fontSize.base,
-                    fontWeight: theme.fontWeight.semibold,
-                    marginLeft: theme.spacing.md,
-                  }}
-                >
-                  删除账户
-                </Text>
-              </View>
-              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-            </Pressable>
-          </View>
-        </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      <ConfirmDialog
-        visible={accountDialog !== null}
-        title={accountDialog === 'archive' ? '停用账户' : '删除账户'}
-        message={
-          accountDialog === 'archive'
-            ? '停用后不参与净资产汇总与新记账，历史账目保留，可随时恢复。'
-            : '将永久删除该账户，无法撤销。若该账户有关联流水，请先清理流水或改为停用。'
-        }
-        icon={accountDialog === 'archive' ? 'pause-circle-outline' : 'trash-outline'}
-        tone={accountDialog === 'archive' ? 'warning' : 'destructive'}
-        confirmLabel={accountDialog === 'archive' ? '确认停用' : '确认删除'}
-        loading={accountActionLoading}
-        error={accountActionError}
-        onCancel={handleCancelAccountDialog}
-        onConfirm={() => void handleConfirmAccountDialog()}
-      >
-        <View
-          style={[
-            styles.dialogPreviewCard,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-              borderWidth: theme.borderWidth.hairline,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing.md,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.dialogPreviewIcon,
-              {
-                backgroundColor:
-                  account.kind === 'liability'
-                    ? theme.colors.warningSubtle
-                    : theme.colors.actionSubtle,
-                borderRadius: theme.radius.md,
-              },
-            ]}
-          >
-            <AppIcon
-              name={account.icon}
-              size={18}
-              color={
-                account.kind === 'liability'
-                  ? theme.colors.warningTextOnSubtle
-                  : theme.colors.actionTextOnSubtle
-              }
-            />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text
-              numberOfLines={1}
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.sm,
-                fontWeight: theme.fontWeight.semibold,
-              }}
-            >
-              {account.name}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                marginTop: 2,
-              }}
-            >
-              {categoryMeta.label} · {balanceInfo.caption}
-            </Text>
-          </View>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.tabular,
-              {
-                color: balanceInfo.isDebt ? theme.colors.expense : theme.colors.text,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
-              },
-            ]}
-          >
-            {balanceInfo.amountText}
-          </Text>
-        </View>
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        visible={noticeDialog !== null}
-        title={noticeDialog?.title ?? ''}
-        message={noticeDialog?.message}
-        icon="alert-circle-outline"
-        tone="destructive"
-        confirmLabel="知道了"
-        hideCancel
-        onCancel={() => setNoticeDialog(null)}
-        onConfirm={() => setNoticeDialog(null)}
+      <SettleBalanceSheet
+        visible={settleOpen && !account.isArchived}
+        account={account}
+        categories={categories}
+        onClose={() => setSettleOpen(false)}
+        onSubmit={async ({ targetBalanceCents, generateRecord, categoryId }) => {
+          await settleAccountBalance(db, account.id, targetBalanceCents, {
+            generateRecord,
+            categoryId,
+          });
+          notifyChange();
+        }}
       />
 
       {interactions.overlays}
@@ -726,7 +509,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroCard: {},
   heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -738,6 +520,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  copyAllBtn: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  infoRow: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -745,46 +547,18 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1,
   },
-  adjustCard: {},
-  adjustHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  input: {
-    minHeight: 48,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    fontVariant: ['tabular-nums'],
-  },
   listCard: {
     overflow: 'hidden',
   },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderLeftWidth: 3,
-  },
-  manageRow: {
-    minHeight: 54,
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
-  manageLeft: {
+  sectionTotals: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dialogPreviewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dialogPreviewIcon: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
   tabular: {
     fontVariant: ['tabular-nums'],

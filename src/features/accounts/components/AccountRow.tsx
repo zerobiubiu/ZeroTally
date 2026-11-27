@@ -26,11 +26,18 @@ export function AccountRow({
   const balanceInfo = describeAccountBalance(account);
 
   const metaParts = [categoryMeta.label];
-  if (!account.includeInNetWorth) {
+  if (!account.includeInTotalAssets && !account.includeInNetWorth) {
+    metaParts.push('不计入统计');
+  } else if (!account.includeInNetWorth) {
     metaParts.push('不计入净资产');
+  } else if (!account.includeInTotalAssets) {
+    metaParts.push('不计入总资产');
+  }
+  if (!account.isSelectable && !account.isArchived) {
+    metaParts.push('不可选');
   }
   if (account.isArchived) {
-    metaParts.push('已停用');
+    metaParts.push('已归档');
   }
 
   const iconBg =

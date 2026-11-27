@@ -308,7 +308,7 @@ export default function RecordScreen(): React.JSX.Element {
 
       const visibleAccounts = allAccounts.filter(
         (acc) =>
-          !acc.isArchived ||
+          (!acc.isArchived && acc.isSelectable) ||
           (existingTx && (acc.id === existingTx.accountId || acc.id === existingTx.toAccountId))
       );
 

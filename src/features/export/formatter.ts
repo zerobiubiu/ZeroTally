@@ -2,7 +2,12 @@ import { isValidIsoDate } from '../../shared/date/date';
 import { CHECKSUM_ALGORITHM, computeJsonChecksum } from '../../shared/integrity/checksum';
 import { formatCentsPlain, MAX_AMOUNT_CENTS } from '../../shared/money/money';
 import type { ThemePreference } from '../../theme/theme-context';
-import { computeNetWorthSummary, getAccountCategoryMeta } from '../accounts/rules';
+import {
+  computeNetWorthSummary,
+  getAccountCategoryMeta,
+  kindForCategory,
+  normalizeAccountCardInfo,
+} from '../accounts/rules';
 import type { Account, AccountCategory, AccountKind } from '../accounts/types';
 import type { Category, CategoryType } from '../categories/types';
 import type { QuickTemplate } from '../quick-record/types';
@@ -16,7 +21,7 @@ import type {
   ValidatedLedgerImport,
 } from './types';
 
-export const EXPORT_SCHEMA_VERSION = 3;
+export const EXPORT_SCHEMA_VERSION = 4;
 
 const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   expense: '支出',
@@ -84,11 +89,17 @@ export function buildLedgerExportPayload(params: {
     balanceCents: acc.balanceCents,
     balanceYuan: formatCentsPlain(acc.balanceCents, false),
     includeInNetWorth: acc.includeInNetWorth,
+    includeInTotalAssets: acc.includeInTotalAssets,
+    isSelectable: acc.isSelectable,
     icon: acc.icon,
     color: acc.color,
     sortOrder: acc.sortOrder,
     isArchived: acc.isArchived,
     note: acc.note,
+    cardNumber: acc.cardNumber,
+    bankName: acc.bankName,
+    bankBranch: acc.bankBranch,
+    openedOn: acc.openedOn,
     createdAt: acc.createdAt,
     updatedAt: acc.updatedAt,
   }));
@@ -198,7 +209,7 @@ export function buildExportFilename(now: Date = new Date()): string {
 }
 
 /**
- * 严格校验全量账本与配置 JSON（兼容 v2 / v3，校验字段类型、引用外键、退款上限与完整性校验指纹）。
+ * 严格校验全量账本与配置 JSON（兼容 v2 / v3 / v4，校验字段类型、引用外键、银行卡规范与完整性校验指纹）。
  */
 export function validateLedgerImportJson(rawText: string): ValidatedLedgerImport {
   let parsed: unknown;
@@ -251,18 +262,27 @@ export function validateLedgerImportJson(rawText: string): ValidatedLedgerImport
     }
     accountIds.add(id);
 
-    const kind = a.kind;
-    if (typeof kind !== 'string' || !VALID_ACCOUNT_KINDS.has(kind)) {
-      throw new Error(`账户「${name}」的 kind 无效`);
-    }
     const category = a.category;
     if (typeof category !== 'string' || !VALID_ACCOUNT_CATEGORIES.has(category)) {
       throw new Error(`账户「${name}」的 category 无效`);
     }
+    const typedCategory = category as AccountCategory;
+    // 兼容旧版备份：若存在 kind 字段则检查类型合法，但落库统一按账户类型唯一推导性质
+    if (a.kind !== undefined && (typeof a.kind !== 'string' || !VALID_ACCOUNT_KINDS.has(a.kind))) {
+      throw new Error(`账户「${name}」的 kind 无效`);
+    }
+    const resolvedKind: AccountKind = kindForCategory(typedCategory);
     const balanceCents = a.balanceCents;
     if (typeof balanceCents !== 'number' || !Number.isSafeInteger(balanceCents)) {
       throw new Error(`账户「${name}」的余额必须为安全整数（分）`);
     }
+
+    const cardInfo = normalizeAccountCardInfo(typedCategory, {
+      cardNumber: typeof a.cardNumber === 'string' ? a.cardNumber : '',
+      bankName: typeof a.bankName === 'string' ? a.bankName : '',
+      bankBranch: typeof a.bankBranch === 'string' ? a.bankBranch : '',
+      openedOn: typeof a.openedOn === 'string' ? a.openedOn : '',
+    });
 
     const color =
       typeof a.color === 'string' && HEX_COLOR_RE.test(a.color) ? a.color : '#017853';
@@ -275,25 +295,37 @@ export function validateLedgerImportJson(rawText: string): ValidatedLedgerImport
     accounts.push({
       id,
       name,
-      kind: kind as AccountKind,
-      kindLabel: kind === 'liability' ? '负债' : '资产',
-      category: category as AccountCategory,
-      categoryLabel: getAccountCategoryMeta(category as AccountCategory).label,
+      kind: resolvedKind,
+      kindLabel: resolvedKind === 'liability' ? '负债' : '资产',
+      category: typedCategory,
+      categoryLabel: getAccountCategoryMeta(typedCategory).label,
       balanceCents,
       balanceYuan: formatCentsPlain(balanceCents, false),
       includeInNetWorth: a.includeInNetWorth !== false,
+      includeInTotalAssets:
+        typeof a.includeInTotalAssets === 'boolean'
+          ? a.includeInTotalAssets
+          : a.includeInNetWorth !== false,
+      isSelectable: a.isSelectable !== false,
       icon,
       color,
       sortOrder,
       isArchived: a.isArchived === true,
       note: typeof a.note === 'string' ? a.note : '',
+      cardNumber: cardInfo.cardNumber,
+      bankName: cardInfo.bankName,
+      bankBranch: cardInfo.bankBranch,
+      openedOn: cardInfo.openedOn,
       createdAt: typeof a.createdAt === 'string' && a.createdAt ? a.createdAt : fallbackNow,
       updatedAt: typeof a.updatedAt === 'string' && a.updatedAt ? a.updatedAt : fallbackNow,
     });
   }
 
   if (!accounts.some((a) => !a.isArchived)) {
-    throw new Error('备份文件中至少需要包含 1 个可用（未停用）账户');
+    throw new Error('备份文件中至少需要包含 1 个可用（未归档）账户');
+  }
+  if (!accounts.some((a) => !a.isArchived && a.isSelectable)) {
+    throw new Error('备份文件中至少需要包含 1 个未归档且交易可选的账户');
   }
 
   // 2. 校验分类
@@ -466,19 +498,13 @@ export function validateLedgerImportJson(rawText: string): ValidatedLedgerImport
     transactions.push(item);
   }
 
-  // 校验退款外键与累计退款不超原支出
-  const refundedSumByOrig = new Map<string, number>();
+  // 校验退款外键指向有效支出（与 v1.2.0 保持一致，不限制超额退款）
   for (const tx of transactions) {
     if (tx.type === 'refund') {
       const orig = tx.refundOfId ? txMap.get(tx.refundOfId) : undefined;
       if (!orig || orig.type !== 'expense') {
         throw new Error(`退款交易 ${tx.id} 指向的原支出记录不存在`);
       }
-      const nextSum = (refundedSumByOrig.get(orig.id) ?? 0) + tx.amountCents;
-      if (nextSum > orig.amountCents) {
-        throw new Error(`原支出 ${orig.id} 的累计退款总额超过原支出金额`);
-      }
-      refundedSumByOrig.set(orig.id, nextSum);
     }
   }
 

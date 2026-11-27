@@ -24,9 +24,18 @@ export interface Account {
    */
   balanceCents: number;
   includeInNetWorth: boolean;
+  includeInTotalAssets: boolean;
+  /** 是否可作为记账 / 转账 / 退款的可选账户 */
+  isSelectable: boolean;
   icon: string;
   color: string;
   note: string;
+  /** 银行卡类账户基础信息（其他类型为 ''） */
+  cardNumber: string;
+  bankName: string;
+  bankBranch: string;
+  /** 开户日期（YYYY-MM-DD），未填为 '' */
+  openedOn: string;
   isArchived: boolean;
   sortOrder: number;
   createdAt: string;
@@ -35,24 +44,34 @@ export interface Account {
 
 export interface CreateAccountInput {
   name: string;
-  kind: AccountKind;
   category: AccountCategory;
   /** 账户初始净余额（单位：分；负债欠款应传入负数） */
   initialBalanceCents: number;
   includeInNetWorth?: boolean;
+  includeInTotalAssets?: boolean;
+  isSelectable?: boolean;
   icon: string;
   color: string;
   note?: string;
+  cardNumber?: string;
+  bankName?: string;
+  bankBranch?: string;
+  openedOn?: string;
 }
 
 export interface UpdateAccountInput {
   name: string;
-  kind: AccountKind;
   category: AccountCategory;
   includeInNetWorth: boolean;
+  includeInTotalAssets: boolean;
+  isSelectable: boolean;
   icon: string;
   color: string;
   note: string;
+  cardNumber: string;
+  bankName: string;
+  bankBranch: string;
+  openedOn: string;
 }
 
 export interface NetWorthSummary {

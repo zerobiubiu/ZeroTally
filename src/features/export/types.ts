@@ -14,11 +14,17 @@ export interface ExportedAccount {
   balanceCents: number;
   balanceYuan: string;
   includeInNetWorth: boolean;
+  includeInTotalAssets: boolean;
+  isSelectable: boolean;
   icon: string;
   color: string;
   sortOrder: number;
   isArchived: boolean;
   note: string;
+  cardNumber: string;
+  bankName: string;
+  bankBranch: string;
+  openedOn: string;
   createdAt: string;
   updatedAt: string;
 }

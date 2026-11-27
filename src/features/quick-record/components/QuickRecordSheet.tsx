@@ -169,7 +169,10 @@ export function QuickRecordSheet({
 
   const pageCount = Math.max(1, pages.length);
   const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
-  const activeAccounts = useMemo(() => accounts.filter((a) => !a.isArchived), [accounts]);
+  const activeAccounts = useMemo(
+    () => accounts.filter((a) => !a.isArchived && a.isSelectable),
+    [accounts]
+  );
 
   const openRef = useRef(open);
   const pullingOpenRef = useRef(pullingOpen);

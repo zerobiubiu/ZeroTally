@@ -117,7 +117,7 @@ describe('db Schema 迁移与种子数据', () => {
 });
 
 describe('db 历史版本增量迁移', () => {
-  it('v1 → v4 升级：保留旧分类 ID、补齐二级分类与 v4 新表', async () => {
+  it('v1 → v5 升级：保留旧分类 ID、补齐二级分类、v4 新表与 v5 账户开关及卡信息列', async () => {
     const conn = createNodeTestDatabase(':memory:');
     const legacy = conn.db;
     try {
@@ -178,7 +178,7 @@ describe('db 历史版本增量迁移', () => {
     }
   });
 
-  it('v2 → v4 升级保留历史交易与老账户，支持 refund_of_id 且新增 v4 配置表不覆盖旧账户', async () => {
+  it('v2 → v5 升级保留历史交易与老账户，v5 开关继承旧净资产品径且卡信息默认空', async () => {
     const conn = createNodeTestDatabase(':memory:');
     const legacy = conn.db;
     try {
@@ -211,6 +211,7 @@ describe('db 历史版本增量迁移', () => {
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         INSERT INTO accounts VALUES ('acc_wechat', '微信零钱', 'asset', 'digital', 5000, 1, 'wallet-outline', '#059669', '', 0, 10, '${now}', '${now}');
+        INSERT INTO accounts VALUES ('acc_old_credit', '旧信用卡', 'asset', 'credit', -2000, 1, 'card-outline', '#E11D48', '', 0, 20, '${now}', '${now}');
         INSERT INTO categories VALUES ('cat_exp_food', '餐饮美食', 'expense', 'restaurant-outline', '#D97706', NULL, 1, 0, 10, '${now}');
         INSERT INTO transactions VALUES ('tx_old', 'expense', 5000, 'cat_exp_food', 'acc_wechat', NULL, '2026-11-20', '旧账目', '${now}', '${now}');
       `);
@@ -218,9 +219,12 @@ describe('db 历史版本增量迁移', () => {
       await initializeSchema(legacy);
       await seedDefaultData(legacy);
 
-      // 老用户覆盖升级保留既有账户，不强行覆盖
-      const accRows = await legacy.getAll<{ id: string }>('SELECT id FROM accounts');
-      expect(accRows.map((a) => a.id)).toEqual(['acc_wechat']);
+      // 老用户覆盖升级保留既有账户，不强行覆盖；旧「性质与类型不一致」账户按类型归一
+      const accRows = await legacy.getAll<{ id: string; kind: string }>('SELECT id, kind FROM accounts ORDER BY sort_order');
+      expect(accRows).toEqual([
+        { id: 'acc_wechat', kind: 'asset' },
+        { id: 'acc_old_credit', kind: 'liability' },
+      ]);
 
       const oldTx = await legacy.getFirst<{ id: string; refund_of_id: string | null }>(
         'SELECT id, refund_of_id FROM transactions WHERE id = ?',
@@ -253,6 +257,23 @@ describe('db 历史版本增量迁移', () => {
         `INSERT INTO app_settings (key, value, updated_at) VALUES ('theme_preference', 'dark', ?)`,
         [now]
       );
+
+      // v5：老账户总资产开关继承 include_in_net_worth，可选默认开启，卡信息为空
+      const accFlags = await legacy.getFirst<{
+        include_in_total_assets: number;
+        is_selectable: number;
+        card_number: string;
+        opened_on: string;
+      }>(
+        'SELECT include_in_total_assets, is_selectable, card_number, opened_on FROM accounts WHERE id = ?',
+        ['acc_wechat']
+      );
+      expect(accFlags).toEqual({
+        include_in_total_assets: 1,
+        is_selectable: 1,
+        card_number: '',
+        opened_on: '',
+      });
       const fkIssues = await legacy.getAll('PRAGMA foreign_key_check;');
       expect(fkIssues).toHaveLength(0);
     } finally {

@@ -63,7 +63,7 @@ async function verifyTemplateReferences(
   if (category.type !== input.type) {
     throw new Error('所选分类与收支类型不匹配');
   }
-  if (!account || account.isArchived) {
+  if (!account || account.isArchived || !account.isSelectable) {
     throw new Error('所选账户不可用');
   }
 }

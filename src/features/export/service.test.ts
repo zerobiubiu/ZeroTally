@@ -35,11 +35,27 @@ describe('export 完整 JSON 导出与原子导入恢复（真实 SQLite）', ()
     await adjustAccountBalance(db, DEFAULT_WALLET_ACCOUNT_ID, 100000);
     const bank = await createAccount(db, {
       name: '招行卡',
-      kind: 'asset',
       category: 'bank',
       initialBalanceCents: 50000,
+      includeInTotalAssets: false,
+      includeInNetWorth: true,
+      isSelectable: true,
       icon: 'card-outline',
       color: '#0284C7',
+      cardNumber: '6225 8801 2345 6789',
+      bankName: '招商银行',
+      bankBranch: '深圳分行科技园支行',
+      openedOn: '2021-06-15',
+    });
+    const hiddenAcc = await createAccount(db, {
+      name: '公积金',
+      category: 'other',
+      initialBalanceCents: 300000,
+      includeInTotalAssets: true,
+      includeInNetWorth: false,
+      isSelectable: false,
+      icon: 'business-outline',
+      color: '#5C6479',
     });
     const customCat = await createCategory(db, {
       name: '宠物粮',
@@ -105,7 +121,20 @@ describe('export 完整 JSON 导出与原子导入恢复（真实 SQLite）', ()
 
     expect(await getThemePreferenceSetting(db)).toBe('dark');
     expect((await getAccountById(db, DEFAULT_WALLET_ACCOUNT_ID))?.balanceCents).toBe(80000);
-    expect((await getAccountById(db, bank.id))?.balanceCents).toBe(60000);
+    const restoredBank = await getAccountById(db, bank.id);
+    expect(restoredBank?.balanceCents).toBe(60000);
+    expect(restoredBank?.includeInTotalAssets).toBe(false);
+    expect(restoredBank?.includeInNetWorth).toBe(true);
+    expect(restoredBank?.isSelectable).toBe(true);
+    expect(restoredBank?.cardNumber).toBe('6225 8801 2345 6789');
+    expect(restoredBank?.bankName).toBe('招商银行');
+    expect(restoredBank?.bankBranch).toBe('深圳分行科技园支行');
+    expect(restoredBank?.openedOn).toBe('2021-06-15');
+
+    const restoredHidden = await getAccountById(db, hiddenAcc.id);
+    expect(restoredHidden?.includeInTotalAssets).toBe(true);
+    expect(restoredHidden?.includeInNetWorth).toBe(false);
+    expect(restoredHidden?.isSelectable).toBe(false);
 
     const restoredCats = await listCategories(db, { includeArchived: true });
     expect(restoredCats.some((c) => c.id === customCat.id && c.icon === 'mci:paw-outline')).toBe(

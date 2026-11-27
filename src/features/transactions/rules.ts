@@ -236,7 +236,7 @@ export interface ResolveRememberedAccountParams {
   txType: 'expense' | 'income';
   categoryId: string | null;
   categories: readonly Pick<Category, 'id' | 'parentId'>[];
-  accounts: readonly Pick<Account, 'id' | 'isArchived'>[];
+  accounts: readonly Pick<Account, 'id' | 'isArchived' | 'isSelectable'>[];
   memory: CategoryAccountMemory;
 }
 
@@ -257,7 +257,7 @@ export function resolveRememberedAccountId({
   const activeAccountIds = new Set<string>();
   let firstActiveAccountId = '';
   for (const acc of accounts) {
-    if (!acc.isArchived) {
+    if (!acc.isArchived && acc.isSelectable) {
       activeAccountIds.add(acc.id);
       if (!firstActiveAccountId) {
         firstActiveAccountId = acc.id;

@@ -91,7 +91,7 @@ export function parseYuanToCents(raw: string): number | null {
 }
 
 /**
- * 将用户输入的允许带负号的「元」文本解析为整数「分」（适用于余额校准场景）。
+ * 将用户输入的允许带负号的「元」文本解析为整数「分」（适用于余额平账场景）。
  */
 export function parseSignedYuanToCents(raw: string): number | null {
   const trimmed = raw.trim().replaceAll(',', '');

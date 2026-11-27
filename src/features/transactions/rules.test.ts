@@ -184,11 +184,12 @@ describe('transactions 领域规则', () => {
       { id: 'cat_salary', parentId: null },
     ];
     const accounts = [
-      { id: 'acc_cash', isArchived: false },
-      { id: 'acc_wechat', isArchived: false },
-      { id: 'acc_alipay', isArchived: false },
-      { id: 'acc_bank', isArchived: false },
-      { id: 'acc_old_card', isArchived: true },
+      { id: 'acc_cash', isArchived: false, isSelectable: true },
+      { id: 'acc_wechat', isArchived: false, isSelectable: true },
+      { id: 'acc_alipay', isArchived: false, isSelectable: true },
+      { id: 'acc_bank', isArchived: false, isSelectable: true },
+      { id: 'acc_old_card', isArchived: true, isSelectable: true },
+      { id: 'acc_hidden', isArchived: false, isSelectable: false },
     ];
     const memory = {
       byCategoryId: {

@@ -1,6 +1,6 @@
 import type { SqlExecutor } from './types';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 const MIGRATION_V1_SQL = `
 CREATE TABLE IF NOT EXISTS accounts (
@@ -151,6 +151,21 @@ CREATE INDEX IF NOT EXISTS idx_quick_templates_sort
   ON quick_templates (sort_order ASC, created_at ASC);
 `;
 
+/**
+ * v5：账户三独立统计开关（总资产 / 净资产 / 交易可选）与银行卡基础信息字段（卡号 / 银行 / 开户行 / 开户日期）。
+ * include_in_total_assets 初始继承 include_in_net_worth，保证老用户总资产口径不突变；其余新字段默认开启 / 空串。
+ */
+const MIGRATION_V5_SQL = `
+ALTER TABLE accounts ADD COLUMN include_in_total_assets INTEGER NOT NULL DEFAULT 1 CHECK (include_in_total_assets IN (0, 1));
+ALTER TABLE accounts ADD COLUMN is_selectable INTEGER NOT NULL DEFAULT 1 CHECK (is_selectable IN (0, 1));
+ALTER TABLE accounts ADD COLUMN card_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE accounts ADD COLUMN bank_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE accounts ADD COLUMN bank_branch TEXT NOT NULL DEFAULT '';
+ALTER TABLE accounts ADD COLUMN opened_on TEXT NOT NULL DEFAULT '';
+UPDATE accounts SET include_in_total_assets = include_in_net_worth;
+UPDATE accounts SET kind = CASE WHEN category IN ('credit', 'loan') THEN 'liability' ELSE 'asset' END;
+`;
+
 interface MigrationRow {
   version: number;
 }
@@ -214,6 +229,16 @@ export async function initializeSchema(db: SqlExecutor): Promise<void> {
       await tx.run(
         'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
         [4, new Date().toISOString()]
+      );
+    });
+  }
+
+  if (currentVersion < 5) {
+    await db.withTransaction(async (tx) => {
+      await tx.exec(MIGRATION_V5_SQL);
+      await tx.run(
+        'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
+        [5, new Date().toISOString()]
       );
     });
   }

@@ -295,7 +295,7 @@ export async function deleteTransactionRow(db: SqlExecutor, id: string): Promise
 /**
  * 从既有收支流水实时派生「分类 → 最近使用活跃账户」记忆快照：
  * - 仅统计 expense / income（排除 transfer 与 refund，防止退款入账污染消费分类记忆）
- * - 仅匹配当前未停用账户（is_archived = 0），停用旧账户后自动平滑退回历史活跃账户
+ * - 仅匹配当前未归档且可选账户（is_archived = 0 且 is_selectable = 1），归档或关闭可选后自动平滑退回历史活跃账户
  * - 按操作时间 created_at DESC（同毫秒以 rowid DESC 决胜），而非账单日期 occurred_on
  */
 export async function findCategoryAccountMemory(
@@ -319,6 +319,7 @@ export async function findCategoryAccountMemory(
       INNER JOIN categories c ON c.id = t.category_id
       WHERE t.type IN ('expense', 'income')
         AND a.is_archived = 0
+        AND a.is_selectable = 1
     )
     SELECT type, category_id, root_category_id, account_id
     FROM ranked

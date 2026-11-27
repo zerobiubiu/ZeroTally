@@ -82,9 +82,10 @@ export async function importFullLedgerBackup(
     for (const acc of payload.accounts) {
       await tx.run(
         `INSERT INTO accounts (
-           id, name, kind, category, balance_cents, include_in_net_worth,
-           icon, color, note, is_archived, sort_order, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           id, name, kind, category, balance_cents, include_in_net_worth, include_in_total_assets,
+           is_selectable, icon, color, note, card_number, bank_name, bank_branch, opened_on,
+           is_archived, sort_order, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           acc.id,
           acc.name,
@@ -92,9 +93,15 @@ export async function importFullLedgerBackup(
           acc.category,
           acc.balanceCents,
           acc.includeInNetWorth ? 1 : 0,
+          acc.includeInTotalAssets ? 1 : 0,
+          acc.isSelectable ? 1 : 0,
           acc.icon,
           acc.color,
           acc.note,
+          acc.cardNumber,
+          acc.bankName,
+          acc.bankBranch,
+          acc.openedOn,
           acc.isArchived ? 1 : 0,
           acc.sortOrder,
           acc.createdAt,

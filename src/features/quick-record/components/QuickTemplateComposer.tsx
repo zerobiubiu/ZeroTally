@@ -230,7 +230,7 @@ function QuickTemplateComposerInner({
     [categories]
   );
   const activeAccounts = useMemo(
-    () => accounts.filter((a) => !a.isArchived),
+    () => accounts.filter((a) => !a.isArchived && a.isSelectable),
     [accounts]
   );
 

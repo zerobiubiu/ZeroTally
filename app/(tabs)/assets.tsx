@@ -1,7 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
  * - 容器归属：顶部安全区与全局共享顶栏由 app/(tabs)/_layout.tsx 统一固定承接，本页专注净资产总览卡与资产/负债账户列表
- * - 信息层级：主（净资产总览卡）、次（资产与负债分组列表）、弱（已停用账户折叠区）
+ * - 信息层级：主（净资产总览卡）、次（资产与负债分组列表）、弱（「已归档」二级页入口行）
  * - 文案密度：简短名词与动作词，空状态不堆叠说明文案
  */
 import { useRouter } from 'expo-router';
@@ -39,7 +39,6 @@ export default function AssetsScreen(): React.JSX.Element {
 
   const [overview, setOverview] = useState<AssetOverview>(EMPTY_OVERVIEW);
   const [refreshing, setRefreshing] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -177,51 +176,27 @@ export default function AssetsScreen(): React.JSX.Element {
         )}
 
         {overview.archivedAccounts.length > 0 ? (
-          <View style={{ marginTop: theme.spacing.xl }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={showArchived ? '收起已停用账户' : '展开已停用账户'}
-              onPress={() => setShowArchived((prev) => !prev)}
-              style={styles.archiveToggle}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="查看已归档账户"
+            onPress={() => router.push('/archived-accounts')}
+            style={({ pressed }) => [
+              styles.archiveToggle,
+              { marginTop: theme.spacing.xl },
+              pressed && { opacity: theme.opacity.pressed },
+            ]}
+          >
+            <Text
+              style={{
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.xs,
+                fontWeight: theme.fontWeight.semibold,
+              }}
             >
-              <Text
-                style={{
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
-              >
-                已停用（{overview.archivedAccounts.length}）
-              </Text>
-              <AppIcon
-                name={showArchived ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={theme.colors.textMuted}
-              />
-            </Pressable>
-
-            {showArchived ? (
-              <View
-                style={[
-                  styles.groupCard,
-                  {
-                    backgroundColor: theme.colors.surfaceRaised,
-                    borderRadius: theme.radius.lg,
-                    marginTop: theme.spacing.sm,
-                  },
-                ]}
-              >
-                {overview.archivedAccounts.map((acc, idx) => (
-                  <AccountRow
-                    key={acc.id}
-                    account={acc}
-                    onPress={handlePressAccount}
-                    showDivider={idx < overview.archivedAccounts.length - 1}
-                  />
-                ))}
-              </View>
-            ) : null}
-          </View>
+              已归档（{overview.archivedAccounts.length}）
+            </Text>
+            <AppIcon name="chevron-forward" size={16} color={theme.colors.textMuted} />
+          </Pressable>
         ) : null}
       </ScrollView>
     </View>
