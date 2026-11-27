@@ -1,8 +1,7 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 极简无分组布局：彻底去除统计头、「配置/数据导出/系统」二级分组标题、存储行与独立版本条目
- * - 信息顺序（严格按用户设计）：顶栏右侧「i」图标直达关于（移除右上角 X）-> 外观设置（系统/浅色/深色）置顶 -> 分类管理 -> 云备份 -> 高级设置 -> 最底部居中版本号
- * - 复用形态：同时支持左侧抽屉（variant="drawer"）与独立设置页（variant="page"），外观切换即时落盘 SQLite
+ * - 极简分组侧栏布局：顶栏右侧「i」图标直达关于 -> 外观切换（系统/浅色/深色）置顶 -> 紧凑无描边功能卡片组 -> 底部居中版本号
+ * - 统一复用 SurfaceCard 与 compact SettingLinkRow，保持全部功能顺序与单手触达效率不变
  */
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
@@ -13,7 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
 import { hapticLight } from '../../../shared/haptics/haptics';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { SettingLinkRow } from '../../../shared/ui/SettingRow';
 import { SlidingSegmentedControl } from '../../../shared/ui/SlidingSegmentedControl';
+import { SurfaceCard } from '../../../shared/ui/SurfaceCard';
 import { useTheme, type ThemePreference } from '../../../theme/theme-context';
 import { setThemePreferenceSetting } from '../repository';
 
@@ -22,6 +23,18 @@ const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' },
 ];
+
+type SettingsRoutePath =
+  | '/categories'
+  | '/recurring'
+  | '/budgets'
+  | '/reimbursements'
+  | '/cloud-backup'
+  | '/security'
+  | '/reminders'
+  | '/gestures-guide'
+  | '/about'
+  | '/advanced-settings';
 
 export interface SettingsPanelProps {
   variant?: 'drawer' | 'page';
@@ -37,7 +50,7 @@ export function SettingsPanel({
   const router = useRouter();
   const { db } = useDatabase();
 
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  const appVersion = Constants.expoConfig?.version ?? '2.0.0';
   const isDrawer = variant === 'drawer';
   const topInset = isDrawer
     ? Platform.OS === 'android'
@@ -53,88 +66,29 @@ export function SettingsPanel({
     void setThemePreferenceSetting(db, next).catch(() => {});
   };
 
-  const navigateTo = (
-    pathname:
-      | '/categories'
-      | '/recurring'
-      | '/budgets'
-      | '/reimbursements'
-      | '/cloud-backup'
-      | '/security'
-      | '/reminders'
-      | '/gestures-guide'
-      | '/about'
-      | '/advanced-settings'
-  ) => {
+  const navigateTo = (pathname: SettingsRoutePath) => {
     hapticLight();
     onClose?.();
     router.push(pathname);
   };
 
-  const menuItems: readonly {
-    key: string;
-    label: string;
-    icon: string;
-    onPress: () => void;
-  }[] = [
-    {
-      key: 'categories',
-      label: '分类管理',
-      icon: 'pricetags-outline',
-      onPress: () => navigateTo('/categories'),
-    },
-    {
-      key: 'recurring',
-      label: '周期账单',
-      icon: 'repeat-outline',
-      onPress: () => navigateTo('/recurring'),
-    },
-    {
-      key: 'budgets',
-      label: '预算管理',
-      icon: 'pie-chart-outline',
-      onPress: () => navigateTo('/budgets'),
-    },
-    {
-      key: 'reimbursements',
-      label: '报销追踪',
-      icon: 'receipt-outline',
-      onPress: () => navigateTo('/reimbursements'),
-    },
-    {
-      key: 'cloud-backup',
-      label: '云备份',
-      icon: 'cloud-upload-outline',
-      onPress: () => navigateTo('/cloud-backup'),
-    },
-    {
-      key: 'security',
-      label: '隐私与安全',
-      icon: 'shield-checkmark-outline',
-      onPress: () => navigateTo('/security'),
-    },
-    {
-      key: 'reminders',
-      label: '提醒与小组件',
-      icon: 'notifications-outline',
-      onPress: () => navigateTo('/reminders'),
-    },
-    {
-      key: 'gestures-guide',
-      label: '手势与快捷技巧',
-      icon: 'hand-left-outline',
-      onPress: () => navigateTo('/gestures-guide'),
-    },
-    {
-      key: 'advanced',
-      label: '高级设置',
-      icon: 'construct-outline',
-      onPress: () => navigateTo('/advanced-settings'),
-    },
+  const primaryGroup: readonly { key: string; label: string; icon: string; path: SettingsRoutePath }[] = [
+    { key: 'categories', label: '分类管理', icon: 'pricetags-outline', path: '/categories' },
+    { key: 'recurring', label: '周期账单', icon: 'repeat-outline', path: '/recurring' },
+    { key: 'budgets', label: '预算管理', icon: 'pie-chart-outline', path: '/budgets' },
+    { key: 'reimbursements', label: '报销追踪', icon: 'receipt-outline', path: '/reimbursements' },
+  ];
+
+  const systemGroup: readonly { key: string; label: string; icon: string; path: SettingsRoutePath }[] = [
+    { key: 'cloud-backup', label: '云备份', icon: 'cloud-upload-outline', path: '/cloud-backup' },
+    { key: 'security', label: '隐私与安全', icon: 'shield-checkmark-outline', path: '/security' },
+    { key: 'reminders', label: '提醒与小组件', icon: 'notifications-outline', path: '/reminders' },
+    { key: 'gestures-guide', label: '手势与快捷技巧', icon: 'hand-left-outline', path: '/gestures-guide' },
+    { key: 'advanced', label: '高级设置', icon: 'construct-outline', path: '/advanced-settings' },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surfaceGrouped }]}>
       {isDrawer ? (
         <View
           style={[
@@ -184,31 +138,21 @@ export function SettingsPanel({
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingHorizontal: theme.spacing.lg,
-            paddingTop: theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.md,
+            paddingHorizontal: 14,
+            paddingTop: 14,
+            paddingBottom: Math.max(insets.bottom, 16) + 12,
           },
         ]}
       >
-        <View style={{ gap: theme.spacing.md }}>
+        <View style={{ gap: 12 }}>
           {/* 最上方：外观切换（系统 / 浅色 / 深色） */}
-          <View
-            style={[
-              styles.appearanceCard,
-              theme.elevation.card,
-              {
-                backgroundColor: theme.colors.surfaceRaised,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-              },
-            ]}
-          >
+          <SurfaceCard padding="md">
             <Text
               style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.sm,
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.xs,
                 fontWeight: theme.fontWeight.semibold,
-                marginBottom: theme.spacing.sm,
+                marginBottom: 8,
               }}
             >
               外观
@@ -218,55 +162,40 @@ export function SettingsPanel({
               value={preference}
               onChange={handleSelectTheme}
               fullWidth
-              height={42}
+              height={40}
               shape="pill"
               trackTone="surface"
               textSize="sm"
             />
-          </View>
+          </SurfaceCard>
 
-          {/* 同级独立功能按钮：分类管理 -> 高级设置 */}
-          {menuItems.map((item) => (
-            <Pressable
-              key={item.key}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              onPress={item.onPress}
-              style={({ pressed }) => [
-                styles.menuCard,
-                theme.elevation.card,
-                {
-                  backgroundColor: theme.colors.surfaceRaised,
-                  borderRadius: theme.radius.lg,
-                  paddingHorizontal: theme.spacing.md,
-                },
-                pressed && { opacity: theme.opacity.pressed },
-              ]}
-            >
-              <View
-                style={[
-                  styles.menuIconWrap,
-                  {
-                    backgroundColor: theme.colors.actionSubtle,
-                    borderRadius: theme.radius.full,
-                  },
-                ]}
-              >
-                <AppIcon name={item.icon} size={18} color={theme.colors.actionTextOnSubtle} />
-              </View>
-              <Text
-                style={{
-                  flex: 1,
-                  color: theme.colors.text,
-                  fontSize: theme.fontSize.base,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
-              >
-                {item.label}
-              </Text>
-              <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-            </Pressable>
-          ))}
+          {/* 账务与扩展能力 */}
+          <SurfaceCard>
+            {primaryGroup.map((item, idx) => (
+              <SettingLinkRow
+                key={item.key}
+                title={item.label}
+                icon={item.icon}
+                compact
+                onPress={() => navigateTo(item.path)}
+                showDivider={idx < primaryGroup.length - 1}
+              />
+            ))}
+          </SurfaceCard>
+
+          {/* 数据、隐私与系统 */}
+          <SurfaceCard>
+            {systemGroup.map((item, idx) => (
+              <SettingLinkRow
+                key={item.key}
+                title={item.label}
+                icon={item.icon}
+                compact
+                onPress={() => navigateTo(item.path)}
+                showDivider={idx < systemGroup.length - 1}
+              />
+            ))}
+          </SurfaceCard>
         </View>
 
         {/* 最底部居中版本标识 */}
@@ -308,22 +237,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'space-between',
   },
-  appearanceCard: {},
-  menuCard: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuIconWrap: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   versionFooter: {
     alignItems: 'center',
-    paddingTop: 32,
-    paddingBottom: 4,
+    paddingTop: 20,
+    paddingBottom: 6,
   },
 });

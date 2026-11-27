@@ -59,3 +59,4 @@
 | [0049-onboarding-and-gestures-guide.md](0049-onboarding-and-gestures-guide.md) | 变更记录 | 已执行 | 新增首次启动极轻量手势提示与设置「手势与快捷技巧」页，完成 P1 阶段 APK 构建校验（v1.9.4） |
 | [0050-optional-reimbursement-tracking.md](0050-optional-reimbursement-tracking.md) | 变更记录 | 已执行 | 新增设置可选「报销追踪」模块（默认关闭零干扰，支持退款抵扣与收入双口径核销，v1.10.0） |
 | [0051-android-widget-and-daily-reminder.md](0051-android-widget-and-daily-reminder.md) | 变更记录 | 已执行 | 新增设置可选每日记账本地提醒与零三方依赖 Android 桌面小组件（v1.10.1） |
+| [0052-v2-ui-unification-and-release.md](0052-v2-ui-unification-and-release.md) | 变更记录 | 已执行 | 抽离原子化共享 UI 组件、统一全仓设置与次级页视觉语言并完成 v2.0.0 终版 APK 构建校验（v2.0.0） |

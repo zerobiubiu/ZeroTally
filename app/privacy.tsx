@@ -7,7 +7,9 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../src/shared/ui/AppIcon';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 const PRIVACY_ITEMS: readonly { icon: string; title: string; body: string }[] = [
@@ -49,18 +51,9 @@ export default function PrivacyScreen(): React.JSX.Element {
         contentContainerStyle={{
           padding: 16,
           paddingBottom: Math.max(insets.bottom, 16) + 24,
-          gap: 12,
         }}
       >
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: 14,
-            },
-          ]}
-        >
+        <SurfaceCard>
           {PRIVACY_ITEMS.map((item, idx) => (
             <View key={item.title}>
               <View style={styles.row}>
@@ -94,12 +87,10 @@ export default function PrivacyScreen(): React.JSX.Element {
                   </Text>
                 </View>
               </View>
-              {idx < PRIVACY_ITEMS.length - 1 ? (
-                <View style={[styles.divider, { backgroundColor: theme.colors.divider }]} />
-              ) : null}
+              {idx < PRIVACY_ITEMS.length - 1 ? <InsetDivider /> : null}
             </View>
           ))}
-        </View>
+        </SurfaceCard>
       </ScrollView>
     </SafeScreen>
   );
@@ -108,9 +99,6 @@ export default function PrivacyScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-  },
-  card: {
-    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
@@ -127,9 +115,5 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: 16,
   },
 });

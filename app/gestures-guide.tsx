@@ -1,7 +1,6 @@
 /**
  * 设置内精简「手势与快捷技巧」页：
- * - 单一数据源复用 onboarding/rules.ts，按「极速与批量记账 / 导航与视图 / 明细与高效录入」清晰分组
- * - 无冗余说明段落，每项卡片一行标题 + 手势标签 + 一句说明
+ * - 单一数据源复用 onboarding/rules.ts，并统一基于 SurfaceCard / SectionHeader / InsetDivider 原子组件装配
  */
 import { Stack } from 'expo-router';
 import React, { useMemo } from 'react';
@@ -9,7 +8,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGroupedGestureTips } from '../src/features/onboarding/rules';
 import { AppIcon } from '../src/shared/ui/AppIcon';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SectionHeader } from '../src/shared/ui/SectionHeader';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 export default function GesturesGuideScreen(): React.JSX.Element {
@@ -24,92 +26,72 @@ export default function GesturesGuideScreen(): React.JSX.Element {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          padding: theme.spacing.lg,
-          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
+          padding: 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
           gap: 16,
         }}
       >
         {groups.map((group) => (
-          <View key={group.group} style={{ gap: 8 }}>
-            <Text
-              style={{
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                fontWeight: theme.fontWeight.semibold,
-                paddingHorizontal: 4,
-              }}
-            >
-              {group.title}
-            </Text>
+          <View key={group.group}>
+            <SectionHeader title={group.title} />
 
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-              ]}
-            >
+            <SurfaceCard>
               {group.items.map((tip, idx) => (
-                <View
-                  key={tip.id}
-                  style={[
-                    styles.row,
-                    idx < group.items.length - 1 && {
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: theme.colors.divider,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.iconWrap,
-                      { backgroundColor: theme.colors.actionSurface, borderRadius: 10 },
-                    ]}
-                  >
-                    <AppIcon name={tip.icon} size={18} color={theme.colors.action} />
-                  </View>
+                <View key={tip.id}>
+                  <View style={styles.row}>
+                    <View
+                      style={[
+                        styles.iconWrap,
+                        { backgroundColor: theme.colors.actionSurface, borderRadius: 10 },
+                      ]}
+                    >
+                      <AppIcon name={tip.icon} size={18} color={theme.colors.action} />
+                    </View>
 
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.titleRow}>
-                      <Text
-                        style={{
-                          color: theme.colors.text,
-                          fontSize: theme.fontSize.sm,
-                          fontWeight: theme.fontWeight.semibold,
-                        }}
-                      >
-                        {tip.title}
-                      </Text>
-                      <View
-                        style={[
-                          styles.gestureTag,
-                          { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 6 },
-                        ]}
-                      >
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.titleRow}>
                         <Text
                           style={{
-                            color: theme.colors.textSecondary,
-                            fontSize: 11,
+                            color: theme.colors.text,
+                            fontSize: theme.fontSize.sm,
                             fontWeight: theme.fontWeight.semibold,
                           }}
                         >
-                          {tip.gesture}
+                          {tip.title}
                         </Text>
+                        <View
+                          style={[
+                            styles.gestureTag,
+                            { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 6 },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              color: theme.colors.textSecondary,
+                              fontSize: 11,
+                              fontWeight: theme.fontWeight.semibold,
+                            }}
+                          >
+                            {tip.gesture}
+                          </Text>
+                        </View>
                       </View>
+                      <Text
+                        style={{
+                          color: theme.colors.textMuted,
+                          fontSize: 12,
+                          lineHeight: 18,
+                          marginTop: 4,
+                        }}
+                      >
+                        {tip.summary}
+                      </Text>
                     </View>
-                    <Text
-                      style={{
-                        color: theme.colors.textMuted,
-                        fontSize: 12,
-                        lineHeight: 18,
-                        marginTop: 4,
-                      }}
-                    >
-                      {tip.summary}
-                    </Text>
                   </View>
+                  {idx < group.items.length - 1 ? <InsetDivider /> : null}
                 </View>
               ))}
-            </View>
+            </SurfaceCard>
           </View>
         ))}
       </ScrollView>
@@ -118,14 +100,12 @@ export default function GesturesGuideScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    paddingHorizontal: 14,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
   iconWrap: {
     width: 36,

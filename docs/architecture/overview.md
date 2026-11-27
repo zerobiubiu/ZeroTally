@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.10.1
+- **生效版本**：v2.0.0
 
 ## 结论概览
 
@@ -24,9 +24,12 @@
 | `src/features/security/` | 个性化隐私与安全中心职责 | 应用启动锁、系统生物识别验证器、加盐哈希 PIN（`SecureStore` 硬件隔离）、后台重锁策略、防截屏/后台遮罩与敏感金额隐私脱敏开关 | 业务账务与云同步 | `app/`、`accounts`、`transactions` |
 | `src/features/budgets/` | 设置可选月度预算职责 | 月度总预算与一级分类预算配置持久化（`app_settings`）、当月净支出进度与预警/超支判定（默认关闭零干扰） | 账目写入与账户余额 | `app/`、`transactions` |
 | `src/features/recurring/` | 周期账单、弹性月薪、房贷与信用卡日历职责 | 固定周期自动/手动幂等入账、弹性月薪提前/延时与扣款核算、等额本息/等额本金房贷与提前还款精确试算（结息/次月新月供/省息）、信用卡账单与还款日追踪 | 底层余额事务（复用 `transactions/service.ts`） | `app/` |
+| `src/features/onboarding/` | 首次轻量引导与手势技巧目录职责 | 单一数据源手势清单、一次性首启已读标记与极轻量手势提示弹层 | 业务账务与导航路由逻辑 | `app/` |
+| `src/features/reimbursement/` | 设置可选报销追踪职责 | 默认关闭零干扰的待报销/已报销追踪索引（`app_settings`）、关联退款抵扣与独立收入双口径核销 | 底层交易表结构与余额事务（复用 `transactions/service.ts`） | `app/`、`transactions`（仅单向读 `repository.ts`） |
+| `src/features/reminders/` | 可选每日记账本地提醒职责 | 本地定时每日通知调度（`expo-notifications`）、提醒时间步进与点击直达记账监听（配套 `plugins/with-android-quick-widget.js` 提供原生 Android 桌面小组件） | 远端推送与业务账务 | `app/` |
 | `src/features/navigation/` | 主导航路由与共享顶栏上下文职责 | Expo Router 双页 Tab 占位描述符补齐、固定顺序规范化纯逻辑及主界面共享顶栏/抽屉上下文 | 具体页面渲染与业务规则 | `app/(tabs)/` |
 | `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema v6 迁移（含 `app_settings`、`quick_templates`、账户三开关/卡信息列及 `repayment` 还款类型）、幂等默认单一钱包与分类种子、Expo/Node 适配器、变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
-| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化与正数输入规整、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、统一可拖拽 `BottomSheet`（内置标准顶栏/滚动手势协同/两段展开与非展开禁上拉）/ 统一滑动分段控件 `SlidingSegmentedControl` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |
+| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化与正数输入规整、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、统一可拖拽 `BottomSheet`、`SlidingSegmentedControl`、全局 `AppErrorBoundary` 及 `SurfaceCard` / `SectionHeader` / `InsetDivider` / `SettingRow` / `OptionChip` / `InlineNotice` 原子 UI 组件 | 任何记账或资产业务规则 | 全项目 |
 | `src/theme/` | 设计令牌与主题系统 | 浅色/深色语义配色、排版、间距、圆角、阴影、系统主题跟随 | 业务逻辑与数据读写 | `app/`、`src/features/*`、`src/shared/ui/` |
 
 ## 依赖方向约束

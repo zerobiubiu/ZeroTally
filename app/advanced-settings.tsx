@@ -5,7 +5,7 @@
  */
 import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
 import { getDatabaseStats, resetDatabase, type DatabaseStats } from '../src/db/seed';
@@ -29,9 +29,11 @@ import {
   hapticWarning,
 } from '../src/shared/haptics/haptics';
 import { ActionSheet } from '../src/shared/ui/ActionSheet';
-import { AppIcon } from '../src/shared/ui/AppIcon';
 import { ConfirmDialog } from '../src/shared/ui/ConfirmDialog';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SectionHeader } from '../src/shared/ui/SectionHeader';
+import { SettingLinkRow } from '../src/shared/ui/SettingRow';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 export default function AdvancedSettingsScreen(): React.JSX.Element {
@@ -202,173 +204,69 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
   };
 
   return (
-    <SafeScreen edges={['left', 'right']}>
+    <SafeScreen edges={['left', 'right']} style={{ backgroundColor: theme.colors.surfaceGrouped }}>
       <Stack.Screen options={{ title: '高级设置' }} />
 
       <ScrollView
         style={styles.flex}
         contentContainerStyle={{
-          padding: theme.spacing.lg,
-          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
-          gap: theme.spacing.md,
+          padding: 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
+          gap: 16,
         }}
       >
-        {/* 导出完整 JSON */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="导出完整备份 JSON"
-          disabled={exporting}
-          onPress={() => {
-            hapticLight();
-            setExportSheetOpen(true);
-          }}
-          style={({ pressed }) => [
-            styles.actionCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.md,
-              opacity: exporting ? theme.opacity.disabled : 1,
-            },
-            pressed && !exporting && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: theme.colors.actionSubtle, borderRadius: theme.radius.full },
-            ]}
-          >
-            <AppIcon name="download-outline" size={20} color={theme.colors.actionTextOnSubtle} />
-          </View>
-          <View style={styles.cardBody}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
+        <View>
+          <SectionHeader title="本地备份与恢复" />
+          <SurfaceCard>
+            <SettingLinkRow
+              title="导出数据与配置（JSON）"
+              subtitle="完整导出账目、账户、分类、快捷模板与外观配置，附校验指纹"
+              icon="download-outline"
+              iconTone="action"
+              accessibilityLabel="导出完整备份 JSON"
+              disabled={exporting}
+              onPress={() => {
+                hapticLight();
+                setExportSheetOpen(true);
               }}
-            >
-              导出数据与配置（JSON）
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                marginTop: 2,
-              }}
-            >
-              完整导出账目、账户、分类、快捷模板与外观配置，附校验指纹
-            </Text>
-          </View>
-          {exporting ? (
-            <ActivityIndicator size="small" color={theme.colors.action} />
-          ) : (
-            <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-          )}
-        </Pressable>
+              rightAccessory={
+                exporting ? (
+                  <ActivityIndicator size="small" color={theme.colors.action} />
+                ) : undefined
+              }
+              showDivider
+            />
 
-        {/* 导入完整 JSON */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="导入恢复备份 JSON"
-          disabled={importing}
-          onPress={() => void handlePickImportFile()}
-          style={({ pressed }) => [
-            styles.actionCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.md,
-              opacity: importing ? theme.opacity.disabled : 1,
-            },
-            pressed && !importing && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: theme.colors.transferSubtle, borderRadius: theme.radius.full },
-            ]}
-          >
-            <AppIcon name="push-outline" size={20} color={theme.colors.transferTextOnSubtle} />
-          </View>
-          <View style={styles.cardBody}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
-              }}
-            >
-              导入并恢复（JSON）
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                marginTop: 2,
-              }}
-            >
-              校验完整性与外键后完整覆盖恢复账本与配置
-            </Text>
-          </View>
-          <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-        </Pressable>
+            <SettingLinkRow
+              title="导入并恢复（JSON）"
+              subtitle="校验完整性与外键后完整覆盖恢复账本与配置"
+              icon="push-outline"
+              iconTone="transfer"
+              accessibilityLabel="导入恢复备份 JSON"
+              disabled={importing}
+              onPress={() => void handlePickImportFile()}
+            />
+          </SurfaceCard>
+        </View>
 
-        {/* 清空账本 */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="清空账本"
-          onPress={() => {
-            hapticMedium();
-            setClearError(null);
-            setClearDialogOpen(true);
-          }}
-          style={({ pressed }) => [
-            styles.actionCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.md,
-              marginTop: theme.spacing.md,
-            },
-            pressed && { opacity: theme.opacity.pressed },
-          ]}
-        >
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: theme.colors.expenseSubtle, borderRadius: theme.radius.full },
-            ]}
-          >
-            <AppIcon name="trash-outline" size={20} color={theme.colors.expense} />
-          </View>
-          <View style={styles.cardBody}>
-            <Text
-              style={{
-                color: theme.colors.expense,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
+        <View>
+          <SectionHeader title="重置数据" />
+          <SurfaceCard>
+            <SettingLinkRow
+              title="清空账本"
+              subtitle="删除全部明细并仅保留「钱包（¥0.00）」，需输入 4 位验证码确认"
+              icon="trash-outline"
+              iconTone="expense"
+              destructive
+              accessibilityLabel="清空账本"
+              onPress={() => {
+                hapticMedium();
+                setClearError(null);
+                setClearDialogOpen(true);
               }}
-            >
-              清空账本
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                marginTop: 2,
-              }}
-            >
-              删除全部明细并仅保留「钱包（¥0.00）」，需输入 4 位验证码确认
-            </Text>
-          </View>
-          <AppIcon name="chevron-forward" size={18} color={theme.colors.expense} />
-        </Pressable>
+            />
+          </SurfaceCard>
+        </View>
       </ScrollView>
 
       <ActionSheet
@@ -530,22 +428,6 @@ export default function AdvancedSettingsScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-  },
-  actionCard: {
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: {
-    flex: 1,
-    minWidth: 0,
   },
   previewBox: {},
   warningStrip: {

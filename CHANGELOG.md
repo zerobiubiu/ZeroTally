@@ -2,6 +2,19 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [2.0.0] - 2026-11-27
+
+### 里程碑发布（ZeroTally 2.0）
+
+经过 P0（搜索筛选、90% 触底懒加载分页、全局崩溃兜底与隐私自洽、个性化隐私安全锁、正式签名硬门禁与 R8 瘦身）、P1（可选月度预算、周期账单/弹性月薪/双模式房贷含提前还款/信用卡日历、快捷批量记账、深度财务分析环比同比与下钻、首次轻量引导与手势技巧页）以及 P2（可选报销追踪、可选每日记账提醒、零三方依赖 Android 桌面小组件与全仓 UI 视觉统一）全链路演进，正式发布 **ZeroTally v2.0.0**。
+
+### 本版优化与重构
+
+- **原子化共享 UI 组件抽离与解耦**（新增 `src/shared/ui/{SurfaceCard,SectionHeader,InsetDivider,SettingRow,OptionChip,InlineNotice}.tsx`）：
+  - 在 `src/shared/ui/` 下收口无外描边 14px 卡片容器（`SurfaceCard`）、分组小标题（`SectionHeader`）、缩进分割线（`InsetDivider`）、统一开关/导航设置行（`SettingSwitchRow` / `SettingLinkRow`）、无描边可选胶囊（`OptionChip`）与反馈横幅（`InlineNotice`），严格遵守 `shared/` 零业务依赖边界。
+- **全仓设置与次级页面视觉统一（零交互与重心偏移）**：
+  - 将 `SettingsPanel.tsx`、`app/about.tsx`、`app/privacy.tsx`、`app/advanced-settings.tsx`、`app/security.tsx`、`app/budgets.tsx`、`app/reminders.tsx`、`app/gestures-guide.tsx`、`app/reimbursements.tsx` 统一收口至柔和浅灰画布（`surfaceGrouped`）+ 纯白 14px 无描边卡片 + 缩进分割线体系，消除各页重复样式模板代码，同时完全保持原有操作焦点、手势与业务路径不变。
+
 ## [1.10.1] - 2026-11-27
 
 ### 新增

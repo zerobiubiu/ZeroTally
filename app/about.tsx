@@ -1,15 +1,19 @@
 /**
  * 约束简报（Workflow B）：
- * - 信息层级：主（顶部品牌徽章 + 应用名与版本号）、次（软件核心特性清单与开源仓库入口）、弱（版权与协议说明）
+ * - 信息层级：主（顶部品牌徽章 + 应用名与版本号）、次（软件核心特性清单与隐私/开源入口）、弱（协议说明）
+ * - 视觉统一：复用 SurfaceCard、SettingLinkRow 与 InsetDivider，保持原内容结构与重心不变
  */
 import Constants from 'expo-constants';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hapticLight } from '../src/shared/haptics/haptics';
 import { AppIcon } from '../src/shared/ui/AppIcon';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SettingLinkRow } from '../src/shared/ui/SettingRow';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 const REPO_URL = 'https://github.com/zerobiubiu/ZeroTally';
@@ -18,7 +22,7 @@ export default function AboutScreen(): React.JSX.Element {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  const appVersion = Constants.expoConfig?.version ?? '2.0.0';
 
   const highlights: readonly { icon: string; title: string; subtitle: string }[] = [
     {
@@ -39,24 +43,23 @@ export default function AboutScreen(): React.JSX.Element {
   ];
 
   return (
-    <SafeScreen edges={['left', 'right']}>
+    <SafeScreen edges={['left', 'right']} style={{ backgroundColor: theme.colors.surfaceGrouped }}>
       <Stack.Screen options={{ title: '关于' }} />
 
       <ScrollView
         style={styles.flex}
         contentContainerStyle={{
-          padding: theme.spacing.lg,
-          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
-          gap: theme.spacing.lg,
+          padding: 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
+          gap: 14,
         }}
       >
         <View
           style={[
             styles.brandCard,
-            theme.elevation.card,
             {
               backgroundColor: theme.colors.heroBg,
-              borderRadius: theme.radius.lg,
+              borderRadius: 14,
               paddingVertical: theme.spacing.xl,
               paddingHorizontal: theme.spacing.lg,
             },
@@ -67,7 +70,7 @@ export default function AboutScreen(): React.JSX.Element {
               styles.logoBadge,
               {
                 backgroundColor: theme.colors.surfaceRaised,
-                borderRadius: theme.radius.lg,
+                borderRadius: 14,
               },
             ]}
           >
@@ -95,135 +98,78 @@ export default function AboutScreen(): React.JSX.Element {
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.infoCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-            },
-          ]}
-        >
+        <SurfaceCard>
           {highlights.map((item, idx) => (
-            <View
-              key={item.title}
-              style={[
-                styles.featureRow,
-                {
-                  paddingHorizontal: theme.spacing.lg,
-                  paddingVertical: theme.spacing.md,
-                  borderBottomColor: theme.colors.border,
-                  borderBottomWidth: idx < highlights.length - 1 ? theme.borderWidth.hairline : 0,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.featureIcon,
-                  {
-                    backgroundColor: theme.colors.actionSubtle,
-                    borderRadius: theme.radius.full,
-                  },
-                ]}
-              >
-                <AppIcon name={item.icon} size={18} color={theme.colors.actionTextOnSubtle} />
-              </View>
-              <View style={styles.featureBody}>
-                <Text
-                  style={{
-                    color: theme.colors.text,
-                    fontSize: theme.fontSize.base,
-                    fontWeight: theme.fontWeight.semibold,
-                  }}
+            <View key={item.title}>
+              <View style={styles.featureRow}>
+                <View
+                  style={[
+                    styles.featureIcon,
+                    {
+                      backgroundColor: theme.colors.actionSurface,
+                      borderRadius: 10,
+                    },
+                  ]}
                 >
-                  {item.title}
-                </Text>
-                <Text
-                  style={{
-                    color: theme.colors.textMuted,
-                    fontSize: theme.fontSize.xs,
-                    marginTop: 2,
-                    lineHeight: 18,
-                  }}
-                >
-                  {item.subtitle}
-                </Text>
+                  <AppIcon name={item.icon} size={18} color={theme.colors.action} />
+                </View>
+                <View style={styles.featureBody}>
+                  <Text
+                    style={{
+                      color: theme.colors.text,
+                      fontSize: theme.fontSize.base,
+                      fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.colors.textMuted,
+                      fontSize: theme.fontSize.xs,
+                      marginTop: 2,
+                      lineHeight: 18,
+                    }}
+                  >
+                    {item.subtitle}
+                  </Text>
+                </View>
               </View>
+              {idx < highlights.length - 1 ? <InsetDivider /> : null}
             </View>
           ))}
-        </View>
+        </SurfaceCard>
 
-        <View
-          style={[
-            styles.infoCard,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surfaceRaised,
-              borderRadius: theme.radius.lg,
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
+        <SurfaceCard>
+          <SettingLinkRow
+            title="隐私说明"
             accessibilityLabel="查看隐私说明"
             onPress={() => {
               hapticLight();
               router.push('/privacy');
             }}
-            style={({ pressed }) => [
-              styles.linkRow,
-              {
-                paddingHorizontal: theme.spacing.lg,
-                borderBottomColor: theme.colors.border,
-                borderBottomWidth: theme.borderWidth.hairline,
-              },
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <Text style={{ color: theme.colors.text, fontSize: theme.fontSize.base }}>
-              隐私说明
-            </Text>
-            <AppIcon name="chevron-forward" size={16} color={theme.colors.textMuted} />
-          </Pressable>
-
-          <Pressable
+            showDivider
+          />
+          <SettingLinkRow
+            title="开源仓库"
             accessibilityRole="link"
             accessibilityLabel="打开 GitHub 开源仓库"
             onPress={() => {
               hapticLight();
               void Linking.openURL(REPO_URL).catch(() => {});
             }}
-            style={({ pressed }) => [
-              styles.linkRow,
-              {
-                paddingHorizontal: theme.spacing.lg,
-                borderBottomColor: theme.colors.border,
-                borderBottomWidth: theme.borderWidth.hairline,
-              },
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <Text style={{ color: theme.colors.text, fontSize: theme.fontSize.base }}>
-              开源仓库
-            </Text>
-            <View style={styles.linkRight}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs }}>
-                GitHub
-              </Text>
-              <AppIcon name="open-outline" size={16} color={theme.colors.textMuted} />
-            </View>
-          </Pressable>
-
-          <View style={[styles.linkRow, { paddingHorizontal: theme.spacing.lg }]}>
-            <Text style={{ color: theme.colors.text, fontSize: theme.fontSize.base }}>
-              开源协议
-            </Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
-              MIT License
-            </Text>
-          </View>
-        </View>
+            rightAccessory={
+              <View style={styles.linkRight}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.xs }}>
+                  GitHub
+                </Text>
+                <AppIcon name="open-outline" size={16} color={theme.colors.textMuted} />
+              </View>
+            }
+            showDivider
+          />
+          <SettingLinkRow title="开源协议" valueText="MIT License" showChevron={false} />
+        </SurfaceCard>
       </ScrollView>
     </SafeScreen>
   );
@@ -242,13 +188,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoCard: {
-    overflow: 'hidden',
-  },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   featureIcon: {
     width: 36,
@@ -259,12 +204,6 @@ const styles = StyleSheet.create({
   featureBody: {
     flex: 1,
     minWidth: 0,
-  },
-  linkRow: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   linkRight: {
     flexDirection: 'row',

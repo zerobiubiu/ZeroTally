@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -43,8 +42,13 @@ import { AppIcon } from '../src/shared/ui/AppIcon';
 import { BottomSheet, type BottomSheetHandle } from '../src/shared/ui/BottomSheet';
 import { Button } from '../src/shared/ui/Button';
 import { EmptyState } from '../src/shared/ui/EmptyState';
+import { InlineNotice } from '../src/shared/ui/InlineNotice';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
+import { OptionChip } from '../src/shared/ui/OptionChip';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SettingSwitchRow } from '../src/shared/ui/SettingRow';
 import { SlidingSegmentedControl } from '../src/shared/ui/SlidingSegmentedControl';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 type ReimbursementTab = 'pending' | 'reimbursed';
@@ -228,79 +232,45 @@ export default function ReimbursementsScreen(): React.JSX.Element {
         }}
       >
         {/* 开关与默认入账口径 */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-          ]}
-        >
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  color: theme.colors.text,
-                  fontSize: theme.fontSize.base,
-                  fontWeight: theme.fontWeight.semibold,
-                }}
-              >
-                启用报销追踪
-              </Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                关闭时对正常记账完全不可见；开启后可跟踪垫付支出与一键到账核销
-              </Text>
-            </View>
-            <Switch
-              value={enabled}
-              onValueChange={(val) => void handleToggleEnabled(val)}
-              trackColor={{ false: theme.colors.chipInactive, true: theme.colors.action }}
-              thumbColor={theme.colors.surfaceRaised}
-            />
-          </View>
+        <SurfaceCard>
+          <SettingSwitchRow
+            title="启用报销追踪"
+            subtitle="关闭时对正常记账完全不可见；开启后可跟踪垫付支出与一键到账核销"
+            value={enabled}
+            onValueChange={(val) => void handleToggleEnabled(val)}
+          />
 
           {enabled ? (
-            <View
-              style={[
-                styles.modeSection,
-                { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.divider },
-              ]}
-            >
-              <Text
-                style={{
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                  marginBottom: 8,
-                }}
-              >
-                默认到账口径
-              </Text>
-              <SlidingSegmentedControl
-                options={MODE_OPTIONS}
-                value={overview?.config.defaultSettlementMode ?? 'refund'}
-                onChange={(mode) => void handleChangeDefaultMode(mode)}
-                fullWidth
-                height={38}
-                shape="rounded"
-                trackTone="surface"
-                textSize="xs"
-              />
-            </View>
+            <>
+              <InsetDivider />
+              <View style={styles.modeSection}>
+                <Text
+                  style={{
+                    color: theme.colors.textMuted,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: theme.fontWeight.semibold,
+                    marginBottom: 8,
+                  }}
+                >
+                  默认到账口径
+                </Text>
+                <SlidingSegmentedControl
+                  options={MODE_OPTIONS}
+                  value={overview?.config.defaultSettlementMode ?? 'refund'}
+                  onChange={(mode) => void handleChangeDefaultMode(mode)}
+                  fullWidth
+                  height={38}
+                  shape="rounded"
+                  trackTone="surface"
+                  textSize="xs"
+                />
+              </View>
+            </>
           ) : null}
-        </View>
+        </SurfaceCard>
 
         {notice ? (
-          <View
-            style={[
-              styles.noticeBar,
-              { backgroundColor: theme.colors.actionSurface, borderRadius: 10 },
-            ]}
-          >
-            <AppIcon name="checkmark-circle-outline" size={16} color={theme.colors.action} />
-            <Text style={{ flex: 1, color: theme.colors.action, fontSize: 12 }}>{notice}</Text>
-            <Pressable onPress={() => setNotice(null)} hitSlop={8}>
-              <AppIcon name="close" size={14} color={theme.colors.action} />
-            </Pressable>
-          </View>
+          <InlineNotice text={notice} tone="success" onDismiss={() => setNotice(null)} />
         ) : null}
 
         {enabled ? (
@@ -664,36 +634,14 @@ export default function ReimbursementsScreen(): React.JSX.Element {
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {accounts.map((acc) => {
-                    const active = acc.id === settleAccountId;
-                    return (
-                      <Pressable
-                        key={acc.id}
-                        onPress={() => setSettleAccountId(acc.id)}
-                        style={[
-                          styles.accountChip,
-                          {
-                            backgroundColor: active
-                              ? theme.colors.actionSurface
-                              : theme.colors.surfaceGrouped,
-                            borderRadius: 9,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            color: active ? theme.colors.action : theme.colors.textSecondary,
-                            fontSize: 13,
-                            fontWeight: active
-                              ? theme.fontWeight.semibold
-                              : theme.fontWeight.regular,
-                          }}
-                        >
-                          {acc.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                  {accounts.map((acc) => (
+                    <OptionChip
+                      key={acc.id}
+                      label={acc.name}
+                      selected={acc.id === settleAccountId}
+                      onPress={() => setSettleAccountId(acc.id)}
+                    />
+                  ))}
                 </View>
               </ScrollView>
             </View>
@@ -749,24 +697,8 @@ export default function ReimbursementsScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    padding: 16,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   modeSection: {
-    marginTop: 14,
-    paddingTop: 14,
-  },
-  noticeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 16,
   },
   summaryCard: {
     padding: 16,
@@ -836,10 +768,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 20,
     fontWeight: '600',
-  },
-  accountChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
   },
   dateRow: {
     height: 44,

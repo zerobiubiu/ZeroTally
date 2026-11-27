@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -39,7 +38,12 @@ import {
 import { AppIcon } from '../src/shared/ui/AppIcon';
 import { BottomSheet, type BottomSheetHandle } from '../src/shared/ui/BottomSheet';
 import { Button } from '../src/shared/ui/Button';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
+import { OptionChip } from '../src/shared/ui/OptionChip';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SectionHeader } from '../src/shared/ui/SectionHeader';
+import { SettingSwitchRow } from '../src/shared/ui/SettingRow';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 const WARN_OPTIONS = [70, 80, 90] as const;
@@ -168,43 +172,23 @@ export default function BudgetsScreen(): React.JSX.Element {
         }}
       >
         {/* 顶部总开关（默认关闭，开启后仅作轻量补充展示） */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-          ]}
-        >
-          <View style={styles.switchRow}>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowTitle, { color: theme.colors.text }]}>启用月度预算</Text>
-              <Text style={[styles.rowSub, { color: theme.colors.textMuted }]}>
-                关闭时主界面零干扰；开启后在明细月度卡片底部展示轻量进度
-              </Text>
-            </View>
-            <Switch
-              value={config.enabled}
-              onValueChange={(v) => {
-                hapticLight();
-                void persist({ ...config, enabled: v });
-              }}
-              trackColor={{ false: theme.colors.chipInactive, true: theme.colors.action }}
-              thumbColor={theme.colors.surfaceRaised}
-            />
-          </View>
-        </View>
+        <SurfaceCard>
+          <SettingSwitchRow
+            title="启用月度预算"
+            subtitle="关闭时主界面零干扰；开启后在明细月度卡片底部展示轻量进度"
+            value={config.enabled}
+            onValueChange={(v) => {
+              hapticLight();
+              void persist({ ...config, enabled: v });
+            }}
+          />
+        </SurfaceCard>
 
         {config.enabled ? (
           <>
             {/* 本月总预算卡片 */}
-            <Text style={[styles.sectionTitle, { color: theme.colors.textMuted, marginTop: 16 }]}>
-              {formatMonthTitle(monthKey)}总预算
-            </Text>
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-              ]}
-            >
+            <SectionHeader title={`${formatMonthTitle(monthKey)}总预算`} style={{ marginTop: 16 }} />
+            <SurfaceCard>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="设置月度总预算"
@@ -287,66 +271,30 @@ export default function BudgetsScreen(): React.JSX.Element {
                 ) : null}
               </Pressable>
 
-              <View style={[styles.divider, { backgroundColor: theme.colors.divider }]} />
+              <InsetDivider />
 
               <View style={styles.warnRow}>
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>预警阈值</Text>
                 <View style={styles.warnChips}>
-                  {WARN_OPTIONS.map((pct) => {
-                    const active = config.warningPercent === pct;
-                    return (
-                      <Pressable
-                        key={pct}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                        onPress={() => {
-                          hapticLight();
-                          void persist({ ...config, warningPercent: pct });
-                        }}
-                        style={({ pressed }) => [
-                          styles.warnChip,
-                          {
-                            backgroundColor: active
-                              ? theme.colors.actionSurface
-                              : theme.colors.chipInactive,
-                            borderRadius: 8,
-                          },
-                          pressed && { opacity: theme.opacity.pressed },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.tabular,
-                            {
-                              color: active
-                                ? theme.colors.actionTextOnSubtle
-                                : theme.colors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: active
-                                ? theme.fontWeight.semibold
-                                : theme.fontWeight.regular,
-                            },
-                          ]}
-                        >
-                          {pct}%
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                  {WARN_OPTIONS.map((pct) => (
+                    <OptionChip
+                      key={pct}
+                      label={`${pct}%`}
+                      selected={config.warningPercent === pct}
+                      tabular
+                      onPress={() => {
+                        hapticLight();
+                        void persist({ ...config, warningPercent: pct });
+                      }}
+                    />
+                  ))}
                 </View>
               </View>
-            </View>
+            </SurfaceCard>
 
             {/* 分类月度预算（可选，按需设置） */}
-            <Text style={[styles.sectionTitle, { color: theme.colors.textMuted, marginTop: 16 }]}>
-              分类预算 · 选填
-            </Text>
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-              ]}
-            >
+            <SectionHeader title="分类预算 · 选填" style={{ marginTop: 16 }} />
+            <SurfaceCard>
               {expenseCategories.map((cat, idx) => {
                 const budgetCents = config.categoryBudgetsCents[cat.id] ?? 0;
                 const spentCents = categorySpentMap[cat.id] ?? 0;
@@ -451,13 +399,11 @@ export default function BudgetsScreen(): React.JSX.Element {
                         </View>
                       ) : null}
                     </Pressable>
-                    {idx < expenseCategories.length - 1 ? (
-                      <View style={[styles.divider, { backgroundColor: theme.colors.divider }]} />
-                    ) : null}
+                    {idx < expenseCategories.length - 1 ? <InsetDivider /> : null}
                   </View>
                 );
               })}
-            </View>
+            </SurfaceCard>
           </>
         ) : null}
       </ScrollView>
@@ -532,36 +478,6 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-    paddingHorizontal: 4,
-  },
-  card: {
-    overflow: 'hidden',
-  },
-  switchRow: {
-    minHeight: 60,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  rowText: {
-    flex: 1,
-  },
-  rowTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  rowSub: {
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 17,
-  },
   totalBlock: {
     padding: 16,
   },
@@ -601,12 +517,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
-  warnChip: {
-    height: 30,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   catRow: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -621,10 +531,6 @@ const styles = StyleSheet.create({
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: 16,
   },
   amountRow: {
     height: 50,

@@ -1,7 +1,6 @@
 /**
  * 设置内「提醒与小组件」二级页：
- * - 上半区：可选每日记账本地提醒（默认关闭，用户主动开启时再请求系统通知权限）
- * - 下半区：Android 桌面小组件预览与添加指引（原生零依赖实现，自动读取当月收支并尊重隐私隐藏金额开关）
+ * - 统一复用 SurfaceCard / SectionHeader / SettingSwitchRow / OptionChip / InlineNotice 原子组件
  */
 import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -9,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -30,9 +28,14 @@ import {
 } from '../src/features/reminders/rules';
 import type { DailyReminderConfig } from '../src/features/reminders/types';
 import { hapticLight, hapticSuccess } from '../src/shared/haptics/haptics';
-import { AppIcon } from '../src/shared/ui/AppIcon';
 import { Button } from '../src/shared/ui/Button';
+import { InlineNotice } from '../src/shared/ui/InlineNotice';
+import { InsetDivider } from '../src/shared/ui/InsetDivider';
+import { OptionChip } from '../src/shared/ui/OptionChip';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
+import { SectionHeader } from '../src/shared/ui/SectionHeader';
+import { SettingSwitchRow } from '../src/shared/ui/SettingRow';
+import { SurfaceCard } from '../src/shared/ui/SurfaceCard';
 import { useTheme } from '../src/theme/theme-context';
 
 export default function RemindersScreen(): React.JSX.Element {
@@ -42,7 +45,7 @@ export default function RemindersScreen(): React.JSX.Element {
 
   const [config, setConfig] = useState<DailyReminderConfig>(DEFAULT_DAILY_REMINDER_CONFIG);
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -67,21 +70,21 @@ export default function RemindersScreen(): React.JSX.Element {
         const disabledFallback = await saveDailyReminderConfig(db, { ...saved, enabled: false });
         setConfig(disabledFallback);
         setNotice({
-          tone: 'warn',
+          tone: 'warning',
           text: '未获得系统通知权限，请在系统设置中允许 ZeroTally 发送通知后再开启',
         });
         return;
       }
       hapticSuccess();
       setNotice({
-        tone: 'ok',
+        tone: 'success',
         text: saved.enabled
           ? `已设置每天 ${formatReminderTime(saved.hour, saved.minute)} 提醒记账`
           : '已关闭每日记账提醒',
       });
     } catch (err) {
       setNotice({
-        tone: 'warn',
+        tone: 'warning',
         text: err instanceof Error ? err.message : '更新提醒失败',
       });
     } finally {
@@ -107,130 +110,90 @@ export default function RemindersScreen(): React.JSX.Element {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          padding: theme.spacing.lg,
-          paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
+          padding: 16,
+          paddingBottom: Math.max(insets.bottom, 16) + 24,
           gap: 16,
         }}
       >
-        {/* 每日记账提醒 */}
-        <View style={{ gap: 8 }}>
-          <Text
-            style={{
-              color: theme.colors.textMuted,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              paddingHorizontal: 4,
-            }}
-          >
-            每日记账提醒
-          </Text>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14 },
-            ]}
-          >
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    color: theme.colors.text,
-                    fontSize: theme.fontSize.base,
-                    fontWeight: theme.fontWeight.semibold,
-                  }}
-                >
-                  开启本地定时提醒
-                </Text>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                  完全离线由手机本地定时触发，点击通知直达记一笔
-                </Text>
-              </View>
-              <Switch
-                value={config.enabled}
-                disabled={saving}
-                onValueChange={handleToggleEnabled}
-                trackColor={{ false: theme.colors.chipInactive, true: theme.colors.action }}
-                thumbColor={theme.colors.surfaceRaised}
-              />
-            </View>
+        <View>
+          <SectionHeader title="每日记账提醒" />
+          <SurfaceCard>
+            <SettingSwitchRow
+              title="开启本地定时提醒"
+              subtitle="完全离线由手机本地定时触发，点击通知直达记一笔"
+              value={config.enabled}
+              disabled={saving}
+              onValueChange={handleToggleEnabled}
+            />
 
             {config.enabled ? (
-              <View
-                style={[
-                  styles.configBody,
-                  {
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    borderTopColor: theme.colors.divider,
-                  },
-                ]}
-              >
-                {/* 时间微调 */}
-                <View style={styles.timeStepper}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="提前 15 分钟"
-                    onPress={() => handleStep(-15)}
-                    style={({ pressed }) => [
-                      styles.stepBtn,
-                      { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 10 },
-                      pressed && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: theme.colors.textSecondary,
-                        fontSize: 13,
-                        fontWeight: theme.fontWeight.semibold,
-                      }}
+              <>
+                <InsetDivider />
+                <View style={styles.configBody}>
+                  <View style={styles.timeStepper}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="提前 15 分钟"
+                      onPress={() => handleStep(-15)}
+                      style={({ pressed }) => [
+                        styles.stepBtn,
+                        { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 10 },
+                        pressed && { opacity: theme.opacity.pressed },
+                      ]}
                     >
-                      -15分
-                    </Text>
-                  </Pressable>
+                      <Text
+                        style={{
+                          color: theme.colors.textSecondary,
+                          fontSize: 13,
+                          fontWeight: theme.fontWeight.semibold,
+                        }}
+                      >
+                        -15分
+                      </Text>
+                    </Pressable>
 
-                  <Text
-                    style={[
-                      styles.tabular,
-                      {
-                        color: theme.colors.text,
-                        fontSize: 30,
-                        fontWeight: theme.fontWeight.semibold,
-                      },
-                    ]}
-                  >
-                    {formatReminderTime(config.hour, config.minute)}
-                  </Text>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="推后 15 分钟"
-                    onPress={() => handleStep(15)}
-                    style={({ pressed }) => [
-                      styles.stepBtn,
-                      { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 10 },
-                      pressed && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
                     <Text
-                      style={{
-                        color: theme.colors.textSecondary,
-                        fontSize: 13,
-                        fontWeight: theme.fontWeight.semibold,
-                      }}
+                      style={[
+                        styles.tabular,
+                        {
+                          color: theme.colors.text,
+                          fontSize: 30,
+                          fontWeight: theme.fontWeight.semibold,
+                        },
+                      ]}
                     >
-                      +15分
+                      {formatReminderTime(config.hour, config.minute)}
                     </Text>
-                  </Pressable>
-                </View>
 
-                {/* 常用时段胶囊 */}
-                <View style={styles.presetRow}>
-                  {PRESET_REMINDER_TIMES.map((preset) => {
-                    const selected =
-                      config.hour === preset.hour && config.minute === preset.minute;
-                    return (
-                      <Pressable
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="推后 15 分钟"
+                      onPress={() => handleStep(15)}
+                      style={({ pressed }) => [
+                        styles.stepBtn,
+                        { backgroundColor: theme.colors.surfaceGrouped, borderRadius: 10 },
+                        pressed && { opacity: theme.opacity.pressed },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.textSecondary,
+                          fontSize: 13,
+                          fontWeight: theme.fontWeight.semibold,
+                        }}
+                      >
+                        +15分
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.presetRow}>
+                    {PRESET_REMINDER_TIMES.map((preset) => (
+                      <OptionChip
                         key={preset.label}
+                        label={preset.label}
+                        selected={config.hour === preset.hour && config.minute === preset.minute}
+                        tabular
                         onPress={() => {
                           hapticLight();
                           setConfig((prev) => ({
@@ -239,122 +202,55 @@ export default function RemindersScreen(): React.JSX.Element {
                             minute: preset.minute,
                           }));
                         }}
-                        style={[
-                          styles.presetChip,
-                          {
-                            backgroundColor: selected
-                              ? theme.colors.actionSurface
-                              : theme.colors.surfaceGrouped,
-                            borderRadius: 9,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.tabular,
-                            {
-                              color: selected ? theme.colors.action : theme.colors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: selected
-                                ? theme.fontWeight.semibold
-                                : theme.fontWeight.regular,
-                            },
-                          ]}
-                        >
-                          {preset.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                      />
+                    ))}
+                  </View>
 
-                {/* 自定义提醒文案 */}
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>提醒文案</Text>
-                  <TextInput
-                    value={config.message}
-                    onChangeText={(txt) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        message: txt.slice(0, MAX_REMINDER_MESSAGE_LENGTH),
-                      }))
-                    }
-                    placeholder={DEFAULT_DAILY_REMINDER_CONFIG.message}
-                    placeholderTextColor={theme.colors.placeholder}
-                    style={[
-                      styles.msgInput,
-                      {
-                        backgroundColor: theme.colors.surfaceGrouped,
-                        color: theme.colors.text,
-                        borderRadius: 10,
-                      },
-                    ]}
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>提醒文案</Text>
+                    <TextInput
+                      value={config.message}
+                      onChangeText={(txt) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          message: txt.slice(0, MAX_REMINDER_MESSAGE_LENGTH),
+                        }))
+                      }
+                      placeholder={DEFAULT_DAILY_REMINDER_CONFIG.message}
+                      placeholderTextColor={theme.colors.placeholder}
+                      style={[
+                        styles.msgInput,
+                        {
+                          backgroundColor: theme.colors.surfaceGrouped,
+                          color: theme.colors.text,
+                          borderRadius: 10,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <Button
+                    label={saving ? '保存中...' : '保存提醒时间'}
+                    disabled={saving}
+                    onPress={() => void persistAndSync(config)}
                   />
                 </View>
-
-                <Button
-                  label={saving ? '保存中...' : '保存提醒时间'}
-                  disabled={saving}
-                  onPress={() => void persistAndSync(config)}
-                />
-              </View>
+              </>
             ) : null}
-          </View>
+          </SurfaceCard>
         </View>
 
         {notice ? (
-          <View
-            style={[
-              styles.noticeBar,
-              {
-                backgroundColor:
-                  notice.tone === 'ok' ? theme.colors.actionSurface : theme.colors.warningSubtle,
-                borderRadius: 10,
-              },
-            ]}
-          >
-            <AppIcon
-              name={notice.tone === 'ok' ? 'checkmark-circle-outline' : 'alert-circle-outline'}
-              size={16}
-              color={notice.tone === 'ok' ? theme.colors.action : theme.colors.warningTextOnSubtle}
-            />
-            <Text
-              style={{
-                flex: 1,
-                color:
-                  notice.tone === 'ok' ? theme.colors.action : theme.colors.warningTextOnSubtle,
-                fontSize: 12,
-              }}
-            >
-              {notice.text}
-            </Text>
-          </View>
+          <InlineNotice text={notice.text} tone={notice.tone} onDismiss={() => setNotice(null)} />
         ) : null}
 
-        {/* Android 桌面小组件 */}
-        <View style={{ gap: 8 }}>
-          <Text
-            style={{
-              color: theme.colors.textMuted,
-              fontSize: theme.fontSize.xs,
-              fontWeight: theme.fontWeight.semibold,
-              paddingHorizontal: 4,
-            }}
-          >
-            Android 桌面小组件
-          </Text>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surfaceRaised, borderRadius: 14, gap: 14 },
-            ]}
-          >
-            {/* 小组件静态视觉预览 */}
+        <View>
+          <SectionHeader title="Android 桌面小组件" />
+          <SurfaceCard padding="lg" style={{ gap: 14 }}>
             <View
               style={[
                 styles.widgetPreview,
-                { backgroundColor: theme.colors.heroBg, borderRadius: 16 },
+                { backgroundColor: theme.colors.heroBg, borderRadius: 14 },
               ]}
             >
               <View style={styles.widgetTop}>
@@ -437,7 +333,7 @@ export default function RemindersScreen(): React.JSX.Element {
                 3. 若在隐私与安全中开启了「默认隐藏敏感金额」，桌面小组件会自动同步脱敏显示为 ••••。
               </Text>
             </View>
-          </View>
+          </SurfaceCard>
         </View>
       </ScrollView>
     </SafeScreen>
@@ -445,17 +341,8 @@ export default function RemindersScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    padding: 16,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   configBody: {
-    marginTop: 14,
-    paddingTop: 14,
+    padding: 16,
     gap: 14,
   },
   timeStepper: {
@@ -472,21 +359,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  presetChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
   msgInput: {
     height: 44,
     paddingHorizontal: 12,
     fontSize: 14,
-  },
-  noticeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
   widgetPreview: {
     padding: 14,
