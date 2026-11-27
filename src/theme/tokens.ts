@@ -8,18 +8,28 @@ export interface SemanticColors {
   surfaceRaised: string;
   surfaceSunken: string;
   surfaceOverlay: string;
+  /** 分组表单画布浅灰底色（无边框卡片依赖此底色差建立层级） */
+  surfaceGrouped: string;
 
   text: string;
   textSecondary: string;
   textMuted: string;
+  /** 输入框占位符弱化文字色（与已输入 text 显著拉开对比度） */
+  placeholder: string;
 
   border: string;
   borderStrong: string;
+  /** 卡片内部缩进极浅分割线 */
+  divider: string;
 
   action: string;
   onAction: string;
   actionSubtle: string;
+  /** 无描边选中态与图标徽章的柔和品牌主色浅底 */
+  actionSurface: string;
   actionTextOnSubtle: string;
+  /** 无描边未选中胶囊/选项块的柔和浅灰底 */
+  chipInactive: string;
 
   heroBg: string;
   heroText: string;
@@ -50,18 +60,23 @@ export const LIGHT_COLORS: SemanticColors = {
   surfaceRaised: PALETTE.white,
   surfaceSunken: PALETTE.neutral[50],
   surfaceOverlay: PALETTE.white,
+  surfaceGrouped: '#f4f5f7',
 
   text: PALETTE.neutral[900],
   textSecondary: PALETTE.neutral[700],
   textMuted: PALETTE.neutral[600],
+  placeholder: PALETTE.neutral[400],
 
   border: PALETTE.neutral[200],
   borderStrong: PALETTE.neutral[300],
+  divider: '#f0f1f3',
 
   action: PALETTE.primary[700],
   onAction: PALETTE.white,
   actionSubtle: PALETTE.primary[100],
+  actionSurface: 'rgba(1, 120, 83, 0.10)',
   actionTextOnSubtle: PALETTE.primary[900],
+  chipInactive: '#eaedf1',
 
   heroBg: PALETTE.primary[900],
   heroText: PALETTE.neutral[50],
@@ -92,18 +107,23 @@ export const DARK_COLORS: SemanticColors = {
   surfaceRaised: PALETTE.neutral[900],
   surfaceSunken: PALETTE.neutral[800],
   surfaceOverlay: PALETTE.neutral[800],
+  surfaceGrouped: PALETTE.neutral[950],
 
   text: PALETTE.neutral[50],
   textSecondary: PALETTE.neutral[200],
   textMuted: PALETTE.neutral[300],
+  placeholder: PALETTE.neutral[500],
 
   border: PALETTE.neutral[800],
   borderStrong: PALETTE.neutral[700],
+  divider: 'rgba(250, 253, 255, 0.08)',
 
   action: PALETTE.primary[400],
   onAction: PALETTE.neutral[950],
   actionSubtle: PALETTE.primary[900],
+  actionSurface: 'rgba(40, 203, 192, 0.16)',
   actionTextOnSubtle: PALETTE.primary[200],
+  chipInactive: PALETTE.neutral[800],
 
   heroBg: PALETTE.primary[900],
   heroText: PALETTE.neutral[50],

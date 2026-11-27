@@ -10,7 +10,6 @@ import { deleteTransaction } from '../service';
 import type { TransactionListItem } from '../types';
 import { DeleteTransactionDialog } from './DeleteTransactionDialog';
 import { RefundSheet, type RefundSheetTarget } from './RefundSheet';
-import { RepaymentSheet, type RepaymentSheetTarget } from './RepaymentSheet';
 import { TransactionDetailSheet } from './TransactionDetailSheet';
 
 export interface TransactionListInteractions {
@@ -32,7 +31,6 @@ export function useTransactionListInteractions(): TransactionListInteractions {
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<TransactionListItem | null>(null);
   const [refundTarget, setRefundTarget] = useState<RefundSheetTarget | null>(null);
-  const [repaymentTarget, setRepaymentTarget] = useState<RepaymentSheetTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TransactionListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -62,7 +60,7 @@ export function useTransactionListInteractions(): TransactionListInteractions {
         return;
       }
       if (item.type === 'repayment') {
-        setRepaymentTarget({ mode: 'edit', repayment: item });
+        router.push({ pathname: '/repayment', params: { id: item.id } });
         return;
       }
       router.push({ pathname: '/record', params: { id: item.id } });
@@ -136,11 +134,6 @@ export function useTransactionListInteractions(): TransactionListInteractions {
       <RefundSheet
         target={refundTarget}
         onClose={() => setRefundTarget(null)}
-        onSaved={() => setDetailItem(null)}
-      />
-      <RepaymentSheet
-        target={repaymentTarget}
-        onClose={() => setRepaymentTarget(null)}
         onSaved={() => setDetailItem(null)}
       />
       <DeleteTransactionDialog

@@ -56,6 +56,8 @@
 | [changes/0035-account-model-overhaul-archive-settle-delete.md](changes/0035-account-model-overhaul-archive-settle-delete.md) | 变更记录 | 已执行 | 账户体系重构：类型驱动性质、三独立开关、银行卡信息、归档/平账/删除升级（v1.4.0） |
 | [changes/0036-cloud-backup-webdav-and-google-drive.md](changes/0036-cloud-backup-webdav-and-google-drive.md) | 变更记录 | 已执行 | 设置侧栏接入双通道云备份（WebDAV 与 Google Drive OAuth PKCE）、多版本快照恢复与自动备份（v1.5.0） |
 | [changes/0037-liability-repayment.md](changes/0037-liability-repayment.md) | 变更记录 | 已执行 | 负债账户新增还款功能（资产转入与无账户直接还款、Schema v6、备份 v5 与全链路明细编辑删除，v1.6.0） |
+| [changes/0038-account-detail-floating-cta-and-keypad-repayment.md](changes/0038-account-detail-floating-cta-and-keypad-repayment.md) | 变更记录 | 已执行 | 账户详情统一底部悬浮「记一笔」与上滑吸顶紧凑小卡，负债还款升级为内置 4×4 计算键盘全屏页（v1.7.0） |
+| [changes/0039-account-form-ui-refactor.md](changes/0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | 重构新增/编辑账户页 UI 视觉层级与紧凑交互：去描边分层、顶栏保存、横向类型栏、内嵌可换图标、突出余额、双列卡面与单行属性胶囊（v1.7.1） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

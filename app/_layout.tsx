@@ -118,6 +118,16 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="repayment"
+          options={{
+            title: '负债还款',
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
+            headerShown: false,
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+        <Stack.Screen
           name="analytics"
           options={{
             title: '账务分析',

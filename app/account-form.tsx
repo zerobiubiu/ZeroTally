@@ -1,17 +1,18 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 类型驱动：账户性质由类型唯一决定（信用卡 / 借款为负债），不再提供「性质」选择
- * - 信息层级：主（类型选择 + 统一基础信息卡含名称/占位免手删初始金额/备注 + 底部「保存」）、次（银行卡信息卡含可清空开户日期、图标）、弱（三独立统计与可选开关）
- * - 编辑态：账户管理（归档 / 恢复 / 删除）收纳于本页底部；归档一次确认，删除走严格互斥单 Modal 三重校验（AccountDeleteFlow）
+ * - 视觉层级：柔和浅灰画布（surfaceGrouped）配纯白无描边卡片（圆角 14px，内部控件 10px），卡片内部采用缩进极浅分割线（divider）
+ * - 模块权重由重到轻：顶部轻权重横向账户类型条（纯文字无换行）→ 核心信息卡（左嵌 40×40 可换图标徽章 + 名称、大号等宽初始余额聚焦态、单行备注）→ 卡面信息平铺双列压缩卡（卡号每 4 位自动空格、银行/开户日期并排、开户行）→ 单行平铺三项可勾选属性胶囊 → 贴底主保存按钮（并与顶栏右侧轻量「保存」共用提交与禁用逻辑）
+ * - 零业务破坏：完全沿用既有接口字段、默认值、类型驱动性质与校验规则；编辑态兼容全部字段回显与底部账户管理（归档 / 恢复 / 三重确认删除）
  */
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -19,9 +20,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../src/db/database-context';
 import { AccountDeleteFlow } from '../src/features/accounts/components/AccountDeleteFlow';
+import { AccountIconPickerSheet } from '../src/features/accounts/components/AccountIconPickerSheet';
 import {
+  formatCardNumberInput,
+  truncateSignedDecimalsInput,
+} from '../src/features/accounts/form-rules';
+import {
+  MAX_ACCOUNT_NAME_LENGTH,
+  MAX_ACCOUNT_NOTE_LENGTH,
   MAX_BANK_TEXT_LENGTH,
   MAX_CARD_NUMBER_LENGTH,
+  describeAccountBalance,
   kindForCategory,
   supportsCardInfo,
 } from '../src/features/accounts/rules';
@@ -35,7 +44,6 @@ import {
 import {
   ACCOUNT_CATEGORY_METAS,
   ACCOUNT_COLOR_OPTIONS,
-  ACCOUNT_ICON_OPTIONS,
   type Account,
   type AccountCategory,
 } from '../src/features/accounts/types';
@@ -45,8 +53,9 @@ import {
   deleteAccountWithTransactions,
 } from '../src/features/transactions/service';
 import { getTodayIsoDate } from '../src/shared/date/date';
-import { hapticLight } from '../src/shared/haptics/haptics';
+import { hapticLight, hapticWarning } from '../src/shared/haptics/haptics';
 import {
+  CURRENCY_SYMBOL,
   parseSignedYuanToCents,
   parseYuanToCents,
   truncateExcessDecimalsInput,
@@ -57,24 +66,22 @@ import { ConfirmDialog } from '../src/shared/ui/ConfirmDialog';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
 import { useTheme } from '../src/theme/theme-context';
 
+const CARD_RADIUS = 14;
+const CONTROL_RADIUS = 10;
+
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function chunkIcons(items: readonly string[], columns: number): string[][] {
-  const rows: string[][] = [];
-  for (let i = 0; i < items.length; i += columns) {
-    rows.push(items.slice(i, i + columns));
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) {
+    return `rgba(244, 245, 247, ${alpha})`;
   }
-  return rows;
-}
-
-function truncateSignedDecimals(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith('-')) {
-    return `-${truncateExcessDecimalsInput(trimmed.slice(1))}`;
-  }
-  return truncateExcessDecimalsInput(raw);
+  const r = Number.parseInt(clean.slice(0, 2), 16);
+  const g = Number.parseInt(clean.slice(2, 4), 16);
+  const b = Number.parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export default function AccountFormScreen(): React.JSX.Element {
@@ -89,10 +96,12 @@ export default function AccountFormScreen(): React.JSX.Element {
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState<AccountCategory>('bank');
-  /** 初始留空以浅色占位提示 0.00，直接键入即可免手删 */
+  /** 初始留空以浅灰占位提示 0.00，直接键入即可免手删 */
   const [initialInput, setInitialInput] = useState('');
+  const [amountFocused, setAmountFocused] = useState(false);
   const [icon, setIcon] = useState<string>('card-outline');
   const [color, setColor] = useState<string>(ACCOUNT_COLOR_OPTIONS[0] ?? '#0F766E');
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [includeInTotalAssets, setIncludeInTotalAssets] = useState(true);
   const [includeInNetWorth, setIncludeInNetWorth] = useState(true);
   const [isSelectable, setIsSelectable] = useState(true);
@@ -114,9 +123,48 @@ export default function AccountFormScreen(): React.JSX.Element {
   const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
 
+  // 横向类型胶囊栏滚动对齐与右侧滑动渐隐线索
+  const categoryScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const categoryLayoutsRef = useRef<Record<string, { x: number; width: number }>>({});
+  const categoryViewportRef = useRef(0);
+  const categoryContentRef = useRef(0);
+  const categoryOffsetRef = useRef(0);
+  const didInitialCategoryAlignRef = useRef(false);
+  const [showRightCategoryFade, setShowRightCategoryFade] = useState(true);
+
   const isLiability = kindForCategory(category) === 'liability';
   const showCardInfo = supportsCardInfo(category);
-  const iconRows = useMemo(() => chunkIcons(ACCOUNT_ICON_OPTIONS, 4), []);
+  const saveDisabled = saving || (isEditing && !loadedAccount);
+
+  const editBalanceInfo = useMemo(
+    () => (loadedAccount ? describeAccountBalance(loadedAccount) : null),
+    [loadedAccount]
+  );
+
+  const syncCategoryRightFade = useCallback(() => {
+    const viewport = categoryViewportRef.current;
+    const content = categoryContentRef.current;
+    if (viewport <= 0 || content <= viewport + 4) {
+      setShowRightCategoryFade(false);
+      return;
+    }
+    setShowRightCategoryFade(categoryOffsetRef.current + viewport < content - 8);
+  }, []);
+
+  const scrollCategoryIntoView = useCallback((cat: AccountCategory, animated: boolean) => {
+    const layout = categoryLayoutsRef.current[cat];
+    const viewport = categoryViewportRef.current;
+    const content = categoryContentRef.current;
+    if (!layout || viewport <= 0 || content <= viewport) {
+      return;
+    }
+    const maxOffset = Math.max(0, content - viewport);
+    const targetOffset = Math.max(
+      0,
+      Math.min(maxOffset, layout.x - (viewport - layout.width) / 2)
+    );
+    categoryScrollRef.current?.scrollTo({ x: targetOffset, animated });
+  }, []);
 
   useEffect(() => {
     if (!editId) {
@@ -138,17 +186,18 @@ export default function AccountFormScreen(): React.JSX.Element {
         setIncludeInTotalAssets(acc.includeInTotalAssets);
         setIncludeInNetWorth(acc.includeInNetWorth);
         setIsSelectable(acc.isSelectable);
-        setCardNumber(acc.cardNumber);
+        setCardNumber(formatCardNumberInput(acc.cardNumber));
         setBankName(acc.bankName);
         setBankBranch(acc.bankBranch);
         setOpenedOn(acc.openedOn);
         setNote(acc.note);
+        scrollCategoryIntoView(acc.category, false);
       }
     })();
     return () => {
       active = false;
     };
-  }, [db, editId]);
+  }, [db, editId, scrollCategoryIntoView]);
 
   const handleSelectCategory = (nextCat: AccountCategory) => {
     hapticLight();
@@ -158,15 +207,21 @@ export default function AccountFormScreen(): React.JSX.Element {
       setIcon(meta.defaultIcon);
       setColor(meta.defaultColor);
     }
+    scrollCategoryIntoView(nextCat, true);
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
+    if (saving || (isEditing && !loadedAccount)) {
+      return;
+    }
     setFormError(null);
     if (!name.trim()) {
+      hapticWarning();
       setFormError('请输入账户名称');
       return;
     }
 
+    Keyboard.dismiss();
     setSaving(true);
     try {
       const cardInfo = { cardNumber, bankName, bankBranch, openedOn };
@@ -189,6 +244,7 @@ export default function AccountFormScreen(): React.JSX.Element {
           if (isLiability) {
             const debtCents = parseYuanToCents(trimmedInitial);
             if (debtCents === null) {
+              hapticWarning();
               setFormError('待还欠款须为非负数字（最多两位小数）');
               setSaving(false);
               return;
@@ -197,6 +253,7 @@ export default function AccountFormScreen(): React.JSX.Element {
           } else {
             const parsed = parseSignedYuanToCents(trimmedInitial);
             if (parsed === null) {
+              hapticWarning();
               setFormError('初始余额格式无效（最多两位小数）');
               setSaving(false);
               return;
@@ -222,11 +279,34 @@ export default function AccountFormScreen(): React.JSX.Element {
       notifyChange();
       router.back();
     } catch (err) {
+      hapticWarning();
       setFormError(err instanceof Error ? err.message : '保存失败');
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    saving,
+    isEditing,
+    loadedAccount,
+    name,
+    cardNumber,
+    bankName,
+    bankBranch,
+    openedOn,
+    editId,
+    db,
+    category,
+    includeInTotalAssets,
+    includeInNetWorth,
+    isSelectable,
+    icon,
+    color,
+    note,
+    initialInput,
+    isLiability,
+    notifyChange,
+    router,
+  ]);
 
   const handleArchiveConfirm = async () => {
     if (!loadedAccount || archiveLoading) {
@@ -272,335 +352,710 @@ export default function AccountFormScreen(): React.JSX.Element {
     }
   };
 
-  const sectionTitleStyle = {
-    color: theme.colors.textSecondary,
-    fontSize: theme.fontSize.xs,
-    fontWeight: theme.fontWeight.semibold,
-    marginBottom: theme.spacing.sm,
-    paddingHorizontal: 4,
-  } as const;
+  const rightFadeGradient = useMemo(
+    () =>
+      `linear-gradient(to right, ${hexToRgba(theme.colors.surfaceGrouped, 0)}, ${theme.colors.surfaceGrouped})`,
+    [theme.colors.surfaceGrouped]
+  );
 
-  const groupCardStyle = [
-    styles.groupCard,
+  const checkableFlags = [
     {
-      backgroundColor: theme.colors.surfaceRaised,
-      borderColor: theme.colors.border,
-      borderWidth: theme.borderWidth.hairline,
-      borderRadius: theme.radius.lg,
+      key: 'includeInTotalAssets',
+      label: '计入总资产',
+      checked: includeInTotalAssets,
+      onToggle: () => {
+        hapticLight();
+        setIncludeInTotalAssets((prev) => !prev);
+        if (formError) {
+          setFormError(null);
+        }
+      },
     },
-  ];
+    {
+      key: 'includeInNetWorth',
+      label: '计入净资产',
+      checked: includeInNetWorth,
+      onToggle: () => {
+        hapticLight();
+        setIncludeInNetWorth((prev) => !prev);
+        if (formError) {
+          setFormError(null);
+        }
+      },
+    },
+    {
+      key: 'isSelectable',
+      label: '记账时可选',
+      checked: isSelectable,
+      onToggle: () => {
+        hapticLight();
+        setIsSelectable((prev) => !prev);
+        if (formError) {
+          setFormError(null);
+        }
+      },
+    },
+  ] as const;
+
+  const cardSurfaceStyle = {
+    backgroundColor: theme.colors.surfaceRaised,
+    borderRadius: CARD_RADIUS,
+  };
 
   return (
-    <SafeScreen edges={['left', 'right']}>
-      <Stack.Screen options={{ title: isEditing ? '编辑账户' : '新增账户' }} />
+    <SafeScreen
+      edges={['left', 'right']}
+      style={{ backgroundColor: theme.colors.surfaceGrouped }}
+    >
+      <Stack.Screen
+        options={{
+          title: isEditing ? '编辑账户' : '新增账户',
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="保存账户"
+              accessibilityState={{ disabled: saveDisabled, busy: saving }}
+              disabled={saveDisabled}
+              hitSlop={10}
+              onPress={() => void handleSave()}
+              style={({ pressed }) => [
+                styles.headerSaveBtn,
+                saveDisabled && { opacity: theme.opacity.disabled },
+                pressed && !saveDisabled && { opacity: theme.opacity.pressed },
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.colors.action} />
+              ) : (
+                <Text
+                  style={{
+                    color: theme.colors.action,
+                    fontSize: theme.fontSize.base,
+                    fontWeight: theme.fontWeight.semibold,
+                  }}
+                >
+                  保存
+                </Text>
+              )}
+            </Pressable>
+          ),
+        }}
+      />
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior="padding"
         keyboardVerticalOffset={insets.top + 56}
       >
         <ScrollView
+          style={styles.flex}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{
-            padding: theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + theme.spacing.xl,
-          }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          {/* 账户类型（性质由类型唯一决定） */}
+          {/* 1. 账户类型：轻权重单行横向纯文字胶囊栏，消除锯齿换行 */}
           <View>
-            <Text style={sectionTitleStyle}>账户类型</Text>
-            <View style={styles.wrapRow}>
-              {ACCOUNT_CATEGORY_METAS.map((meta) => {
-                const selected = category === meta.value;
-                return (
-                  <Pressable
-                    key={meta.value}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => handleSelectCategory(meta.value)}
-                    style={({ pressed }) => [
-                      styles.tagChip,
-                      {
-                        backgroundColor: selected
-                          ? theme.colors.actionSubtle
-                          : theme.colors.surfaceRaised,
-                        borderColor: selected ? theme.colors.action : theme.colors.border,
-                        borderWidth: selected
-                          ? theme.borderWidth.focus
-                          : theme.borderWidth.hairline,
-                        paddingHorizontal: selected ? 11 : 12,
-                        borderRadius: theme.radius.md,
-                      },
-                      pressed && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
-                    <AppIcon
-                      name={meta.defaultIcon}
-                      size={16}
-                      color={selected ? theme.colors.actionTextOnSubtle : theme.colors.textSecondary}
-                    />
-                    <Text
-                      style={{
-                        color: selected ? theme.colors.actionTextOnSubtle : theme.colors.text,
-                        fontSize: theme.fontSize.sm,
-                        fontWeight: selected
-                          ? theme.fontWeight.semibold
-                          : theme.fontWeight.regular,
-                        marginLeft: 6,
+            <Text
+              style={[
+                styles.sectionTitle,
+                styles.sectionTitleIndented,
+                { color: theme.colors.textMuted },
+              ]}
+            >
+              账户类型
+            </Text>
+            <View style={styles.categoryStripWrap}>
+              <ScrollView
+                ref={categoryScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                onLayout={(e) => {
+                  categoryViewportRef.current = e.nativeEvent.layout.width;
+                  syncCategoryRightFade();
+                  scrollCategoryIntoView(category, false);
+                }}
+                onContentSizeChange={(w) => {
+                  categoryContentRef.current = w;
+                  syncCategoryRightFade();
+                  scrollCategoryIntoView(category, false);
+                }}
+                onScroll={(e) => {
+                  categoryOffsetRef.current = e.nativeEvent.contentOffset.x;
+                  syncCategoryRightFade();
+                }}
+                contentContainerStyle={styles.categoryScrollContent}
+              >
+                {ACCOUNT_CATEGORY_METAS.map((meta) => {
+                  const selected = category === meta.value;
+                  return (
+                    <Pressable
+                      key={meta.value}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onLayout={(e) => {
+                        categoryLayoutsRef.current[meta.value] = {
+                          x: e.nativeEvent.layout.x,
+                          width: e.nativeEvent.layout.width,
+                        };
+                        if (
+                          meta.value === category &&
+                          (!isEditing || Boolean(loadedAccount)) &&
+                          !didInitialCategoryAlignRef.current
+                        ) {
+                          didInitialCategoryAlignRef.current = true;
+                          scrollCategoryIntoView(category, false);
+                        }
                       }}
+                      onPress={() => handleSelectCategory(meta.value)}
+                      hitSlop={4}
+                      style={({ pressed }) => [
+                        styles.categoryPill,
+                        {
+                          backgroundColor: selected
+                            ? theme.colors.actionSurface
+                            : theme.colors.surfaceRaised,
+                          borderRadius: CONTROL_RADIUS,
+                        },
+                        pressed && { opacity: theme.opacity.pressed },
+                      ]}
                     >
-                      {meta.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: selected
+                            ? theme.colors.actionTextOnSubtle
+                            : theme.colors.textSecondary,
+                          fontSize: theme.fontSize.sm,
+                          fontWeight: selected
+                            ? theme.fontWeight.semibold
+                            : theme.fontWeight.regular,
+                        }}
+                      >
+                        {meta.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {showRightCategoryFade ? (
+                <View
+                  pointerEvents="none"
+                  style={[styles.categoryRightFade, { backgroundImage: rightFadeGradient }]}
+                />
+              ) : null}
             </View>
           </View>
 
-          {/* 基础信息卡片（名称 + 初始金额 + 备注） */}
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <Text style={sectionTitleStyle}>基础信息</Text>
-            <View style={groupCardStyle}>
-              <View style={styles.fieldRow}>
-                <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>名称</Text>
-                <TextInput
-                  accessibilityLabel="账户名称"
-                  value={name}
-                  onChangeText={setName}
-                  placeholder={isLiability ? '招行信用卡' : '招商储蓄卡'}
-                  placeholderTextColor={theme.colors.textMuted}
-                  maxLength={24}
-                  style={[styles.fieldInput, { color: theme.colors.text }]}
-                />
-              </View>
+          {/* 2. 核心信息卡片（第一视觉焦点：内嵌图标 + 名称 + 大号初始余额 + 轻量备注） */}
+          <View style={[styles.card, cardSurfaceStyle, styles.moduleGap]}>
+            {/* 身份行：40×40 可切换图标徽章 + 名称输入 */}
+            <View style={styles.identityRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="切换账户图标"
+                hitSlop={6}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  hapticLight();
+                  setIconPickerOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.iconBadge,
+                  {
+                    backgroundColor: theme.colors.actionSurface,
+                    borderRadius: CONTROL_RADIUS,
+                  },
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <AppIcon name={icon} size={22} color={theme.colors.action} />
+                <View
+                  style={[
+                    styles.iconBadgeCorner,
+                    { backgroundColor: theme.colors.surfaceRaised },
+                  ]}
+                >
+                  <AppIcon name="chevron-down" size={10} color={theme.colors.textSecondary} />
+                </View>
+              </Pressable>
 
-              {!isEditing ? (
-                <>
-                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-                      {isLiability ? '待还欠款' : '初始余额'}
+              <TextInput
+                accessibilityLabel="账户名称"
+                value={name}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (formError) {
+                    setFormError(null);
+                  }
+                }}
+                placeholder={
+                  isLiability
+                    ? '输入账户名称，如招行信用卡'
+                    : '输入账户名称，如招商储蓄卡'
+                }
+                placeholderTextColor={theme.colors.placeholder}
+                maxLength={MAX_ACCOUNT_NAME_LENGTH}
+                returnKeyType="next"
+                style={[styles.nameInput, { color: theme.colors.text }]}
+              />
+
+              {name.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="清空账户名称"
+                  hitSlop={8}
+                  onPress={() => {
+                    hapticLight();
+                    setName('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.clearInlineBtn,
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <AppIcon name="close-circle" size={16} color={theme.colors.placeholder} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={[styles.insetDivider, { backgroundColor: theme.colors.divider }]} />
+
+            {/* 核心金额锚点：新建态上下结构大号录入；编辑态紧凑只读回显当前余额 */}
+            {!isEditing ? (
+              <>
+                <View style={styles.amountBlock}>
+                  <Text
+                    style={{
+                      color: amountFocused ? theme.colors.action : theme.colors.textMuted,
+                      fontSize: theme.fontSize.xs,
+                      fontWeight: amountFocused
+                        ? theme.fontWeight.semibold
+                        : theme.fontWeight.regular,
+                    }}
+                  >
+                    {isLiability ? '待还欠款' : '初始余额'}
+                  </Text>
+                  <View style={styles.amountInputRow}>
+                    <Text
+                      style={[
+                        styles.currencyPrefix,
+                        {
+                          color: amountFocused
+                            ? theme.colors.action
+                            : initialInput.trim()
+                              ? theme.colors.text
+                              : theme.colors.placeholder,
+                        },
+                      ]}
+                    >
+                      {CURRENCY_SYMBOL}
                     </Text>
                     <TextInput
                       accessibilityLabel={isLiability ? '待还欠款' : '初始余额'}
                       value={initialInput}
-                      onChangeText={(text) =>
+                      onFocus={() => setAmountFocused(true)}
+                      onBlur={() => setAmountFocused(false)}
+                      onChangeText={(text) => {
                         setInitialInput(
                           isLiability
                             ? truncateExcessDecimalsInput(text)
-                            : truncateSignedDecimals(text)
-                        )
-                      }
-                      keyboardType={isLiability ? 'decimal-pad' : 'numbers-and-punctuation'}
-                      placeholder={isLiability ? '0.00（填正数）' : '0.00'}
-                      placeholderTextColor={theme.colors.textMuted}
+                            : truncateSignedDecimalsInput(text)
+                        );
+                        if (formError) {
+                          setFormError(null);
+                        }
+                      }}
+                      inputMode="decimal"
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.placeholder}
+                      selectionColor={theme.colors.action}
                       style={[
-                        styles.fieldInput,
+                        styles.amountHeroInput,
                         styles.tabular,
                         { color: theme.colors.text },
                       ]}
                     />
+                    {initialInput.length > 0 ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="清空金额"
+                        hitSlop={8}
+                        onPress={() => {
+                          hapticLight();
+                          setInitialInput('');
+                        }}
+                        style={({ pressed }) => [
+                          styles.clearInlineBtn,
+                          pressed && { opacity: theme.opacity.pressed },
+                        ]}
+                      >
+                        <AppIcon name="close-circle" size={18} color={theme.colors.placeholder} />
+                      </Pressable>
+                    ) : null}
                   </View>
-                </>
-              ) : null}
+                </View>
 
-              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              <View style={styles.fieldRow}>
-                <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>备注</Text>
-                <TextInput
-                  accessibilityLabel="备注"
-                  value={note}
-                  onChangeText={setNote}
-                  placeholder="选填，如尾号 8821"
-                  placeholderTextColor={theme.colors.textMuted}
-                  maxLength={80}
-                  style={[styles.fieldInput, { color: theme.colors.text }]}
+                <View
+                  style={[
+                    styles.insetDivider,
+                    amountFocused
+                      ? { backgroundColor: theme.colors.action, height: 1.5 }
+                      : { backgroundColor: theme.colors.divider },
+                  ]}
                 />
-              </View>
+              </>
+            ) : editBalanceInfo ? (
+              <>
+                <View style={styles.compactRow}>
+                  <Text style={[styles.fixedLabel, { color: theme.colors.textSecondary }]}>
+                    {editBalanceInfo.caption}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.readonlyAmount,
+                      styles.tabular,
+                      {
+                        color: editBalanceInfo.isDebt
+                          ? theme.colors.expense
+                          : theme.colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {editBalanceInfo.amountText}
+                  </Text>
+                </View>
+                <View style={[styles.insetDivider, { backgroundColor: theme.colors.divider }]} />
+              </>
+            ) : null}
+
+            {/* 轻量备注行 */}
+            <View style={styles.compactRow}>
+              <Text style={[styles.fixedLabel, { color: theme.colors.textSecondary }]}>备注</Text>
+              <TextInput
+                accessibilityLabel="备注"
+                value={note}
+                onChangeText={setNote}
+                placeholder="选填，如尾号 8821"
+                placeholderTextColor={theme.colors.placeholder}
+                maxLength={MAX_ACCOUNT_NOTE_LENGTH}
+                style={[styles.rowInput, { color: theme.colors.text }]}
+              />
             </View>
           </View>
 
-          {/* 银行卡基础信息（仅储蓄卡 / 信用卡） */}
+          {/* 3. 卡面信息卡片（中等权重：平铺不折叠，2 列并排压缩高度） */}
           {showCardInfo ? (
-            <View style={{ marginTop: theme.spacing.lg }}>
-              <Text style={sectionTitleStyle}>银行卡信息（选填，详情页可一键复制）</Text>
-              <View style={groupCardStyle}>
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>卡号</Text>
+            <View style={styles.moduleGap}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  styles.sectionTitleCard,
+                  { color: theme.colors.textMuted },
+                ]}
+              >
+                卡面信息 · 选填
+              </Text>
+              <View style={[styles.card, cardSurfaceStyle]}>
+                {/* 第 1 行（整行）：卡号，每 4 位自动空格 + 等宽数字 */}
+                <View style={styles.compactRow}>
+                  <Text style={[styles.fixedLabel, { color: theme.colors.textSecondary }]}>
+                    卡号
+                  </Text>
                   <TextInput
                     accessibilityLabel="卡号"
                     value={cardNumber}
-                    onChangeText={setCardNumber}
-                    placeholder="6225 8801 2345 6789"
-                    placeholderTextColor={theme.colors.textMuted}
+                    onChangeText={(text) => setCardNumber(formatCardNumberInput(text))}
+                    keyboardType="number-pad"
+                    placeholder="输入或粘贴银行卡号"
+                    placeholderTextColor={theme.colors.placeholder}
                     maxLength={MAX_CARD_NUMBER_LENGTH}
-                    style={[styles.fieldInput, styles.tabular, { color: theme.colors.text }]}
+                    style={[styles.rowInput, styles.tabular, { color: theme.colors.text }]}
                   />
+                  {cardNumber.length > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="清空卡号"
+                      hitSlop={8}
+                      onPress={() => {
+                        hapticLight();
+                        setCardNumber('');
+                      }}
+                      style={({ pressed }) => [
+                        styles.clearInlineBtn,
+                        pressed && { opacity: theme.opacity.pressed },
+                      ]}
+                    >
+                      <AppIcon name="close-circle" size={16} color={theme.colors.placeholder} />
+                    </Pressable>
+                  ) : null}
                 </View>
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>银行</Text>
-                  <TextInput
-                    accessibilityLabel="银行"
-                    value={bankName}
-                    onChangeText={setBankName}
-                    placeholder="招商银行"
-                    placeholderTextColor={theme.colors.textMuted}
-                    maxLength={MAX_BANK_TEXT_LENGTH}
-                    style={[styles.fieldInput, { color: theme.colors.text }]}
+
+                <View style={[styles.insetDivider, { backgroundColor: theme.colors.divider }]} />
+
+                {/* 第 2 行（左右 2 列并排，中间细竖线分隔）：左列银行 + 右列开户日期 */}
+                <View style={styles.twoColRow}>
+                  <View style={styles.twoColLeft}>
+                    <Text style={[styles.gridLabel, { color: theme.colors.textMuted }]}>银行</Text>
+                    <TextInput
+                      accessibilityLabel="银行"
+                      value={bankName}
+                      onChangeText={setBankName}
+                      placeholder="输入所属银行"
+                      placeholderTextColor={theme.colors.placeholder}
+                      maxLength={MAX_BANK_TEXT_LENGTH}
+                      style={[styles.gridInput, { color: theme.colors.text }]}
+                    />
+                  </View>
+
+                  <View
+                    style={[styles.verticalDivider, { backgroundColor: theme.colors.divider }]}
                   />
+
+                  <View style={styles.twoColRight}>
+                    <Text style={[styles.gridLabel, { color: theme.colors.textMuted }]}>
+                      开户日期
+                    </Text>
+                    <View style={styles.gridDateRow}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="选择开户日期"
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          hapticLight();
+                          setDatePickerOpen(true);
+                        }}
+                        style={({ pressed }) => [
+                          styles.gridDateTrigger,
+                          pressed && { opacity: theme.opacity.pressed },
+                        ]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.tabular,
+                            styles.gridDateText,
+                            {
+                              color: openedOn ? theme.colors.text : theme.colors.placeholder,
+                            },
+                          ]}
+                        >
+                          {openedOn || '选择日期'}
+                        </Text>
+                      </Pressable>
+
+                      {openedOn ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="清空开户日期"
+                          hitSlop={10}
+                          onPress={() => {
+                            hapticLight();
+                            setOpenedOn('');
+                          }}
+                          style={({ pressed }) => [
+                            styles.gridDateAction,
+                            pressed && { opacity: theme.opacity.pressed },
+                          ]}
+                        >
+                          <AppIcon name="close-circle" size={16} color={theme.colors.placeholder} />
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="打开日期选择"
+                          hitSlop={10}
+                          onPress={() => {
+                            Keyboard.dismiss();
+                            hapticLight();
+                            setDatePickerOpen(true);
+                          }}
+                          style={styles.gridDateAction}
+                        >
+                          <AppIcon
+                            name="calendar-outline"
+                            size={16}
+                            color={theme.colors.placeholder}
+                          />
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
                 </View>
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+
+                <View style={[styles.insetDivider, { backgroundColor: theme.colors.divider }]} />
+
+                {/* 第 3 行（整行）：开户行 */}
+                <View style={styles.compactRow}>
+                  <Text style={[styles.fixedLabel, { color: theme.colors.textSecondary }]}>
                     开户行
                   </Text>
                   <TextInput
                     accessibilityLabel="开户行"
                     value={bankBranch}
                     onChangeText={setBankBranch}
-                    placeholder="深圳分行科技园支行"
-                    placeholderTextColor={theme.colors.textMuted}
+                    placeholder="选填，如科技园支行"
+                    placeholderTextColor={theme.colors.placeholder}
                     maxLength={MAX_BANK_TEXT_LENGTH}
-                    style={[styles.fieldInput, { color: theme.colors.text }]}
+                    style={[styles.rowInput, { color: theme.colors.text }]}
                   />
-                </View>
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                <View style={styles.fieldRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="选择开户日期"
-                    onPress={() => setDatePickerOpen(true)}
-                    style={({ pressed }) => [
-                      styles.dateTrigger,
-                      pressed && { opacity: theme.opacity.pressed },
-                    ]}
-                  >
-                    <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-                      开户日期
-                    </Text>
-                    <Text
-                      style={{
-                        flex: 1,
-                        color: openedOn ? theme.colors.text : theme.colors.textMuted,
-                        fontSize: theme.fontSize.base,
-                      }}
-                    >
-                      {openedOn || '选择日期'}
-                    </Text>
-                  </Pressable>
-                  {openedOn ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="清空开户日期"
-                      hitSlop={8}
-                      onPress={() => {
-                        hapticLight();
-                        setOpenedOn('');
-                      }}
-                      style={({ pressed }) => [
-                        styles.clearDateBtn,
-                        pressed && { opacity: theme.opacity.pressed },
-                      ]}
-                    >
-                      <AppIcon name="close-circle" size={18} color={theme.colors.textMuted} />
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="打开日期选择"
-                      hitSlop={8}
-                      onPress={() => setDatePickerOpen(true)}
-                      style={styles.clearDateBtn}
-                    >
-                      <AppIcon name="calendar-outline" size={18} color={theme.colors.textMuted} />
-                    </Pressable>
-                  )}
                 </View>
               </View>
             </View>
           ) : null}
 
-          {/* 4 列等宽图标选择 */}
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <Text style={sectionTitleStyle}>图标</Text>
-            <View style={{ gap: theme.spacing.sm }}>
-              {iconRows.map((row, rowIdx) => (
-                <View key={rowIdx} style={styles.iconRow}>
-                  {row.map((iconName) => {
-                    const selected = icon === iconName;
-                    return (
-                      <Pressable
-                        key={iconName}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        onPress={() => {
-                          hapticLight();
-                          setIcon(iconName);
-                        }}
-                        style={({ pressed }) => [
-                          styles.iconOption,
-                          {
-                            backgroundColor: selected
-                              ? theme.colors.actionSubtle
-                              : theme.colors.surfaceRaised,
-                            borderColor: selected ? theme.colors.action : theme.colors.border,
-                            borderWidth: selected
-                              ? theme.borderWidth.focus
-                              : theme.borderWidth.hairline,
-                            borderRadius: theme.radius.md,
-                          },
-                          pressed && { opacity: theme.opacity.pressed },
-                        ]}
-                      >
-                        <AppIcon
-                          name={iconName}
-                          size={22}
-                          color={
-                            selected ? theme.colors.actionTextOnSubtle : theme.colors.textSecondary
-                          }
-                        />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
+          {/* 4. 统计与记账属性（低权重：由 3 行开关压缩为 1 行平铺可勾选胶囊） */}
+          <View style={[styles.chipsRow, styles.moduleGap]}>
+            {checkableFlags.map((flag) => (
+              <Pressable
+                key={flag.key}
+                accessibilityRole="checkbox"
+                accessibilityLabel={flag.label}
+                accessibilityState={{ checked: flag.checked }}
+                onPress={flag.onToggle}
+                hitSlop={{ top: 5, bottom: 5 }}
+                style={({ pressed }) => [
+                  styles.checkChip,
+                  {
+                    backgroundColor: flag.checked
+                      ? theme.colors.actionSurface
+                      : theme.colors.chipInactive,
+                    borderRadius: CONTROL_RADIUS,
+                  },
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                {flag.checked ? (
+                  <AppIcon name="checkmark" size={14} color={theme.colors.action} />
+                ) : null}
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: flag.checked
+                      ? theme.colors.actionTextOnSubtle
+                      : theme.colors.textMuted,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: flag.checked
+                      ? theme.fontWeight.semibold
+                      : theme.fontWeight.regular,
+                  }}
+                >
+                  {flag.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
 
-          {/* 统计与可选开关（三项独立） */}
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <Text style={sectionTitleStyle}>统计与可选</Text>
-            <View style={groupCardStyle}>
-              <View style={styles.switchRow}>
-                <Text style={[styles.switchLabel, { color: theme.colors.text }]}>计入总资产</Text>
-                <Switch
-                  value={includeInTotalAssets}
-                  onValueChange={setIncludeInTotalAssets}
-                  trackColor={{ false: theme.colors.borderStrong, true: theme.colors.action }}
-                />
-              </View>
-              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              <View style={styles.switchRow}>
-                <Text style={[styles.switchLabel, { color: theme.colors.text }]}>计入净资产</Text>
-                <Switch
-                  value={includeInNetWorth}
-                  onValueChange={setIncludeInNetWorth}
-                  trackColor={{ false: theme.colors.borderStrong, true: theme.colors.action }}
-                />
-              </View>
-              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              <View style={styles.switchRow}>
-                <Text style={[styles.switchLabel, { color: theme.colors.text }]}>交易可选账户</Text>
-                <Switch
-                  value={isSelectable}
-                  onValueChange={setIsSelectable}
-                  trackColor={{ false: theme.colors.borderStrong, true: theme.colors.action }}
-                />
-              </View>
-            </View>
-          </View>
+          {/* 5. 账户管理（仅编辑态）：归档 / 恢复 / 删除 */}
+          {isEditing && loadedAccount ? (
+            <View style={styles.manageSection}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  styles.sectionTitleCard,
+                  { color: theme.colors.textMuted },
+                ]}
+              >
+                账户管理
+              </Text>
+              <View style={[styles.card, cardSurfaceStyle]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={loadedAccount.isArchived ? '恢复账户' : '归档账户'}
+                  disabled={restoreLoading}
+                  onPress={() => {
+                    hapticLight();
+                    if (loadedAccount.isArchived) {
+                      void handleRestore();
+                    } else {
+                      setArchiveError(null);
+                      setArchiveConfirmOpen(true);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.manageRow,
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <AppIcon
+                    name={loadedAccount.isArchived ? 'refresh-outline' : 'archive-outline'}
+                    size={19}
+                    color={loadedAccount.isArchived ? theme.colors.action : theme.colors.warning}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: loadedAccount.isArchived ? theme.colors.action : theme.colors.text,
+                      fontSize: theme.fontSize.sm,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginLeft: 10,
+                    }}
+                  >
+                    {loadedAccount.isArchived ? '恢复账户' : '归档账户'}
+                  </Text>
+                  <AppIcon name="chevron-forward" size={16} color={theme.colors.placeholder} />
+                </Pressable>
 
+                <View style={[styles.insetDivider, { backgroundColor: theme.colors.divider }]} />
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="删除账户"
+                  onPress={() => {
+                    hapticLight();
+                    setManageError(null);
+                    setDeleteFlowOpen(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.manageRow,
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <AppIcon name="trash-outline" size={19} color={theme.colors.expense} />
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: theme.colors.expense,
+                      fontSize: theme.fontSize.sm,
+                      fontWeight: theme.fontWeight.semibold,
+                      marginLeft: 10,
+                    }}
+                  >
+                    删除账户
+                  </Text>
+                  <AppIcon name="chevron-forward" size={16} color={theme.colors.placeholder} />
+                </Pressable>
+              </View>
+              {manageError ? (
+                <Text
+                  style={{
+                    color: theme.colors.expenseTextOnSubtle,
+                    fontSize: theme.fontSize.xs,
+                    marginTop: 6,
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  {manageError}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {/* 6. 固定底部安全区主操作栏（含常驻可见的校验错误条） */}
+        <View
+          style={[
+            styles.footerBar,
+            {
+              backgroundColor: theme.colors.surfaceGrouped,
+              borderTopColor: theme.colors.divider,
+              paddingBottom: Math.max(insets.bottom, 14),
+            },
+          ]}
+        >
           {formError ? (
             <View
               style={[
@@ -608,8 +1063,7 @@ export default function AccountFormScreen(): React.JSX.Element {
                 {
                   backgroundColor: theme.colors.expenseSubtle,
                   borderLeftColor: theme.colors.expense,
-                  borderRadius: theme.radius.sm,
-                  marginTop: theme.spacing.lg,
+                  borderRadius: CONTROL_RADIUS,
                 },
               ]}
             >
@@ -621,8 +1075,9 @@ export default function AccountFormScreen(): React.JSX.Element {
               <Text
                 style={{
                   color: theme.colors.expenseTextOnSubtle,
-                  fontSize: theme.fontSize.sm,
-                  marginLeft: theme.spacing.xs,
+                  fontSize: theme.fontSize.xs,
+                  fontWeight: theme.fontWeight.semibold,
+                  marginLeft: 6,
                   flex: 1,
                 }}
               >
@@ -635,105 +1090,18 @@ export default function AccountFormScreen(): React.JSX.Element {
             label="保存"
             onPress={() => void handleSave()}
             loading={saving}
-            style={{ marginTop: theme.spacing.xl }}
+            disabled={saveDisabled}
+            style={{ borderRadius: CONTROL_RADIUS }}
           />
-
-          {/* 账户管理（仅编辑态）：归档 / 恢复 / 删除 */}
-          {isEditing && loadedAccount ? (
-            <View style={{ marginTop: theme.spacing.xl }}>
-              <Text style={sectionTitleStyle}>账户管理</Text>
-              <View
-                style={[
-                  styles.manageCard,
-                  theme.elevation.card,
-                  {
-                    backgroundColor: theme.colors.surfaceRaised,
-                    borderRadius: theme.radius.lg,
-                  },
-                ]}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={loadedAccount.isArchived ? '恢复账户' : '归档账户'}
-                  disabled={restoreLoading}
-                  onPress={() => {
-                    if (loadedAccount.isArchived) {
-                      void handleRestore();
-                    } else {
-                      setArchiveError(null);
-                      setArchiveConfirmOpen(true);
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.manageRow,
-                    {
-                      borderBottomColor: theme.colors.border,
-                      borderBottomWidth: theme.borderWidth.hairline,
-                    },
-                    pressed && { opacity: theme.opacity.pressed },
-                  ]}
-                >
-                  <AppIcon
-                    name={loadedAccount.isArchived ? 'refresh-outline' : 'archive-outline'}
-                    size={20}
-                    color={loadedAccount.isArchived ? theme.colors.action : theme.colors.warning}
-                  />
-                  <Text
-                    style={{
-                      flex: 1,
-                      color: loadedAccount.isArchived ? theme.colors.action : theme.colors.text,
-                      fontSize: theme.fontSize.base,
-                      fontWeight: theme.fontWeight.semibold,
-                      marginLeft: theme.spacing.md,
-                    }}
-                  >
-                    {loadedAccount.isArchived ? '恢复账户' : '归档账户'}
-                  </Text>
-                  <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="删除账户"
-                  onPress={() => {
-                    setManageError(null);
-                    setDeleteFlowOpen(true);
-                  }}
-                  style={({ pressed }) => [
-                    styles.manageRow,
-                    pressed && { opacity: theme.opacity.pressed },
-                  ]}
-                >
-                  <AppIcon name="trash-outline" size={20} color={theme.colors.expense} />
-                  <Text
-                    style={{
-                      flex: 1,
-                      color: theme.colors.expense,
-                      fontSize: theme.fontSize.base,
-                      fontWeight: theme.fontWeight.semibold,
-                      marginLeft: theme.spacing.md,
-                    }}
-                  >
-                    删除账户
-                  </Text>
-                  <AppIcon name="chevron-forward" size={18} color={theme.colors.textMuted} />
-                </Pressable>
-              </View>
-              {manageError ? (
-                <Text
-                  style={{
-                    color: theme.colors.expenseTextOnSubtle,
-                    fontSize: theme.fontSize.xs,
-                    marginTop: theme.spacing.sm,
-                  }}
-                >
-                  {manageError}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
+
+      <AccountIconPickerSheet
+        visible={iconPickerOpen}
+        selectedIcon={icon}
+        onSelect={setIcon}
+        onClose={() => setIconPickerOpen(false)}
+      />
 
       <DatePickerSheet
         visible={datePickerOpen}
@@ -788,86 +1156,230 @@ export default function AccountFormScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  wrapRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  flex: {
+    flex: 1,
+  },
+  headerSaveBtn: {
+    minWidth: 44,
+    minHeight: 36,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  moduleGap: {
+    marginTop: 14,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  sectionTitleIndented: {
+    paddingHorizontal: 20,
+  },
+  sectionTitleCard: {
+    paddingHorizontal: 20,
+  },
+  categoryStripWrap: {
+    position: 'relative',
+  },
+  categoryScrollContent: {
+    paddingHorizontal: 16,
     gap: 8,
   },
-  tagChip: {
-    minHeight: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  groupCard: {
-    overflow: 'hidden',
+  categoryPill: {
+    height: 36,
     paddingHorizontal: 14,
-  },
-  fieldRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  fieldLabel: {
-    width: 68,
-    fontSize: 14,
-  },
-  fieldInput: {
-    flex: 1,
-    minHeight: 48,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  dateTrigger: {
-    flex: 1,
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  clearDateBtn: {
-    paddingLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
+  categoryRightFade: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 24,
   },
-  iconRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconOption: {
-    flex: 1,
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  switchRow: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  manageCard: {
+  card: {
+    marginHorizontal: 16,
     overflow: 'hidden',
   },
-  manageRow: {
-    minHeight: 54,
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  iconBadgeCorner: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 15,
+    height: 15,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nameInput: {
+    flex: 1,
+    minHeight: 40,
+    paddingVertical: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    includeFontPadding: false,
+  },
+  clearInlineBtn: {
+    paddingLeft: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  amountBlock: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  currencyPrefix: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginRight: 6,
+    includeFontPadding: false,
+  },
+  amountHeroInput: {
+    flex: 1,
+    fontSize: 30,
+    fontWeight: '700',
+    paddingVertical: 2,
+    minHeight: 40,
+    includeFontPadding: false,
+  },
+  readonlyAmount: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  compactRow: {
+    minHeight: 44,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  fixedLabel: {
+    width: 68,
+    fontSize: 14,
+  },
+  rowInput: {
+    flex: 1,
+    minHeight: 44,
+    paddingVertical: 8,
+    fontSize: 15,
+    includeFontPadding: false,
+  },
+  insetDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  twoColLeft: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 12,
+  },
+  twoColRight: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingLeft: 12,
+    paddingRight: 16,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 30,
+  },
+  gridLabel: {
+    fontSize: 12,
+  },
+  gridInput: {
+    marginTop: 2,
+    minHeight: 26,
+    paddingVertical: 2,
+    fontSize: 15,
+    includeFontPadding: false,
+  },
+  gridDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    minHeight: 26,
+  },
+  gridDateTrigger: {
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 26,
+  },
+  gridDateText: {
+    fontSize: 15,
+  },
+  gridDateAction: {
+    paddingLeft: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipsRow: {
+    marginHorizontal: 16,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  checkChip: {
+    flex: 1,
+    height: 38,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  manageSection: {
+    marginTop: 18,
+  },
+  manageRow: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerBar: {
+    borderTopWidth: 1,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    gap: 8,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     borderLeftWidth: 3,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   tabular: {
     fontVariant: ['tabular-nums'],

@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.6.0
+- **生效版本**：v1.7.1
 
 ## 结论概览
 
@@ -78,8 +78,8 @@ flowchart TD
 | UC-01 记一笔（支出/收入/转账） | `app/record.tsx` | `transactions/service.ts` (`createTransaction`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
 | UC-02 编辑/删除账目并回滚重算余额 | `app/record.tsx` | `transactions/service.ts` (`updateTransaction` / `deleteTransaction`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
 | UC-03 按月/按年/全部查看流水与周期汇总 | `app/(tabs)/index.tsx` | `transactions/service.ts` (`getMonthlyLedger` / `getYearlyLedger` / `getAllLedger`) | `transactions/rules.ts`、`repository.ts` | `transactions/service.test.ts` |
-| UC-04 资产与负债账户管理（类型驱动、三开关、卡信息）及净资产汇总 | `app/(tabs)/assets.tsx`、`app/account-form.tsx`、`app/archived-accounts.tsx` | `accounts/service.ts` | `accounts/rules.ts`、`repository.ts` | `accounts/service.test.ts` |
-| UC-05 账户详情（信息卡复制、流水直排）、平账与归档/删除 | `app/account-detail.tsx`、`SettleBalanceSheet.tsx`、`app/account-form.tsx`（编辑页账户管理 + `AccountDeleteFlow`） | `transactions/service.ts` (`settleAccountBalance` / `deleteAccountWithTransactions`)、`accounts/service.ts` | `accounts/rules.ts`、`transactions/rules.ts` | `accounts/service.test.ts`、`transactions/service.test.ts` |
+| UC-04 资产与负债账户管理（类型驱动、三开关、卡信息）及净资产汇总 | `app/(tabs)/assets.tsx`、`app/account-form.tsx`（含 `AccountIconPickerSheet.tsx`）、`app/archived-accounts.tsx` | `accounts/service.ts` | `accounts/rules.ts`、`accounts/form-rules.ts`、`repository.ts` | `accounts/service.test.ts`、`accounts/form-rules.test.ts` |
+| UC-05 账户详情（悬浮记一笔、吸顶收起小卡、信息卡复制、流水直排）、平账、负债还款与归档/删除 | `app/account-detail.tsx`、`app/repayment.tsx`、`SettleBalanceSheet.tsx`、`app/account-form.tsx`（编辑页账户管理 + `AccountDeleteFlow`） | `transactions/service.ts` (`settleAccountBalance` / `createRepaymentTransaction` / `deleteAccountWithTransactions`)、`accounts/service.ts` | `accounts/rules.ts`、`accounts/detail-scroll-rules.ts`、`transactions/rules.ts` | `accounts/service.test.ts`、`accounts/detail-scroll-rules.test.ts`、`transactions/service.test.ts` |
 | UC-06 分类管理（排序、迁移删除、独立 JSON 导入导出） | `app/categories.tsx` | `categories/service.ts`、`categories/portability.ts` | `categories/rules.ts`、`repository.ts` | `categories/service.test.ts` |
 | UC-07 侧边抽屉设置、关于页、高级设置与验证码清空账本 | `app/(tabs)/_layout.tsx`、`app/about.tsx`、`app/advanced-settings.tsx` | `settings/components/SettingsDrawer.tsx`、`SettingsPanel.tsx`、`ClearLedgerDialog.tsx`、`db/seed.ts` | `settings/repository.ts`、`db/schema.ts` | `src/db/schema.test.ts` |
 | UC-08 多周期账务分析（按月/按年/全部、分类占比、趋势与账户分布） | `app/analytics.tsx`（点击明细顶部总览卡进入） | `analytics/service.ts` (`getScopedAnalytics` / `getMonthlyAnalytics`) | `analytics/rules.ts` | `analytics/rules.test.ts`、`service.test.ts` |

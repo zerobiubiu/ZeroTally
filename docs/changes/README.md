@@ -43,3 +43,5 @@
 | [0035-account-model-overhaul-archive-settle-delete.md](0035-account-model-overhaul-archive-settle-delete.md) | 变更记录 | 已执行 | v1.4.0 | 账户类型驱动性质、三独立统计开关与银行卡信息（Schema v5）、停用改归档并移出资产一级页、平账可选生成记录、删除账户三重确认与级联清除 |
 | [0036-cloud-backup-webdav-and-google-drive.md](0036-cloud-backup-webdav-and-google-drive.md) | 变更记录 | 已执行 | v1.5.0 | 设置侧栏接入双通道云备份（WebDAV 与 Google Drive OAuth PKCE）、硬件加密凭据隔离、多版本历史快照恢复与防抖自动云备份 |
 | [0037-liability-repayment.md](0037-liability-repayment.md) | 变更记录 | 已执行 | v1.6.0 | 负债账户新增还款功能（Schema v6 / 备份 v5），支持资产转入与无账户直接还款、详情编辑与删除回滚且不计入月度收支 |
+| [0038-account-detail-floating-cta-and-keypad-repayment.md](0038-account-detail-floating-cta-and-keypad-repayment.md) | 变更记录 | 已执行 | v1.7.0 | 账户详情统一底部动态悬浮「记一笔」主按钮与上滑吸顶紧凑小卡片，负债还款升级为「记一笔」同款全屏内置计算键盘页 |
+| [0039-account-form-ui-refactor.md](0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | v1.7.1 | 重构新增/编辑账户页视觉层级与紧凑交互体验：无描边浅灰画布分层、顶栏快捷保存、单行横向账户类型栏、核心卡内嵌可换图标与大号聚焦初始余额、双列压缩卡面信息与每 4 位空格卡号、单行平铺属性胶囊 |

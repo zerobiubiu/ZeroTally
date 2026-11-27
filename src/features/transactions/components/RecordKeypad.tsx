@@ -31,11 +31,15 @@ import {
 } from '../amount-expression';
 import type { TransactionType } from '../types';
 
-type RecordableTransactionType = Exclude<TransactionType, 'refund' | 'repayment'>;
+type KeypadTransactionType = Exclude<TransactionType, 'refund'>;
 
 interface RecordKeypadProps {
-  txType: RecordableTransactionType;
+  txType: KeypadTransactionType;
   amountExpr: string;
+  /** 当 amountExpr 为空时展示的浅色默认占位金额（如负债还款待还全额） */
+  amountPlaceholder?: string;
+  /** 当 amountExpr 为空且未处于算式态时展示在金额下方的精简提示（如「留空默认还清」） */
+  emptyAmountHint?: string | null;
   note: string;
   onChangeNote: (text: string) => void;
   onPressKey: (key: AmountKey) => void;
@@ -50,11 +54,11 @@ interface RecordKeypadProps {
   accounts: readonly Account[];
   selectedAccountId: string;
   onSelectAccount: (accountId: string) => void;
-  /** 转账模式底部融合条摘要与一键互换回调 */
+  /** 转账或还款模式底部融合条摘要（onSwap 为空时仅作静态路线摘要，不展示互换图标） */
   transferRouteSummary?: {
     sourceName: string;
     targetName: string;
-    onSwap: () => void;
+    onSwap?: () => void;
   } | null;
   occurredOn: string;
   onPressDate: () => void;
@@ -114,6 +118,8 @@ function buildEdgeFadeGradient(
 export function RecordKeypad({
   txType,
   amountExpr,
+  amountPlaceholder,
+  emptyAmountHint = null,
   note,
   onChangeNote,
   onPressKey,
@@ -211,8 +217,10 @@ export function RecordKeypad({
     }
   }, [syncEdgeFades]);
 
+  const usesRouteSummaryStrip = txType === 'transfer' || txType === 'repayment';
+
   useEffect(() => {
-    if (txType === 'transfer') {
+    if (usesRouteSummaryStrip) {
       hasAutoAlignedRef.current = false;
       scrollOffsetXRef.current = 0;
       return;
@@ -220,7 +228,7 @@ export function RecordKeypad({
     if (selectedAccountId) {
       ensureSelectedAccountVisible(selectedAccountId, hasAutoAlignedRef.current);
     }
-  }, [txType, selectedAccountId, ensureSelectedAccountVisible]);
+  }, [usesRouteSummaryStrip, selectedAccountId, ensureSelectedAccountVisible]);
 
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidHide', () => {
@@ -249,7 +257,9 @@ export function RecordKeypad({
       ? theme.colors.expense
       : txType === 'income'
         ? theme.colors.income
-        : theme.colors.transfer;
+        : txType === 'repayment'
+          ? theme.colors.action
+          : theme.colors.transfer;
 
   const handleDigitKey = (key: AmountKey) => {
     hapticSelection();
@@ -459,7 +469,7 @@ export function RecordKeypad({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`金额 ${amountExpr || '0.00'}`}
+          accessibilityLabel={`金额 ${amountExpr || amountPlaceholder || '0.00'}`}
           onPress={dismissSystemKeyboard}
           style={styles.amountDisplay}
         >
@@ -488,7 +498,7 @@ export function RecordKeypad({
                 },
               ]}
             >
-              {amountExpr || '0.00'}
+              {amountExpr || amountPlaceholder || '0.00'}
             </Text>
           </View>
           {pendingOp && previewCents !== null ? (
@@ -504,7 +514,17 @@ export function RecordKeypad({
             >
               = {formatCentsToYuan(previewCents)}
             </Text>
-          ) : txType !== 'transfer' && selectedCategoryLabel ? (
+          ) : !amountExpr && emptyAmountHint ? (
+            <Text
+              numberOfLines={1}
+              style={{
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.xs,
+              }}
+            >
+              {emptyAmountHint}
+            </Text>
+          ) : !usesRouteSummaryStrip && selectedCategoryLabel ? (
             <Text
               numberOfLines={1}
               style={{
@@ -532,7 +552,7 @@ export function RecordKeypad({
           },
         ]}
       >
-        {txType !== 'transfer' ? (
+        {!usesRouteSummaryStrip ? (
           <View style={styles.accountsScrollWrap}>
             <ScrollView
               ref={accountsScrollRef}
@@ -655,8 +675,16 @@ export function RecordKeypad({
         ) : transferRouteSummary ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`转账路线：${transferRouteSummary.sourceName} 到 ${transferRouteSummary.targetName}，点击互换`}
+            disabled={!transferRouteSummary.onSwap}
+            accessibilityLabel={
+              transferRouteSummary.onSwap
+                ? `转账路线：${transferRouteSummary.sourceName} 到 ${transferRouteSummary.targetName}，点击互换`
+                : `还款路径：${transferRouteSummary.sourceName} 到 ${transferRouteSummary.targetName}`
+            }
             onPress={() => {
+              if (!transferRouteSummary.onSwap) {
+                return;
+              }
               dismissSystemKeyboard();
               hapticSelection();
               transferRouteSummary.onSwap();
@@ -672,7 +700,7 @@ export function RecordKeypad({
                 borderRadius: theme.radius.md,
                 paddingHorizontal: theme.spacing.md,
               },
-              pressed && { opacity: theme.opacity.pressed },
+              pressed && transferRouteSummary.onSwap && { opacity: theme.opacity.pressed },
             ]}
           >
             <Text
@@ -686,7 +714,11 @@ export function RecordKeypad({
             >
               {transferRouteSummary.sourceName}
             </Text>
-            <AppIcon name="arrow-forward" size={14} color={theme.colors.transfer} />
+            <AppIcon
+              name="arrow-forward"
+              size={14}
+              color={txType === 'repayment' ? theme.colors.action : theme.colors.transfer}
+            />
             <Text
               numberOfLines={1}
               style={{
@@ -698,9 +730,11 @@ export function RecordKeypad({
             >
               {transferRouteSummary.targetName}
             </Text>
-            <View style={styles.transferSwapCue}>
-              <AppIcon name="swap-horizontal" size={15} color={theme.colors.transfer} />
-            </View>
+            {transferRouteSummary.onSwap ? (
+              <View style={styles.transferSwapCue}>
+                <AppIcon name="swap-horizontal" size={15} color={theme.colors.transfer} />
+              </View>
+            ) : null}
           </Pressable>
         ) : (
           <View style={styles.transferFallbackSpacer} />
@@ -717,7 +751,7 @@ export function RecordKeypad({
             style={({ pressed }) => [
               styles.dateCard,
               {
-                marginLeft: txType !== 'transfer' ? theme.spacing.xs : 0,
+                marginLeft: !usesRouteSummaryStrip ? theme.spacing.xs : 0,
                 backgroundColor: theme.colors.surface,
                 borderColor: theme.colors.border,
                 borderRadius: theme.radius.md,
