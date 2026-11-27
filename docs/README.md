@@ -60,6 +60,7 @@
 | [changes/0039-account-form-ui-refactor.md](changes/0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | 重构新增/编辑账户页 UI 视觉层级与紧凑交互：去描边分层、顶栏保存、横向类型栏、内嵌可换图标、突出余额、双列卡面与单行属性胶囊（v1.7.1） |
 | [changes/0040-transaction-search-and-filters.md](changes/0040-transaction-search-and-filters.md) | 变更记录 | 已执行 | 新增账单搜索与多维筛选页（关键词、类型、分类、账户、日期与金额区间组合查询及分页懒加载，v1.8.0） |
 | [changes/0041-lazy-pagination-ledger-and-account-detail.md](changes/0041-lazy-pagination-ledger-and-account-detail.md) | 变更记录 | 已执行 | 明细与账户详情页全面接入 90% 触底懒加载分页，SQL 聚合周期汇总并解除 1000 笔截断上限（v1.8.1） |
+| [changes/0042-error-boundary-and-privacy-consistency.md](changes/0042-error-boundary-and-privacy-consistency.md) | 变更记录 | 已执行 | 新增全局崩溃兜底 AppErrorBoundary，修正关于页云备份表述并新增独立隐私说明页（v1.8.2） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

@@ -47,3 +47,4 @@
 | [0039-account-form-ui-refactor.md](0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | v1.7.1 | 重构新增/编辑账户页视觉层级与紧凑交互体验：无描边浅灰画布分层、顶栏快捷保存、单行横向账户类型栏、核心卡内嵌可换图标与大号聚焦初始余额、双列压缩卡面信息与每 4 位空格卡号、单行平铺属性胶囊 |
 | [0040-transaction-search-and-filters.md](0040-transaction-search-and-filters.md) | 变更记录 | 已执行 | v1.8.0 | 新增账单搜索与多维筛选页（关键词、类型、账户、一二级分类、日期与金额区间，严格参数化 SQL 与 FlatList 分页懒加载） |
 | [0041-lazy-pagination-ledger-and-account-detail.md](0041-lazy-pagination-ledger-and-account-detail.md) | 变更记录 | 已执行 | v1.8.1 | 明细与账户详情页接入 90% 滚动触底懒加载分页（SQL 实时聚合汇总 + 40 条/页增量读取，移除 `limit = 1000` 截断） |
+| [0042-error-boundary-and-privacy-consistency.md](0042-error-boundary-and-privacy-consistency.md) | 变更记录 | 已执行 | v1.8.2 | 新增根级崩溃兜底边界 AppErrorBoundary，修正关于页云备份表述并新增独立隐私说明页 |

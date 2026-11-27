@@ -7,6 +7,7 @@ import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-c
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
 import { runAutoCloudBackupIfNeeded } from '../src/features/cloud-backup/service';
 import { getThemePreferenceSetting } from '../src/features/settings/repository';
+import { AppErrorBoundary } from '../src/shared/ui/AppErrorBoundary';
 import { ThemeProvider, useTheme } from '../src/theme/theme-context';
 
 /** 账本变动后防抖触发自动云备份的延迟毫秒数 */
@@ -178,6 +179,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="privacy"
+          options={{
+            title: '隐私说明',
+          }}
+        />
+        <Stack.Screen
           name="advanced-settings"
           options={{
             title: '高级设置',
@@ -196,15 +203,17 @@ function RootNavigator(): React.JSX.Element {
 
 export default function RootLayout(): React.JSX.Element {
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <ThemeProvider>
-          <DatabaseProvider>
-            <RootNavigator />
-          </DatabaseProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+          <ThemeProvider>
+            <DatabaseProvider>
+              <RootNavigator />
+            </DatabaseProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }
 

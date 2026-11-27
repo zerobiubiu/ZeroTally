@@ -3,7 +3,7 @@
  * - 信息层级：主（顶部品牌徽章 + 应用名与版本号）、次（软件核心特性清单与开源仓库入口）、弱（版权与协议说明）
  */
 import Constants from 'expo-constants';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,13 +17,14 @@ const REPO_URL = 'https://github.com/zerobiubiu/ZeroTally';
 export default function AboutScreen(): React.JSX.Element {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
   const highlights: readonly { icon: string; title: string; subtitle: string }[] = [
     {
       icon: 'shield-checkmark-outline',
-      title: '纯本地离线存储',
-      subtitle: '全部数据存于本机 SQLite，无需注册账号，不上传云端',
+      title: '本地优先，主权归己',
+      subtitle: '账本默认存于本机 SQLite 无需注册；仅在主动配置 WebDAV 或 Google Drive 后同步至自有网盘',
     },
     {
       icon: 'calculator-outline',
@@ -163,6 +164,29 @@ export default function AboutScreen(): React.JSX.Element {
             },
           ]}
         >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="查看隐私说明"
+            onPress={() => {
+              hapticLight();
+              router.push('/privacy');
+            }}
+            style={({ pressed }) => [
+              styles.linkRow,
+              {
+                paddingHorizontal: theme.spacing.lg,
+                borderBottomColor: theme.colors.border,
+                borderBottomWidth: theme.borderWidth.hairline,
+              },
+              pressed && { opacity: theme.opacity.pressed },
+            ]}
+          >
+            <Text style={{ color: theme.colors.text, fontSize: theme.fontSize.base }}>
+              隐私说明
+            </Text>
+            <AppIcon name="chevron-forward" size={16} color={theme.colors.textMuted} />
+          </Pressable>
+
           <Pressable
             accessibilityRole="link"
             accessibilityLabel="打开 GitHub 开源仓库"
