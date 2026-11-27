@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSegmentDragPosition } from './sliding-segmented-rules';
+import {
+  computeSegmentedTrackMetrics,
+  resolveSegmentDragPosition,
+} from './sliding-segmented-rules';
 
 describe('SlidingSegmentedControl 几何与档位解析规则', () => {
+  it('严格扣除四周 borderWidth 与 trackPadding 计算净宽、净高与等分格宽', () => {
+    // 典型顶栏三段：总宽 188、总高 38、内边距 3、描边 1 -> 单侧总缩进 4，净宽 180、净高 30、单格 60
+    expect(
+      computeSegmentedTrackMetrics({
+        layoutWidth: 188,
+        trackHeight: 38,
+        trackPadding: 3,
+        borderWidth: 1,
+        count: 3,
+      })
+    ).toEqual({
+      innerWidth: 180,
+      innerHeight: 30,
+      segmentWidth: 60,
+      contentInset: 4,
+    });
+  });
+
   it('按手指位置准确命中三段档位并将滑块中心对齐手指并限位', () => {
     // 轨道内边距 3，共 3 格，每格宽 60（内总宽 180）
     const base = { trackPadding: 3, segmentWidth: 60, count: 3 };

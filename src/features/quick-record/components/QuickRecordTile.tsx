@@ -284,7 +284,7 @@ export function QuickRecordTile({
             disabled={busy}
             onPress={() => onUndoTap(item, undoState.txId)}
             style={({ pressed }) => [
-              styles.quickTile,
+              styles.undoTile,
               {
                 backgroundColor: theme.colors.warningSubtle,
                 borderColor: theme.colors.warning,
@@ -292,7 +292,7 @@ export function QuickRecordTile({
                 borderRadius: theme.radius.lg,
                 opacity: busy ? theme.opacity.disabled : 1,
               },
-              pressed && { transform: [{ scale: 0.95 }], opacity: 0.88 },
+              pressed && { transform: [{ scale: 0.96 }], opacity: 0.88 },
             ]}
           >
             <CountdownRing
@@ -310,30 +310,34 @@ export function QuickRecordTile({
               )}
             </CountdownRing>
 
-            <Text
-              numberOfLines={1}
-              style={{
-                color: theme.colors.warningTextOnSubtle,
-                fontSize: theme.fontSize.xs,
-                fontWeight: theme.fontWeight.semibold,
-                marginTop: 6,
-              }}
-            >
-              点击撤销 ({remainingSec}s)
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.tabular,
-                {
-                  color: theme.colors.textSecondary,
-                  fontSize: 10,
-                  marginTop: 2,
-                },
-              ]}
-            >
-              {item.name} {signedUndoAmount}
-            </Text>
+            <View style={styles.undoTextCol}>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.crispText,
+                  {
+                    color: theme.colors.warningTextOnSubtle,
+                    fontSize: theme.fontSize.sm,
+                    fontWeight: theme.fontWeight.semibold,
+                  },
+                ]}
+              >
+                点击撤销 ({remainingSec}s)
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tabular,
+                  styles.crispText,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: 11,
+                  },
+                ]}
+              >
+                {item.name} {signedUndoAmount}
+              </Text>
+            </View>
           </Pressable>
         ) : (
           <Pressable
@@ -361,66 +365,80 @@ export function QuickRecordTile({
                 borderRadius: theme.radius.lg,
                 opacity: busy ? theme.opacity.disabled : 1,
               },
-              pressed && !isScrubbingThis && { transform: [{ scale: 0.96 }], opacity: 0.85 },
+              pressed && !isScrubbingThis && { transform: [{ scale: 0.97 }], opacity: 0.86 },
             ]}
           >
-            <View
-              style={[
-                styles.tileIconCircle,
-                {
-                  backgroundColor: `${item.categoryColor}20`,
-                  borderRadius: theme.radius.full,
-                },
-              ]}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color={item.categoryColor} />
-              ) : (
-                <AppIcon name={item.categoryIcon} size={20} color={item.categoryColor} />
-              )}
+            {/* 顶部身份行：圆形分类徽章 + 卡片名称 */}
+            <View style={styles.tileHeaderRow}>
+              <View
+                style={[
+                  styles.tileIconCircle,
+                  {
+                    backgroundColor: `${item.categoryColor}20`,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              >
+                {busy ? (
+                  <ActivityIndicator size="small" color={item.categoryColor} />
+                ) : (
+                  <AppIcon name={item.categoryIcon} size={18} color={item.categoryColor} />
+                )}
+              </View>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tileTitle,
+                  styles.crispText,
+                  {
+                    color: theme.colors.text,
+                    fontSize: theme.fontSize.sm,
+                    fontWeight: theme.fontWeight.semibold,
+                  },
+                ]}
+              >
+                {item.name}
+              </Text>
             </View>
-            <Text
-              numberOfLines={1}
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.xs,
-                fontWeight: theme.fontWeight.semibold,
-                marginTop: 6,
-              }}
-            >
-              {item.name}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.tabular,
-                {
-                  color: amountColor,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                  marginTop: 2,
-                },
-              ]}
-            >
-              {signedAmount}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{
-                color:
-                  isScrubbingThis && scrubPreview?.axis === 'account'
-                    ? theme.colors.action
-                    : theme.colors.textMuted,
-                fontSize: 10,
-                fontWeight:
-                  isScrubbingThis && scrubPreview?.axis === 'account'
-                    ? theme.fontWeight.semibold
-                    : theme.fontWeight.regular,
-                marginTop: 1,
-              }}
-            >
-              {shownAccountName}
-            </Text>
+
+            {/* 底部数字与账户行：左侧突出金额，右侧弱化动账账户 */}
+            <View style={styles.tileFooterRow}>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tabular,
+                  styles.tileAmount,
+                  styles.crispText,
+                  {
+                    color: amountColor,
+                    fontSize: theme.fontSize.base,
+                    fontWeight: theme.fontWeight.semibold,
+                  },
+                ]}
+              >
+                {signedAmount}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tileAccount,
+                  styles.crispText,
+                  {
+                    color:
+                      isScrubbingThis && scrubPreview?.axis === 'account'
+                        ? theme.colors.action
+                        : theme.colors.textMuted,
+                    fontSize: 11,
+                    fontWeight:
+                      isScrubbingThis && scrubPreview?.axis === 'account'
+                        ? theme.fontWeight.semibold
+                        : theme.fontWeight.regular,
+                  },
+                ]}
+              >
+                {shownAccountName}
+              </Text>
+            </View>
           </Pressable>
         )}
       </Animated.View>
@@ -433,18 +451,52 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   quickTile: {
-    flex: 1,
-    minHeight: 100,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    height: 88,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    justifyContent: 'space-between',
+  },
+  tileHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 9,
   },
   tileIconCircle: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  tileTitle: {
+    flex: 1,
+  },
+  tileFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  tileAmount: {
+    flexShrink: 0,
+  },
+  tileAccount: {
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  undoTile: {
+    height: 88,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  undoTextCol: {
+    flex: 1,
+    gap: 3,
+  },
+  crispText: {
+    includeFontPadding: false,
   },
   tabular: {
     fontVariant: ['tabular-nums'],

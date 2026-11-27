@@ -17,7 +17,10 @@ import {
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { useTheme } from '../../theme/theme-context';
 import { hapticLight, hapticSelection } from '../haptics/haptics';
-import { resolveSegmentDragPosition } from './sliding-segmented-rules';
+import {
+  computeSegmentedTrackMetrics,
+  resolveSegmentDragPosition,
+} from './sliding-segmented-rules';
 
 export interface SlidingSegmentOption<T extends string> {
   value: T;
@@ -126,6 +129,9 @@ export function SlidingSegmentedControl<T extends string>({
     springThumbToIndex(selectedIndex);
   }, [selectedIndex, segmentWidth, springThumbToIndex, thumbX]);
 
+  const borderWidth = theme.borderWidth.hairline;
+  const contentInset = TRACK_PADDING + borderWidth;
+
   const updateIndexFromFingerX = useCallback(
     (fingerX: number) => {
       const segW = segmentWidthRef.current;
@@ -136,7 +142,7 @@ export function SlidingSegmentedControl<T extends string>({
 
       const { clampedThumbX, targetIndex } = resolveSegmentDragPosition({
         fingerX,
-        trackPadding: TRACK_PADDING,
+        trackPadding: contentInset,
         segmentWidth: segW,
         count: opts.length,
       });
@@ -152,7 +158,7 @@ export function SlidingSegmentedControl<T extends string>({
         }
       }
     },
-    [thumbX]
+    [contentInset, thumbX]
   );
 
   // 长按 160ms 触发轻震动与滑块浮起放大，随后 1:1 跟手左右滑动切档
@@ -196,11 +202,12 @@ export function SlidingSegmentedControl<T extends string>({
     },
   });
 
-  const thumbHeight = height - TRACK_PADDING * 2;
   const trackRadius = shape === 'pill' ? theme.radius.full : theme.radius.md;
   const thumbRadius = shape === 'pill' ? theme.radius.full : theme.radius.sm;
   const trackBg = trackTone === 'surface' ? theme.colors.surface : theme.colors.surfaceRaised;
   const thumbBg = activeOption?.activeBackgroundColor ?? theme.colors.actionSubtle;
+  const thumbBorderColor =
+    theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.09)' : 'rgba(17, 18, 31, 0.06)';
   const resolvedFontSize =
     textSize === 'xs'
       ? theme.fontSize.xs
@@ -212,9 +219,14 @@ export function SlidingSegmentedControl<T extends string>({
     <GestureDetector gesture={slidePanGesture}>
       <View
         onLayout={(e) => {
-          const innerWidth = e.nativeEvent.layout.width - TRACK_PADDING * 2;
+          const { innerWidth, segmentWidth: nextSegW } = computeSegmentedTrackMetrics({
+            layoutWidth: e.nativeEvent.layout.width,
+            trackHeight: height,
+            trackPadding: TRACK_PADDING,
+            borderWidth,
+            count,
+          });
           if (innerWidth > 0) {
-            const nextSegW = innerWidth / count;
             if (Math.abs(nextSegW - segmentWidthRef.current) > 0.5 || !hasMeasuredRef.current) {
               hasMeasuredRef.current = true;
               segmentWidthRef.current = nextSegW;
@@ -233,26 +245,27 @@ export function SlidingSegmentedControl<T extends string>({
             padding: TRACK_PADDING,
             backgroundColor: trackBg,
             borderColor: theme.colors.border,
-            borderWidth: theme.borderWidth.hairline,
+            borderWidth,
             borderRadius: trackRadius,
             opacity: disabled ? theme.opacity.disabled : 1,
           },
           style,
         ]}
       >
-        {/* 实体高亮滑动胶囊（完成布局测量后显现，避免首帧宽度跳变） */}
+        {/* 实体高亮滑动胶囊：通过 top/bottom 同距锚定 padding-box，保证上下左右四边严格对称 */}
         {segmentWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.thumb,
-              theme.elevation.card,
               {
                 left: TRACK_PADDING,
                 top: TRACK_PADDING,
+                bottom: TRACK_PADDING,
                 width: segmentWidth,
-                height: thumbHeight,
                 backgroundColor: thumbBg,
+                borderColor: thumbBorderColor,
+                borderWidth: StyleSheet.hairlineWidth,
                 borderRadius: thumbRadius,
                 transform: [{ translateX: thumbX }, { scale: thumbScale }],
               },
@@ -280,17 +293,19 @@ export function SlidingSegmentedControl<T extends string>({
                 styles.option,
                 {
                   minWidth: fullWidth ? 0 : minSegmentWidth,
-                  height: thumbHeight,
                 },
               ]}
             >
               <Text
                 numberOfLines={1}
-                style={{
-                  color: selected ? activeColor : theme.colors.textSecondary,
-                  fontSize: resolvedFontSize,
-                  fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
-                }}
+                style={[
+                  styles.optionLabel,
+                  {
+                    color: selected ? activeColor : theme.colors.textSecondary,
+                    fontSize: resolvedFontSize,
+                    fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.regular,
+                  },
+                ]}
               >
                 {opt.label}
               </Text>
@@ -316,9 +331,14 @@ const styles = StyleSheet.create({
   },
   option: {
     flex: 1,
+    height: '100%',
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
+  },
+  optionLabel: {
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });

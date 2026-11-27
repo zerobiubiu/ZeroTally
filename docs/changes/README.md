@@ -35,3 +35,4 @@
 | [0027-fix-longpress-gestures-floating-hud-and-settings-about.md](0027-fix-longpress-gestures-floating-hud-and-settings-about.md) | 变更记录 | 已执行 | v1.1.1 | 修复全仓 `activateAfterLongPress + minDistance: 0` 导致单击被长按手势误拦截问题、加固 3 秒原地撤销稳定性、微调 HUD 重构为顶层半透明悬浮卡片及设置顶栏右上角改置纯 `i` 关于图标 |
 | [0028-fullscreen-quick-template-composer.md](0028-fullscreen-quick-template-composer.md) | 变更记录 | 已执行 | v1.1.2 | 快捷卡片新增/编辑页升级为全屏「记一笔」同款页面（去转账/日期、备注改卡片名），支持跟手下滑收起仅返回快捷记账面板 |
 | [0029-fix-quick-composer-account-strip.md](0029-fix-quick-composer-account-strip.md) | 变更记录 | 已执行 | v1.1.3 | 修复 `RecordKeypad` 隐藏日期按钮后横向账户选择条因 `flex: 1` 高度塌陷为 0 导致快捷卡片新增/编辑无法选择账户的问题 |
+| [0030-polish-segmented-alignment-and-quick-cards.md](0030-polish-segmented-alignment-and-quick-cards.md) | 变更记录 | 已执行 | v1.1.4 | 修复全应用 `SlidingSegmentedControl` 选中滑块偏下不对称问题，并将快捷记账面板升级为舒展 2×3 宽卡排布 |

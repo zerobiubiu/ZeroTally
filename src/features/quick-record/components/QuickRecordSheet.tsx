@@ -3,7 +3,7 @@
  * - 快捷记账非全屏浮窗：与 SettingsDrawer 同级叠加于主 Tab 顶层（零独立 Modal），支持从底栏无停顿 1:1 跟手向上拉起
  * - 网格态（约 52% 屏高）：
  *   1. 全区任意位置均支持向下滑关、向上滑跨越阈值无缝二次展开完整「记一笔」；
- *   2. 快捷选项 3×2（每页 6 格）横向左右分页滑动，配底部圆点分页指示；
+ *   2. 快捷选项 2×3（每页 6 张宽卡）横向左右分页滑动，配底部圆点分页指示；
  *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（最上层半透明悬浮 QuickScrubOverlay 实时回显，面板零跳动），长按不动松手打开全屏编辑页。
  * - 新增/编辑页（全屏叠加层 QuickTemplateComposer）：1:1 复用完整记一笔（移除转账与日期，备注改为快捷方式卡片名称），自底向上滑入且支持顶栏及分类区顶部跟手下滑退回本面板（不关闭快捷记账）。
  */
@@ -59,8 +59,8 @@ import {
   type QuickTemplateComposerInitialValue,
 } from './QuickTemplateComposer';
 
-const GRID_COLUMNS = 3;
-const GRID_ROWS_PER_PAGE = 2;
+const GRID_COLUMNS = 2;
+const GRID_ROWS_PER_PAGE = 3;
 const ITEMS_PER_PAGE = GRID_COLUMNS * GRID_ROWS_PER_PAGE;
 const MAX_PULL_UP_LIFT = 112;
 const EXPAND_HINT_THRESHOLD = 52;
@@ -68,8 +68,8 @@ const EDGE_RESISTANCE = 0.22;
 
 export function computeQuickSheetHeight(windowHeight: number): number {
   return Math.min(
-    Math.max(396, Math.round(windowHeight * 0.52)),
-    Math.round(windowHeight * 0.62)
+    Math.max(420, Math.round(windowHeight * 0.54)),
+    Math.round(windowHeight * 0.64)
   );
 }
 
@@ -102,7 +102,9 @@ function paginateGridCells(cells: readonly GridCell[]): (GridCell | null)[][][] 
       for (let c = 0; c < GRID_COLUMNS; c += 1) {
         row.push(slice[r * GRID_COLUMNS + c] ?? null);
       }
-      rows.push(row);
+      if (row.some((cell) => cell !== null)) {
+        rows.push(row);
+      }
     }
     pages.push(rows);
   }
@@ -921,14 +923,14 @@ export function QuickRecordSheet({
                             width: windowWidth,
                             paddingHorizontal: theme.spacing.lg,
                             paddingTop: theme.spacing.md,
-                            gap: theme.spacing.sm,
+                            gap: 10,
                           },
                         ]}
                       >
                         {pageRows.map((row, rowIdx) => (
                           <View
                             key={`p${pIdx}_r${rowIdx}`}
-                            style={[styles.gridRow, { gap: theme.spacing.sm }]}
+                            style={[styles.gridRow, { gap: 10 }]}
                           >
                             {row.map((cell, colIdx) => {
                               if (!cell) {
@@ -942,7 +944,6 @@ export function QuickRecordSheet({
                                     accessibilityLabel="添加快捷记账卡片"
                                     onPress={handleOpenAddComposer}
                                     style={({ pressed }) => [
-                                      styles.quickTile,
                                       styles.addTile,
                                       {
                                         borderColor: theme.colors.borderStrong,
@@ -957,7 +958,7 @@ export function QuickRecordSheet({
                                   >
                                     <View
                                       style={[
-                                        styles.tileIconCircle,
+                                        styles.addIconCircle,
                                         {
                                           backgroundColor: theme.colors.surfaceRaised,
                                           borderRadius: theme.radius.full,
@@ -966,27 +967,29 @@ export function QuickRecordSheet({
                                     >
                                       <AppIcon name="add" size={20} color={theme.colors.action} />
                                     </View>
-                                    <Text
-                                      numberOfLines={1}
-                                      style={{
-                                        color: theme.colors.textSecondary,
-                                        fontSize: theme.fontSize.xs,
-                                        fontWeight: theme.fontWeight.semibold,
-                                        marginTop: 6,
-                                      }}
-                                    >
-                                      添加快捷
-                                    </Text>
-                                    <Text
-                                      numberOfLines={1}
-                                      style={{
-                                        color: theme.colors.textMuted,
-                                        fontSize: 10,
-                                        marginTop: 2,
-                                      }}
-                                    >
-                                      长按可微调
-                                    </Text>
+                                    <View style={styles.addTextCol}>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={{
+                                          color: theme.colors.textSecondary,
+                                          fontSize: theme.fontSize.sm,
+                                          fontWeight: theme.fontWeight.semibold,
+                                          includeFontPadding: false,
+                                        }}
+                                      >
+                                        添加快捷
+                                      </Text>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={{
+                                          color: theme.colors.textMuted,
+                                          fontSize: 11,
+                                          includeFontPadding: false,
+                                        }}
+                                      >
+                                        长按卡片微调
+                                      </Text>
+                                    </View>
                                   </Pressable>
                                 );
                               }
@@ -1235,23 +1238,26 @@ const styles = StyleSheet.create({
   cellFlex: {
     flex: 1,
   },
-  quickTile: {
-    flex: 1,
-    minHeight: 100,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   addTile: {
+    flex: 1,
+    height: 88,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     borderWidth: 1,
     borderStyle: 'dashed',
   },
-  tileIconCircle: {
-    width: 38,
-    height: 38,
+  addIconCircle: {
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  addTextCol: {
+    flex: 1,
+    gap: 3,
   },
   dotsRow: {
     flexDirection: 'row',
