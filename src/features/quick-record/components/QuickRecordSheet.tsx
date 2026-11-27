@@ -4,8 +4,8 @@
  * - 网格态（约 52% 屏高）：
  *   1. 全区任意位置均支持向下滑关、向上滑跨越阈值无缝二次展开完整「记一笔」；
  *   2. 快捷选项 3×2（每页 6 格）横向左右分页滑动，配底部圆点分页指示；
- *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（最上层半透明悬浮 QuickScrubOverlay 实时回显，面板零跳动），长按不动松手切入编辑态。
- * - 新增/编辑态（约 80% 屏高，上方保留暗罩透出底页绝不全屏铺满）：直接内嵌 QuickTemplateComposer 复用完整记一笔的二级分类选择器与计算键盘，原备注位改为「快捷卡片名称」且隐藏日期。
+ *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（最上层半透明悬浮 QuickScrubOverlay 实时回显，面板零跳动），长按不动松手打开全屏编辑页。
+ * - 新增/编辑页（全屏叠加层 QuickTemplateComposer）：1:1 复用完整记一笔（移除转账与日期，备注改为快捷方式卡片名称），自底向上滑入且支持顶栏及分类区顶部跟手下滑退回本面板（不关闭快捷记账）。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -14,7 +14,6 @@ import {
   BackHandler,
   Easing,
   Keyboard,
-  KeyboardAvoidingView,
   Pressable,
   StyleSheet,
   Text,
@@ -74,13 +73,6 @@ export function computeQuickSheetHeight(windowHeight: number): number {
   );
 }
 
-function computeComposerSheetHeight(windowHeight: number): number {
-  return Math.min(
-    Math.max(540, Math.round(windowHeight * 0.8)),
-    Math.round(windowHeight * 0.84)
-  );
-}
-
 export interface QuickRecordSheetProps {
   open: boolean;
   onClose: () => void;
@@ -130,7 +122,6 @@ export function QuickRecordSheet({
   const { db, revision, notifyChange } = useDatabase();
 
   const gridSheetHeight = computeQuickSheetHeight(windowHeight);
-  const composerSheetHeight = computeComposerSheetHeight(windowHeight);
   const shouldShow = open || pullingOpen;
 
   const [mounted, setMounted] = useState(shouldShow);
@@ -158,13 +149,11 @@ export function QuickRecordSheet({
   /** 单卡长按上下/左右微调实时态 */
   const [activeScrub, setActiveScrub] = useState<ActiveQuickScrubState | null>(null);
 
-  /** 内嵌新增/编辑视图态（非独立 Modal，直接在同一非全屏浮层内平滑舒展） */
+  /** 全屏新增/编辑页开关（叠加于本面板之上，下滑或返回仅关闭编辑页，保留本快捷面板） */
   const [composing, setComposing] = useState(false);
   const [composerInitial, setComposerInitial] =
     useState<QuickTemplateComposerInitialValue | null>(null);
   const [composerSessionKey, setComposerSessionKey] = useState(0);
-
-  const activeSheetHeight = composing ? composerSheetHeight : gridSheetHeight;
 
   const pages = useMemo(() => {
     if (items.length === 0) {
@@ -181,7 +170,7 @@ export function QuickRecordSheet({
 
   const openRef = useRef(open);
   const pullingOpenRef = useRef(pullingOpen);
-  const sheetHeightRef = useRef(activeSheetHeight);
+  const sheetHeightRef = useRef(gridSheetHeight);
   const windowWidthRef = useRef(windowWidth);
   const pageIndexRef = useRef(clampedPageIndex);
   const pageCountRef = useRef(pageCount);
@@ -196,12 +185,12 @@ export function QuickRecordSheet({
   useEffect(() => {
     openRef.current = open;
     pullingOpenRef.current = pullingOpen;
-    sheetHeightRef.current = activeSheetHeight;
+    sheetHeightRef.current = gridSheetHeight;
     windowWidthRef.current = windowWidth;
     pageIndexRef.current = clampedPageIndex;
     pageCountRef.current = pageCount;
     composingRef.current = composing;
-  }, [activeSheetHeight, clampedPageIndex, composing, open, pageCount, pullingOpen, windowWidth]);
+  }, [clampedPageIndex, composing, gridSheetHeight, open, pageCount, pullingOpen, windowWidth]);
 
   useEffect(() => {
     if (draggingHorizontalRef.current) {
@@ -482,59 +471,6 @@ export function QuickRecordSheet({
     },
   });
 
-  // 编辑态顶部抓手下滑退回/收起手势（不干扰内部二级分类 ScrollView 滚动）
-  const composerHandlePanGesture = usePanGesture({
-    enabled: open && composing,
-    disableReanimated: true,
-    runOnJS: true,
-    activeOffsetY: 10,
-    failOffsetX: [-20, 20],
-    onActivate: () => {
-      Keyboard.dismiss();
-      draggingVerticalRef.current = true;
-    },
-    onUpdate: (event) => {
-      if (!draggingVerticalRef.current) {
-        return;
-      }
-      const h = Math.max(1, sheetHeightRef.current);
-      const nextProgress = Math.max(0, 1 - Math.max(0, event.translationY) / h);
-      progress.setValue(nextProgress);
-    },
-    onDeactivate: (event) => {
-      if (!draggingVerticalRef.current) {
-        return;
-      }
-      draggingVerticalRef.current = false;
-      const h = Math.max(1, sheetHeightRef.current);
-      const projectedDown = event.translationY + event.velocityY * 0.14;
-      if (projectedDown > h * 0.22 || (event.velocityY > 620 && event.translationY > 28)) {
-        hapticLight();
-        onClose();
-      } else {
-        Animated.spring(progress, {
-          toValue: 1,
-          useNativeDriver: true,
-          stiffness: 300,
-          damping: 30,
-          mass: 0.9,
-        }).start();
-      }
-    },
-    onFinalize: () => {
-      if (draggingVerticalRef.current) {
-        draggingVerticalRef.current = false;
-        Animated.spring(progress, {
-          toValue: openRef.current ? 1 : 0,
-          useNativeDriver: true,
-          stiffness: 300,
-          damping: 30,
-          mass: 0.9,
-        }).start();
-      }
-    },
-  });
-
   // 快捷选项横向分页手势：与整窗竖向手势正交隔离，单卡微调时暂停
   const horizontalPagerGesture = usePanGesture({
     enabled: open && !composing && activeScrub === null && pages.length > 1,
@@ -769,7 +705,7 @@ export function QuickRecordSheet({
 
   const baseTranslateY = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [activeSheetHeight + 24, 0],
+    outputRange: [gridSheetHeight + 24, 0],
     extrapolate: 'clamp',
   });
 
@@ -785,7 +721,7 @@ export function QuickRecordSheet({
         styles.sheet,
         theme.elevation.floating,
         {
-          height: activeSheetHeight,
+          height: gridSheetHeight,
           backgroundColor: theme.colors.surfaceRaised,
           borderTopLeftRadius: theme.radius.lg,
           borderTopRightRadius: theme.radius.lg,
@@ -800,36 +736,8 @@ export function QuickRecordSheet({
         style={[styles.overdragFiller, { backgroundColor: theme.colors.surfaceRaised }]}
       />
 
-      {composing ? (
-        /* ========== 内嵌非全屏新增/编辑态：复用完整记一笔 UI ========== */
-        <View style={styles.flex}>
-          <GestureDetector gesture={composerHandlePanGesture}>
-            <View style={styles.handleZone}>
-              <View
-                style={[
-                  styles.handleBar,
-                  {
-                    backgroundColor: theme.colors.borderStrong,
-                    borderRadius: theme.radius.full,
-                  },
-                ]}
-              />
-            </View>
-          </GestureDetector>
-
-          <QuickTemplateComposer
-            key={composerSessionKey}
-            initialValue={composerInitial}
-            categories={categories}
-            accounts={accounts}
-            onBack={() => setComposing(false)}
-            onSave={handleSaveTemplate}
-            onDelete={handleDeleteTemplate}
-          />
-        </View>
-      ) : (
-        /* ========== 网格态：全区上下滑收起/展开 + 3×2 横向分页 + 单卡长按调金额/切账户 ========== */
-        <View style={styles.flex}>
+      {/* 网格态：全区上下滑收起/展开 + 3×2 横向分页 + 单卡长按调金额/切账户 */}
+      <View style={styles.flex}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="向上滑动展开完整记一笔，向下滑动收起"
@@ -1140,7 +1048,6 @@ export function QuickRecordSheet({
             </View>
           )}
         </View>
-      )}
     </Animated.View>
   );
 
@@ -1168,13 +1075,7 @@ export function QuickRecordSheet({
         />
       </Animated.View>
 
-      {composing ? (
-        <KeyboardAvoidingView style={styles.composerAvoidWrap} behavior="padding">
-          {sheetCard}
-        </KeyboardAvoidingView>
-      ) : (
-        <GestureDetector gesture={gridVerticalPanGesture}>{sheetCard}</GestureDetector>
-      )}
+      <GestureDetector gesture={gridVerticalPanGesture}>{sheetCard}</GestureDetector>
 
       {/* 最上层半透明悬浮交互 HUD：长按上下调金额 / 左右切账户时独立浮于最顶层，零面板跳动 */}
       <QuickScrubOverlay
@@ -1225,6 +1126,18 @@ export function QuickRecordSheet({
           </View>
         </View>
       ) : null}
+
+      {/* 全屏快捷卡片新增/编辑页（1:1 同款完整记一笔；下滑收起仅退回下方快捷面板） */}
+      <QuickTemplateComposer
+        visible={composing}
+        sessionKey={composerSessionKey}
+        initialValue={composerInitial}
+        categories={categories}
+        accounts={accounts}
+        onBack={() => setComposing(false)}
+        onSave={handleSaveTemplate}
+        onDelete={handleDeleteTemplate}
+      />
     </View>
   );
 }
@@ -1236,10 +1149,6 @@ const styles = StyleSheet.create({
   overlayRoot: {
     zIndex: 95,
     elevation: 14,
-    justifyContent: 'flex-end',
-  },
-  composerAvoidWrap: {
-    width: '100%',
     justifyContent: 'flex-end',
   },
   sheet: {
