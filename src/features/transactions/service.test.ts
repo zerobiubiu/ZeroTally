@@ -26,6 +26,7 @@ import {
   getYearlyLedger,
   listAccountTransactions,
   listTransactionRefunds,
+  searchTransactions,
   settleAccountBalance,
   updateRefundTransaction,
   updateRepaymentTransaction,
@@ -633,5 +634,76 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
         occurredOn: '2026-11-27',
       })
     ).rejects.toThrow('已归档');
+  });
+
+  it('多维搜索与分页查询：支持关键词/类型/一级含二级分类/账户/日期/金额组合筛选', async () => {
+    const t1 = await createTransaction(db, {
+      type: 'expense',
+      amountCents: 3_500,
+      categoryId: 'cat_exp_food_lunch',
+      accountId: 'acc_wechat',
+      toAccountId: null,
+      occurredOn: '2026-11-10',
+      note: '瑞幸咖啡_50%券',
+    });
+    await createTransaction(db, {
+      type: 'expense',
+      amountCents: 12_800,
+      categoryId: 'cat_exp_food_dinner',
+      accountId: 'acc_alipay',
+      toAccountId: null,
+      occurredOn: '2026-11-12',
+      note: '朋友聚餐火锅',
+    });
+    await createTransaction(db, {
+      type: 'income',
+      amountCents: 500_000,
+      categoryId: 'cat_inc_salary',
+      accountId: 'acc_bank',
+      toAccountId: null,
+      occurredOn: '2026-11-15',
+      note: '11月工资',
+    });
+    await createRefundTransaction(db, {
+      originalTransactionId: t1.id,
+      amountCents: 1_500,
+      accountId: 'acc_wechat',
+      occurredOn: '2026-11-16',
+      note: '咖啡退差价',
+    });
+
+    // 1. 关键词转义 % 和 _ 精确命中备注
+    const byKeyword = await searchTransactions(db, { keyword: '咖啡_50%' });
+    expect(byKeyword.totalCount).toBe(1);
+    expect(byKeyword.items[0]?.id).toBe(t1.id);
+
+    // 2. 选一级分类「餐饮」自动命中其下所有二级分类（午餐、晚餐与退款）
+    const byRootCat = await searchTransactions(db, { categoryId: 'cat_exp_food' });
+    expect(byRootCat.totalCount).toBe(3);
+    expect(byRootCat.totalExpenseCents).toBe(16_300);
+    expect(byRootCat.totalRefundCents).toBe(1_500);
+
+    // 3. 组合筛选（类型 + 金额区间 + 分页）
+    const page1 = await searchTransactions(db, {
+      types: ['expense'],
+      minAmountCents: 3_000,
+      maxAmountCents: 20_000,
+      limit: 1,
+      offset: 0,
+    });
+    expect(page1.totalCount).toBe(2);
+    expect(page1.items).toHaveLength(1);
+    expect(page1.hasMore).toBe(true);
+
+    const page2 = await searchTransactions(db, {
+      types: ['expense'],
+      minAmountCents: 3_000,
+      maxAmountCents: 20_000,
+      limit: 1,
+      offset: 1,
+    });
+    expect(page2.items).toHaveLength(1);
+    expect(page2.hasMore).toBe(false);
+    expect(page2.items[0]?.id).not.toBe(page1.items[0]?.id);
   });
 });

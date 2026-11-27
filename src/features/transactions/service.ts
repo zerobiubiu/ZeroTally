@@ -24,6 +24,7 @@ import {
   findTransactionsByAccountId,
   findTransactionsByDateRange,
   insertTransactionRow,
+  searchTransactionsPage,
   sumRefundsByOriginalId,
   updateRefundsCategoryByOriginalId,
   updateTransactionRow,
@@ -49,6 +50,8 @@ import type {
   PeriodLedger,
   Transaction,
   TransactionListItem,
+  TransactionSearchFilter,
+  TransactionSearchPage,
   UpdateRefundInput,
   UpdateRepaymentInput,
   UpdateTransactionInput,
@@ -706,4 +709,14 @@ export async function getCategoryAccountMemory(
   db: SqlExecutor
 ): Promise<CategoryAccountMemory> {
   return findCategoryAccountMemory(db);
+}
+
+/**
+ * 多维账单搜索与分页查询（支持关键词、类型、分类含二级、账户、日期区间与金额区间）。
+ */
+export async function searchTransactions(
+  db: SqlExecutor,
+  filter: TransactionSearchFilter
+): Promise<TransactionSearchPage> {
+  return searchTransactionsPage(db, filter);
 }

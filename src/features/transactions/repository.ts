@@ -1,8 +1,11 @@
 import type { SqlExecutor } from '../../db/types';
+import { buildTransactionSearchWhere, normalizeSearchPagination } from './search-rules';
 import type {
   CategoryAccountMemory,
   Transaction,
   TransactionListItem,
+  TransactionSearchFilter,
+  TransactionSearchPage,
   TransactionType,
 } from './types';
 
@@ -35,6 +38,13 @@ interface TransactionJoinRow extends TransactionRow {
 
 interface SumRow {
   total: number | null;
+}
+
+interface SearchSummaryRow {
+  total_count: number;
+  expense_cents: number | null;
+  income_cents: number | null;
+  refund_cents: number | null;
 }
 
 interface CategoryAccountMemoryRow {
@@ -169,6 +179,50 @@ export async function findTransactionsByAccountId(
     [accountId, accountId, limit]
   );
   return rows.map(mapTransactionJoinRow);
+}
+
+/**
+ * 多维账单搜索与分页查询（参数化 WHERE + 单次汇总统计 + LIMIT/OFFSET 懒加载）。
+ */
+export async function searchTransactionsPage(
+  db: SqlExecutor,
+  filter: TransactionSearchFilter
+): Promise<TransactionSearchPage> {
+  const { whereSql, params } = buildTransactionSearchWhere(filter);
+  const { limit, offset } = normalizeSearchPagination(filter);
+
+  const summaryRow = await db.getFirst<SearchSummaryRow>(
+    `SELECT
+       COUNT(*) AS total_count,
+       SUM(CASE WHEN t.type = 'expense' THEN t.amount_cents ELSE 0 END) AS expense_cents,
+       SUM(CASE WHEN t.type = 'income' THEN t.amount_cents ELSE 0 END) AS income_cents,
+       SUM(CASE WHEN t.type = 'refund' THEN t.amount_cents ELSE 0 END) AS refund_cents
+     FROM transactions t
+     LEFT JOIN categories c ON c.id = t.category_id
+     LEFT JOIN categories p ON p.id = c.parent_id
+     INNER JOIN accounts a1 ON a1.id = t.account_id
+     LEFT JOIN accounts a2 ON a2.id = t.to_account_id
+     ${whereSql}`,
+    params
+  );
+
+  const totalCount = summaryRow?.total_count ?? 0;
+  const rows = await db.getAll<TransactionJoinRow>(
+    `${TRANSACTION_LIST_SELECT}
+     ${whereSql}
+     ORDER BY t.occurred_on DESC, t.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  return {
+    items: rows.map(mapTransactionJoinRow),
+    totalCount,
+    totalExpenseCents: summaryRow?.expense_cents ?? 0,
+    totalIncomeCents: summaryRow?.income_cents ?? 0,
+    totalRefundCents: summaryRow?.refund_cents ?? 0,
+    hasMore: offset + rows.length < totalCount,
+  };
 }
 
 export async function findRefundRowsByOriginalId(

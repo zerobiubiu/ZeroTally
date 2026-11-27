@@ -143,3 +143,38 @@ export interface CategoryAccountMemory {
   /** 收支类型（expense / income）全局最近一次使用的活跃账户 ID */
   byType: Partial<Readonly<Record<'expense' | 'income', string>>>;
 }
+
+/** 账单搜索与多维筛选条件（所有维度均为可选，组合时取逻辑与） */
+export interface TransactionSearchFilter {
+  /** 关键词：模糊匹配备注、分类名（含一级父分类）与关联账户名 */
+  keyword?: string;
+  /** 交易类型筛选列表（空或未传表示全部类型） */
+  types?: readonly TransactionType[];
+  /** 分类 ID（传入一级分类时自动包含其下属全部二级分类） */
+  categoryId?: string | null;
+  /** 账户 ID（匹配 account_id 或 to_account_id） */
+  accountId?: string | null;
+  /** 起始日期（YYYY-MM-DD，含当日） */
+  startDate?: string | null;
+  /** 截止日期（YYYY-MM-DD，含当日） */
+  endDate?: string | null;
+  /** 最小金额（分，含） */
+  minAmountCents?: number | null;
+  /** 最大金额（分，含） */
+  maxAmountCents?: number | null;
+  /** 分页大小（默认 40） */
+  limit?: number;
+  /** 分页偏移量（默认 0） */
+  offset?: number;
+}
+
+/** 账单搜索分页结果与命中范围汇总 */
+export interface TransactionSearchPage {
+  items: TransactionListItem[];
+  totalCount: number;
+  /** 命中范围内支出总额（分，已按命中退款抵扣？否：展示原始支出与净收入便于核对） */
+  totalExpenseCents: number;
+  totalIncomeCents: number;
+  totalRefundCents: number;
+  hasMore: boolean;
+}

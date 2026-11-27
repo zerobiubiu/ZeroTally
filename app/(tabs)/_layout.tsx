@@ -615,23 +615,43 @@ function SwipeTabsContent({
             </Pressable>
 
             <View style={styles.rightActionsSlot}>
-              {/* 明细页右侧：按月 / 按年 / 全部 iOS 风格长按震动滑动三段切换 */}
+              {/* 明细页右侧：轻量搜索入口 + 按月 / 按年 / 全部滑动三段切换 */}
               <Animated.View
                 pointerEvents={activeIndex === 0 ? 'auto' : 'none'}
                 style={[
                   styles.rightActionLayer,
+                  styles.ledgerRightRow,
                   {
                     opacity: ledgerOpacity,
                     transform: [{ translateX: ledgerTranslateX }],
                   },
                 ]}
               >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="搜索账单"
+                  hitSlop={6}
+                  onPress={() => {
+                    hapticLight();
+                    router.push('/search');
+                  }}
+                  style={({ pressed }) => [
+                    styles.headerSearchBtn,
+                    {
+                      backgroundColor: theme.colors.surfaceRaised,
+                      borderRadius: theme.radius.full,
+                    },
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <AppIcon name="search-outline" size={18} color={theme.colors.text} />
+                </Pressable>
                 <SlidingSegmentedControl
                   options={PERIOD_MODE_OPTIONS}
                   value={ledgerPeriodMode}
                   onChange={setLedgerPeriodMode}
                   height={38}
-                  minSegmentWidth={50}
+                  minSegmentWidth={46}
                   textSize="xs"
                 />
               </Animated.View>
@@ -1100,7 +1120,7 @@ const styles = StyleSheet.create({
   },
   rightActionsSlot: {
     height: 40,
-    minWidth: 164,
+    minWidth: 196,
     justifyContent: 'center',
     alignItems: 'flex-end',
     position: 'relative',
@@ -1108,6 +1128,17 @@ const styles = StyleSheet.create({
   rightActionLayer: {
     position: 'absolute',
     right: 0,
+  },
+  ledgerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerSearchBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addAccountBtn: {
     height: 40,

@@ -45,3 +45,4 @@
 | [0037-liability-repayment.md](0037-liability-repayment.md) | 变更记录 | 已执行 | v1.6.0 | 负债账户新增还款功能（Schema v6 / 备份 v5），支持资产转入与无账户直接还款、详情编辑与删除回滚且不计入月度收支 |
 | [0038-account-detail-floating-cta-and-keypad-repayment.md](0038-account-detail-floating-cta-and-keypad-repayment.md) | 变更记录 | 已执行 | v1.7.0 | 账户详情统一底部动态悬浮「记一笔」主按钮与上滑吸顶紧凑小卡片，负债还款升级为「记一笔」同款全屏内置计算键盘页 |
 | [0039-account-form-ui-refactor.md](0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | v1.7.1 | 重构新增/编辑账户页视觉层级与紧凑交互体验：无描边浅灰画布分层、顶栏快捷保存、单行横向账户类型栏、核心卡内嵌可换图标与大号聚焦初始余额、双列压缩卡面信息与每 4 位空格卡号、单行平铺属性胶囊 |
+| [0040-transaction-search-and-filters.md](0040-transaction-search-and-filters.md) | 变更记录 | 已执行 | v1.8.0 | 新增账单搜索与多维筛选页（关键词、类型、账户、一二级分类、日期与金额区间，严格参数化 SQL 与 FlatList 分页懒加载） |

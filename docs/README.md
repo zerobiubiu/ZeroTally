@@ -58,6 +58,7 @@
 | [changes/0037-liability-repayment.md](changes/0037-liability-repayment.md) | 变更记录 | 已执行 | 负债账户新增还款功能（资产转入与无账户直接还款、Schema v6、备份 v5 与全链路明细编辑删除，v1.6.0） |
 | [changes/0038-account-detail-floating-cta-and-keypad-repayment.md](changes/0038-account-detail-floating-cta-and-keypad-repayment.md) | 变更记录 | 已执行 | 账户详情统一底部悬浮「记一笔」与上滑吸顶紧凑小卡，负债还款升级为内置 4×4 计算键盘全屏页（v1.7.0） |
 | [changes/0039-account-form-ui-refactor.md](changes/0039-account-form-ui-refactor.md) | 变更记录 | 已执行 | 重构新增/编辑账户页 UI 视觉层级与紧凑交互：去描边分层、顶栏保存、横向类型栏、内嵌可换图标、突出余额、双列卡面与单行属性胶囊（v1.7.1） |
+| [changes/0040-transaction-search-and-filters.md](changes/0040-transaction-search-and-filters.md) | 变更记录 | 已执行 | 新增账单搜索与多维筛选页（关键词、类型、分类、账户、日期与金额区间组合查询及分页懒加载，v1.8.0） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

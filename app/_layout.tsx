@@ -134,6 +134,13 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="search"
+          options={{
+            title: '搜索账单',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="account-form"
           options={{
             title: '账户',
