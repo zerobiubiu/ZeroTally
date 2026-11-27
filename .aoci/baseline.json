@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-11-27T04:56:50Z",
-  "updated_at": "2026-11-27T06:52:41Z",
+  "updated_at": "2026-11-27T07:41:55Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -35,9 +35,9 @@
     },
     "CHANGELOG.md": {
       "role": "index",
-      "sha256": "8119e890c590fa1488cd000af6a2906978ea2844d52fdf853d0c20f38bbc20dd",
-      "size": 36087,
-      "normalized_sha256": "8119e890c590fa1488cd000af6a2906978ea2844d52fdf853d0c20f38bbc20dd"
+      "sha256": "d311881a0adf260fe3dca37bbd04b04be253909748ec377e044e2e2576f1dfcb",
+      "size": 38002,
+      "normalized_sha256": "d311881a0adf260fe3dca37bbd04b04be253909748ec377e044e2e2576f1dfcb"
     },
     "LICENSE": {
       "role": "index",
@@ -53,9 +53,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "c8f7cbfe159303f4703c99bbf80f1592be3aa23263edf8345bd0b28a462b3e8c",
-      "size": 67545,
-      "normalized_sha256": "c8f7cbfe159303f4703c99bbf80f1592be3aa23263edf8345bd0b28a462b3e8c"
+      "sha256": "d2ce861d156c077ddb08f30fd18f8ccac00d60406f845f8dfebc6445a9c0d14b",
+      "size": 73661,
+      "normalized_sha256": "d2ce861d156c077ddb08f30fd18f8ccac00d60406f845f8dfebc6445a9c0d14b"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -71,9 +71,9 @@
     },
     "app.json": {
       "role": "index",
-      "sha256": "a78d37d2d682625f5107e5f941816fd3fbf03bea2729c389defe36b24fa5357d",
-      "size": 867,
-      "normalized_sha256": "a78d37d2d682625f5107e5f941816fd3fbf03bea2729c389defe36b24fa5357d"
+      "sha256": "12a2b6220d926f71a3a4f71a3040bf1d11062bdf3d5d5653c73b2b871629a99c",
+      "size": 964,
+      "normalized_sha256": "12a2b6220d926f71a3a4f71a3040bf1d11062bdf3d5d5653c73b2b871629a99c"
     },
     "app/(tabs)/_layout.tsx": {
       "role": "index",
@@ -95,9 +95,9 @@
     },
     "app/_layout.tsx": {
       "role": "index",
-      "sha256": "f4fb3cc296705a805d855df2bbb80d31c25b16ee6fe4f1fe8c63fdef18a24c76",
-      "size": 4770,
-      "normalized_sha256": "f4fb3cc296705a805d855df2bbb80d31c25b16ee6fe4f1fe8c63fdef18a24c76"
+      "sha256": "377b42350878965b9bd1b4c5413d069d59219200bf29b3703f1b22446cb82500",
+      "size": 5654,
+      "normalized_sha256": "377b42350878965b9bd1b4c5413d069d59219200bf29b3703f1b22446cb82500"
     },
     "app/about.tsx": {
       "role": "index",
@@ -119,9 +119,9 @@
     },
     "app/advanced-settings.tsx": {
       "role": "index",
-      "sha256": "0d1e242b1b5e4ce606af390b9bcc067a3a083709ef992781a69f3d5a049dffc0",
-      "size": 18267,
-      "normalized_sha256": "0d1e242b1b5e4ce606af390b9bcc067a3a083709ef992781a69f3d5a049dffc0"
+      "sha256": "df4c48395866a6a1ed0484b1209761bca1f17b7c652916feee1bf41636c53b8f",
+      "size": 18425,
+      "normalized_sha256": "df4c48395866a6a1ed0484b1209761bca1f17b7c652916feee1bf41636c53b8f"
     },
     "app/analytics.tsx": {
       "role": "index",
@@ -140,6 +140,12 @@
       "sha256": "75f3f5cc1e9f59643c1c893126b49b502cbf941913569017ec5a6c323032bcf3",
       "size": 27686,
       "normalized_sha256": "75f3f5cc1e9f59643c1c893126b49b502cbf941913569017ec5a6c323032bcf3"
+    },
+    "app/cloud-backup.tsx": {
+      "role": "index",
+      "sha256": "aa1a3fd4212ae0b0991f0bc9245fadc773e9511eaeacabb0f35e01168d70e85a",
+      "size": 39232,
+      "normalized_sha256": "aa1a3fd4212ae0b0991f0bc9245fadc773e9511eaeacabb0f35e01168d70e85a"
     },
     "app/record.tsx": {
       "role": "index",
@@ -216,9 +222,9 @@
     },
     "bun.lock": {
       "role": "index",
-      "sha256": "fba7b285c326d7be5b3a937cc2b88b67488446b9aeeeed542338cff5653a1ad9",
-      "size": 220348,
-      "normalized_sha256": "fba7b285c326d7be5b3a937cc2b88b67488446b9aeeeed542338cff5653a1ad9"
+      "sha256": "20d563c6f1a0f4222bfc3018121938cca622af7f5cc019e0d333b60db775ff59",
+      "size": 221068,
+      "normalized_sha256": "20d563c6f1a0f4222bfc3018121938cca622af7f5cc019e0d333b60db775ff59"
     },
     "bunfig.toml": {
       "role": "index",
@@ -228,9 +234,9 @@
     },
     "docs/README.md": {
       "role": "index",
-      "sha256": "68ab1d50bedc5e7f9167d3b326e5e730154652963531a038dfdc4627ba04f1de",
-      "size": 11461,
-      "normalized_sha256": "68ab1d50bedc5e7f9167d3b326e5e730154652963531a038dfdc4627ba04f1de"
+      "sha256": "a51557d3279e19dc30e6d99e7c8e77e509315b59d3c5b163c5ae45251ec0713e",
+      "size": 11731,
+      "normalized_sha256": "a51557d3279e19dc30e6d99e7c8e77e509315b59d3c5b163c5ae45251ec0713e"
     },
     "docs/architecture/README.md": {
       "role": "index",
@@ -240,9 +246,9 @@
     },
     "docs/architecture/overview.md": {
       "role": "index",
-      "sha256": "df7704b145a15fb9a25105454c26bd8c77f60b741d316bb29024b787aca63145",
-      "size": 13051,
-      "normalized_sha256": "df7704b145a15fb9a25105454c26bd8c77f60b741d316bb29024b787aca63145"
+      "sha256": "fe920b6e8014150063917de90480499a7722ad2084f19689431cb00a68a4b6d7",
+      "size": 14534,
+      "normalized_sha256": "fe920b6e8014150063917de90480499a7722ad2084f19689431cb00a68a4b6d7"
     },
     "docs/assets/banner-dark.png": {
       "role": "index",
@@ -474,11 +480,17 @@
       "size": 10472,
       "normalized_sha256": "faf2214f1d4255846026f97fa61daee2fd12cfe8ecf5391e0de57a3f1bcfca91"
     },
+    "docs/changes/0036-cloud-backup-webdav-and-google-drive.md": {
+      "role": "index",
+      "sha256": "98bf1f4bd27fdda7c92ad42440d1180234a9c54c103f6def910e30cd05126b93",
+      "size": 8975,
+      "normalized_sha256": "98bf1f4bd27fdda7c92ad42440d1180234a9c54c103f6def910e30cd05126b93"
+    },
     "docs/changes/README.md": {
       "role": "index",
-      "sha256": "2424025387a750c485e9c0203c20420127417032a72a007a18e8d5f700ff221a",
-      "size": 9441,
-      "normalized_sha256": "2424025387a750c485e9c0203c20420127417032a72a007a18e8d5f700ff221a"
+      "sha256": "efcac0318db529b9ae0e8296c7bdd036b59f4e564c37b86d99967d9b94dd506e",
+      "size": 9734,
+      "normalized_sha256": "efcac0318db529b9ae0e8296c7bdd036b59f4e564c37b86d99967d9b94dd506e"
     },
     "docs/decisions/0001-tech-stack-and-architecture.md": {
       "role": "index",
@@ -518,9 +530,9 @@
     },
     "package.json": {
       "role": "index",
-      "sha256": "e83bf3dcb1116f205a56001ca779ab255e2acb7f8e14acfb68265fdd399b410f",
-      "size": 1442,
-      "normalized_sha256": "e83bf3dcb1116f205a56001ca779ab255e2acb7f8e14acfb68265fdd399b410f"
+      "sha256": "9f4b146a6bd6486cc22001b24cb26218aa5383cdd83e0909904cb1755a8a5b5c",
+      "size": 1543,
+      "normalized_sha256": "9f4b146a6bd6486cc22001b24cb26218aa5383cdd83e0909904cb1755a8a5b5c"
     },
     "plugins/with-windows-cmake-path-fix.js": {
       "role": "index",
@@ -744,6 +756,84 @@
       "size": 985,
       "normalized_sha256": "5bbee83fe42bff0a845478ee522bb07a6d0113d735281121d77269d59e8050d9"
     },
+    "src/features/cloud-backup/components/CloudSnapshotsSheet.tsx": {
+      "role": "index",
+      "sha256": "aac466799d9fb644d3424ec85f963ac46bcebe99191505afa3c2d0f00c0f2f95",
+      "size": 9585,
+      "normalized_sha256": "aac466799d9fb644d3424ec85f963ac46bcebe99191505afa3c2d0f00c0f2f95"
+    },
+    "src/features/cloud-backup/components/GoogleDriveConfigSheet.tsx": {
+      "role": "index",
+      "sha256": "094485b82480123aa4c98241d81514567384ac84e4984a3ce030114812242c31",
+      "size": 14026,
+      "normalized_sha256": "094485b82480123aa4c98241d81514567384ac84e4984a3ce030114812242c31"
+    },
+    "src/features/cloud-backup/components/WebDavConfigSheet.tsx": {
+      "role": "index",
+      "sha256": "0f1d83802be31cec1661ef65e369b80bd549dad00f42bec7b093e81cea5e092e",
+      "size": 17598,
+      "normalized_sha256": "0f1d83802be31cec1661ef65e369b80bd549dad00f42bec7b093e81cea5e092e"
+    },
+    "src/features/cloud-backup/config-repository.ts": {
+      "role": "index",
+      "sha256": "39468a5e01dab17337df6aedf1fb5a40310f5de2ac1898a3b2ec79ad176fad02",
+      "size": 3575,
+      "normalized_sha256": "39468a5e01dab17337df6aedf1fb5a40310f5de2ac1898a3b2ec79ad176fad02"
+    },
+    "src/features/cloud-backup/credentials.ts": {
+      "role": "index",
+      "sha256": "a6cf0d199b930d7dbf491a0f7f7bff357e186a671b0d3f03d2dc9dcc4d51540e",
+      "size": 1940,
+      "normalized_sha256": "a6cf0d199b930d7dbf491a0f7f7bff357e186a671b0d3f03d2dc9dcc4d51540e"
+    },
+    "src/features/cloud-backup/google-drive-provider.ts": {
+      "role": "index",
+      "sha256": "ef8b5be191b594a5f306a51fe0c97e2f4ecb9cf1df2463e67b87d119c442020c",
+      "size": 18449,
+      "normalized_sha256": "ef8b5be191b594a5f306a51fe0c97e2f4ecb9cf1df2463e67b87d119c442020c"
+    },
+    "src/features/cloud-backup/native-runtime.ts": {
+      "role": "index",
+      "sha256": "ab15a6861694fea2f1c6b3f5cea69ddb345ce63658dd282c7597e2e659853add",
+      "size": 3124,
+      "normalized_sha256": "ab15a6861694fea2f1c6b3f5cea69ddb345ce63658dd282c7597e2e659853add"
+    },
+    "src/features/cloud-backup/rules.test.ts": {
+      "role": "observe",
+      "sha256": "4231798d8e6a53c0c541ab7c54f7c7268f86a57e75d1fb2a6dffdb318df7e112",
+      "size": 8835,
+      "normalized_sha256": "4231798d8e6a53c0c541ab7c54f7c7268f86a57e75d1fb2a6dffdb318df7e112"
+    },
+    "src/features/cloud-backup/rules.ts": {
+      "role": "index",
+      "sha256": "eeaf8d591813c5380b12f3163ec5c0e61bfc1d9ad93ef5e5f8da8ff659b796fd",
+      "size": 17292,
+      "normalized_sha256": "eeaf8d591813c5380b12f3163ec5c0e61bfc1d9ad93ef5e5f8da8ff659b796fd"
+    },
+    "src/features/cloud-backup/service.test.ts": {
+      "role": "observe",
+      "sha256": "e0a1e7c2d3cfa1cbf760161c862f9f69dbf29ad59190465ddd30fc53187e41f8",
+      "size": 18914,
+      "normalized_sha256": "e0a1e7c2d3cfa1cbf760161c862f9f69dbf29ad59190465ddd30fc53187e41f8"
+    },
+    "src/features/cloud-backup/service.ts": {
+      "role": "index",
+      "sha256": "84de6c28ab2b156de6eb8e8a0ce7026cbd2c50046eb0ef4bf74c382bbb559a94",
+      "size": 21032,
+      "normalized_sha256": "84de6c28ab2b156de6eb8e8a0ce7026cbd2c50046eb0ef4bf74c382bbb559a94"
+    },
+    "src/features/cloud-backup/types.ts": {
+      "role": "index",
+      "sha256": "852217d191183f69c5b4a9ca8117bdf421b3be951c24ea3cf53dbadd491b8aa2",
+      "size": 3726,
+      "normalized_sha256": "852217d191183f69c5b4a9ca8117bdf421b3be951c24ea3cf53dbadd491b8aa2"
+    },
+    "src/features/cloud-backup/webdav-provider.ts": {
+      "role": "index",
+      "sha256": "41402ca99bdd442fcb2706e3b2d4342c2c06c3fff80115fc37e93d8a587550bc",
+      "size": 9415,
+      "normalized_sha256": "41402ca99bdd442fcb2706e3b2d4342c2c06c3fff80115fc37e93d8a587550bc"
+    },
     "src/features/export/formatter.test.ts": {
       "role": "observe",
       "sha256": "f7ff008671a7bb912896d942317d818c23658f987d44b68ddfe2711a228ab114",
@@ -890,9 +980,9 @@
     },
     "src/features/settings/components/SettingsPanel.tsx": {
       "role": "index",
-      "sha256": "a39a74713b23eb8cb6c7d7dc880675cfaea885ce1aa4eee031709a5414562cc3",
-      "size": 8244,
-      "normalized_sha256": "a39a74713b23eb8cb6c7d7dc880675cfaea885ce1aa4eee031709a5414562cc3"
+      "sha256": "1e0db2376472d698953d87b99452a02e4cc01890cf79c8967760a1a7e0528ceb",
+      "size": 8435,
+      "normalized_sha256": "1e0db2376472d698953d87b99452a02e4cc01890cf79c8967760a1a7e0528ceb"
     },
     "src/features/settings/repository.ts": {
       "role": "index",
