@@ -210,6 +210,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="batch-record"
+          options={{
+            title: '快捷批量记账',
+          }}
+        />
+        <Stack.Screen
           name="about"
           options={{
             title: '关于',

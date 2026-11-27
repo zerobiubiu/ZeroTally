@@ -7,6 +7,7 @@
  *   3. 单个快捷卡片短按轻震动一秒入账并原地变身 3 秒圆环倒计时撤销卡（再点长震动撤回），长按触发震动后上下滑动智能步进调金额、左右滑动切账户（最上层半透明悬浮 QuickScrubOverlay 实时回显，面板零跳动），长按不动松手打开全屏编辑页。
  * - 新增/编辑页（全屏叠加层 QuickTemplateComposer）：1:1 复用完整记一笔（移除转账与日期，备注改为快捷方式卡片名称），自底向上滑入且支持顶栏及分类区顶部跟手下滑退回本面板（不关闭快捷记账）。
  */
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -120,6 +121,7 @@ export function QuickRecordSheet({
   pullingOpen = false,
 }: QuickRecordSheetProps): React.JSX.Element | null {
   const { theme } = useTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { db, revision, notifyChange } = useDatabase();
@@ -820,6 +822,27 @@ export function QuickRecordSheet({
             </View>
 
             <View style={styles.headerActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="快捷批量记账"
+                onPress={() => {
+                  hapticLight();
+                  onClose();
+                  router.push('/batch-record');
+                }}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.headerIconBtn,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    borderRadius: theme.radius.full,
+                  },
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
+              >
+                <AppIcon name="layers-outline" size={17} color={theme.colors.text} />
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="新增快捷项"

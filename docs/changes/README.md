@@ -53,3 +53,5 @@
 | [0045-optional-budget-management.md](0045-optional-budget-management.md) | 变更记录 | 已执行 | v1.9.0 | 新增设置内可选「预算管理」（默认关闭零打扰，支持月度总预算、分类预算、预警阈值及明细月度卡底部轻量进度条） |
 
 | [0046-recurring-bills-salary-mortgage-and-credit-cycle.md](0046-recurring-bills-salary-mortgage-and-credit-cycle.md) | 变更记录 | 已执行 | v1.9.1 | 新增设置侧栏一级入口「周期账单」：固定支出自动/手动入账、弹性月薪（提前/延时/扣款补贴）、双模式房贷与提前还款试算执行、信用卡账单/还款日追踪 |
+
+| [0047-quick-batch-recording.md](0047-quick-batch-recording.md) | 变更记录 | 已执行 | v1.9.2 | 新增快捷批量记账页（由快捷面板进入，支持模板一键追加多行与单事务原子批量入账） |

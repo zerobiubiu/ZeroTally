@@ -17,6 +17,7 @@ import {
   createRefundTransaction,
   createRepaymentTransaction,
   createTransaction,
+  createTransactionsBatch,
   deleteAccountWithTransactions,
   deleteTransaction,
   getAllLedger,
@@ -769,5 +770,66 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     const accP2 = await listAccountTransactionsPage(db, 'acc_bank', { limit: 3, offset: 3 });
     expect(accP2.items).toHaveLength(1);
     expect(accP2.hasMore).toBe(false);
+  });
+
+  it('快捷批量记账在单一事务内原子写入多笔并合并余额，异常时全部回滚', async () => {
+    const beforeBank = (await getAccountById(db, 'acc_bank'))!.balanceCents;
+    const created = await createTransactionsBatch(db, [
+      {
+        type: 'expense',
+        amountCents: 2_500,
+        categoryId: 'cat_exp_food',
+        accountId: 'acc_bank',
+        toAccountId: null,
+        occurredOn: '2026-11-27',
+        note: '早餐',
+      },
+      {
+        type: 'expense',
+        amountCents: 1_500,
+        categoryId: 'cat_exp_transport',
+        accountId: 'acc_bank',
+        toAccountId: null,
+        occurredOn: '2026-11-27',
+        note: '地铁',
+      },
+      {
+        type: 'income',
+        amountCents: 10_000,
+        categoryId: 'cat_inc_other',
+        accountId: 'acc_bank',
+        toAccountId: null,
+        occurredOn: '2026-11-27',
+        note: '报销到账',
+      },
+    ]);
+    expect(created).toHaveLength(3);
+    expect((await getAccountById(db, 'acc_bank'))!.balanceCents).toBe(
+      beforeBank - 2_500 - 1_500 + 10_000
+    );
+
+    // 若其中某笔引用不存在账户，整个批次全部回滚，余额不受污染
+    const snap = (await getAccountById(db, 'acc_bank'))!.balanceCents;
+    await expect(
+      createTransactionsBatch(db, [
+        {
+          type: 'expense',
+          amountCents: 5_000,
+          categoryId: 'cat_exp_food',
+          accountId: 'acc_bank',
+          toAccountId: null,
+          occurredOn: '2026-11-27',
+        },
+        {
+          type: 'expense',
+          amountCents: 1_000,
+          categoryId: 'cat_exp_food',
+          accountId: 'acc_missing_id',
+          toAccountId: null,
+          occurredOn: '2026-11-27',
+        },
+      ])
+    ).rejects.toThrow('所选账户不存在');
+    expect((await getAccountById(db, 'acc_bank'))!.balanceCents).toBe(snap);
   });
 });

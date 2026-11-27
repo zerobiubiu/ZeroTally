@@ -787,3 +787,49 @@ export async function searchTransactions(
 ): Promise<TransactionSearchPage> {
   return searchTransactionsPage(db, filter);
 }
+
+/**
+ * 批量原子记账：先全量校验所有条目，再在单一 SQLite 事务内写入全部流水并合并更新账户余额（全成功或全回滚）。
+ */
+export async function createTransactionsBatch(
+  db: SqlExecutor,
+  rawInputs: readonly CreateTransactionInput[]
+): Promise<Transaction[]> {
+  if (rawInputs.length === 0) {
+    throw new Error('请至少添加一笔有效账目');
+  }
+  const normalizedList = rawInputs.map((item) => normalizeTransactionInput(item));
+  const now = new Date().toISOString();
+
+  return db.withTransaction(async (tx) => {
+    const records: Transaction[] = [];
+    const allDeltas: BalanceDelta[] = [];
+
+    for (const input of normalizedList) {
+      await verifyTransactionReferences(tx, input);
+      const record: Transaction = {
+        id: createId('tx'),
+        type: input.type,
+        amountCents: input.amountCents,
+        categoryId: input.categoryId,
+        accountId: input.accountId,
+        toAccountId: input.toAccountId,
+        refundOfId: null,
+        occurredOn: input.occurredOn,
+        note: input.note ?? '',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await insertTransactionRow(tx, record);
+      records.push(record);
+      allDeltas.push(...computeBalanceDeltas(record));
+    }
+
+    const merged = mergeBalanceDeltas(allDeltas);
+    for (const delta of merged) {
+      await applyAccountBalanceDelta(tx, delta.accountId, delta.deltaCents, now);
+    }
+
+    return records;
+  });
+}
