@@ -35,6 +35,7 @@ export function DeleteTransactionDialog({
 
   const isTransfer = item.type === 'transfer';
   const isRefund = item.type === 'refund';
+  const isRepayment = item.type === 'repayment';
   const hasLinkedRefunds = item.type === 'expense' && item.refundedCents > 0;
 
   const categoryTitle = item.categoryParentName
@@ -43,9 +44,11 @@ export function DeleteTransactionDialog({
 
   const itemTitle = isTransfer
     ? `${item.accountName} → ${item.toAccountName ?? '未知账户'}`
-    : isRefund
-      ? `退款 · ${item.categoryName ?? '支出'}`
-      : categoryTitle;
+    : isRepayment
+      ? `还款 · ${item.accountName}`
+      : isRefund
+        ? `退款 · ${item.categoryName ?? '支出'}`
+        : categoryTitle;
 
   const amountColor =
     item.type === 'expense'
@@ -56,28 +59,38 @@ export function DeleteTransactionDialog({
 
   const iconBg = isTransfer
     ? theme.colors.transferSubtle
-    : isRefund
-      ? theme.colors.warningSubtle
-      : item.type === 'income'
-        ? theme.colors.incomeSubtle
-        : theme.colors.expenseSubtle;
+    : isRepayment
+      ? theme.colors.actionSubtle
+      : isRefund
+        ? theme.colors.warningSubtle
+        : item.type === 'income'
+          ? theme.colors.incomeSubtle
+          : theme.colors.expenseSubtle;
 
   const iconColor = isTransfer
     ? theme.colors.transferTextOnSubtle
-    : isRefund
-      ? theme.colors.warningTextOnSubtle
-      : item.type === 'income'
-        ? theme.colors.incomeTextOnSubtle
-        : theme.colors.expenseTextOnSubtle;
+    : isRepayment
+      ? theme.colors.actionTextOnSubtle
+      : isRefund
+        ? theme.colors.warningTextOnSubtle
+        : item.type === 'income'
+          ? theme.colors.incomeTextOnSubtle
+          : theme.colors.expenseTextOnSubtle;
 
   const iconName = isTransfer
     ? 'swap-horizontal-outline'
-    : isRefund
-      ? 'return-down-back-outline'
-      : (item.categoryIcon ?? 'ellipsis-horizontal-outline');
+    : isRepayment
+      ? 'cash-outline'
+      : isRefund
+        ? 'return-down-back-outline'
+        : (item.categoryIcon ?? 'ellipsis-horizontal-outline');
 
   const subtitleParts = [formatDaySectionTitle(item.occurredOn)];
-  if (!isTransfer) {
+  if (isRepayment) {
+    subtitleParts.push(
+      item.toAccountName ? `${item.toAccountName} 转入` : '无账户支出还款'
+    );
+  } else if (!isTransfer) {
     subtitleParts.push(item.accountName);
   }
   if (item.note) {
@@ -86,12 +99,16 @@ export function DeleteTransactionDialog({
 
   const message = isRefund
     ? '删除后将从入账账户扣回对应金额，无法撤销。'
-    : '删除后将自动回滚关联账户余额，无法撤销。';
+    : isRepayment
+      ? item.toAccountName
+        ? `删除后将恢复负债欠款并退回「${item.toAccountName}」转出金额，无法撤销。`
+        : '删除后将恢复该负债账户对应欠款，无法撤销。'
+      : '删除后将自动回滚关联账户余额，无法撤销。';
 
   return (
     <ConfirmDialog
       visible
-      title={isRefund ? '删除退款记录' : '删除账目记录'}
+      title={isRefund ? '删除退款记录' : isRepayment ? '删除还款记录' : '删除账目记录'}
       message={message}
       icon="trash-outline"
       tone="destructive"

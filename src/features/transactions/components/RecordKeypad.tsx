@@ -31,7 +31,7 @@ import {
 } from '../amount-expression';
 import type { TransactionType } from '../types';
 
-type RecordableTransactionType = Exclude<TransactionType, 'refund'>;
+type RecordableTransactionType = Exclude<TransactionType, 'refund' | 'repayment'>;
 
 interface RecordKeypadProps {
   txType: RecordableTransactionType;

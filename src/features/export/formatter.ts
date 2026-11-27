@@ -21,13 +21,14 @@ import type {
   ValidatedLedgerImport,
 } from './types';
 
-export const EXPORT_SCHEMA_VERSION = 4;
+export const EXPORT_SCHEMA_VERSION = 5;
 
 const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   expense: '支出',
   income: '收入',
   transfer: '转账',
   refund: '退款',
+  repayment: '还款',
 };
 
 const VALID_ACCOUNT_KINDS: ReadonlySet<string> = new Set<AccountKind>(['asset', 'liability']);
@@ -46,6 +47,7 @@ const VALID_TX_TYPES: ReadonlySet<string> = new Set<TransactionType>([
   'income',
   'transfer',
   'refund',
+  'repayment',
 ]);
 const VALID_THEME_PREFS: ReadonlySet<string> = new Set<ThemePreference>([
   'system',
@@ -456,6 +458,13 @@ export function validateLedgerImportJson(rawText: string): ValidatedLedgerImport
       }
       if (categoryId !== null || refundOfId !== null) {
         throw new Error(`转账交易 ${id} 不能携带分类或退款关联`);
+      }
+    } else if (type === 'repayment') {
+      if (toAccountId !== null && (!accountIds.has(toAccountId) || toAccountId === accountId)) {
+        throw new Error(`还款交易 ${id} 的付款来源账户无效`);
+      }
+      if (categoryId !== null || refundOfId !== null) {
+        throw new Error(`还款交易 ${id} 不能携带分类或退款关联`);
       }
     } else if (type === 'refund') {
       if (!categoryId || !categoryMap.has(categoryId) || !refundOfId || refundOfId === id) {

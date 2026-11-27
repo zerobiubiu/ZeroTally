@@ -42,3 +42,4 @@
 | [0034-quick-card-sizing-and-velocity-scrub-steps.md](0034-quick-card-sizing-and-velocity-scrub-steps.md) | 变更记录 | 已执行 | v1.3.0 | 统一快捷卡片与「添加快捷」卡片等宽等高对齐，并将长按上下滑调金额升级为 0.01~1 元五档速度自适应步进 |
 | [0035-account-model-overhaul-archive-settle-delete.md](0035-account-model-overhaul-archive-settle-delete.md) | 变更记录 | 已执行 | v1.4.0 | 账户类型驱动性质、三独立统计开关与银行卡信息（Schema v5）、停用改归档并移出资产一级页、平账可选生成记录、删除账户三重确认与级联清除 |
 | [0036-cloud-backup-webdav-and-google-drive.md](0036-cloud-backup-webdav-and-google-drive.md) | 变更记录 | 已执行 | v1.5.0 | 设置侧栏接入双通道云备份（WebDAV 与 Google Drive OAuth PKCE）、硬件加密凭据隔离、多版本历史快照恢复与防抖自动云备份 |
+| [0037-liability-repayment.md](0037-liability-repayment.md) | 变更记录 | 已执行 | v1.6.0 | 负债账户新增还款功能（Schema v6 / 备份 v5），支持资产转入与无账户直接还款、详情编辑与删除回滚且不计入月度收支 |

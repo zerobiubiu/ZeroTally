@@ -1,6 +1,6 @@
 import type { SqlExecutor } from './types';
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 const MIGRATION_V1_SQL = `
 CREATE TABLE IF NOT EXISTS accounts (
@@ -166,6 +166,63 @@ UPDATE accounts SET include_in_total_assets = include_in_net_worth;
 UPDATE accounts SET kind = CASE WHEN category IN ('credit', 'loan') THEN 'liability' ELSE 'asset' END;
 `;
 
+/**
+ * v6：交易表支持负债还款（type 新增 'repayment'）。
+ * - account_id 恒为被还款的负债账户 ID；
+ * - to_account_id 为可选付款来源资产账户 ID（NULL 表示无账户直接还款，非 NULL 时须与 account_id 不同）。
+ */
+const MIGRATION_V6_REBUILD_SQL = `
+CREATE TABLE transactions_v6 (
+  id TEXT PRIMARY KEY NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('expense', 'income', 'transfer', 'refund', 'repayment')),
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  category_id TEXT REFERENCES categories(id),
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  to_account_id TEXT REFERENCES accounts(id),
+  refund_of_id TEXT REFERENCES transactions_v6(id),
+  occurred_on TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (
+    (type = 'transfer' AND category_id IS NULL AND to_account_id IS NOT NULL AND to_account_id != account_id AND refund_of_id IS NULL)
+    OR
+    (type IN ('expense', 'income') AND category_id IS NOT NULL AND to_account_id IS NULL AND refund_of_id IS NULL)
+    OR
+    (type = 'refund' AND category_id IS NOT NULL AND to_account_id IS NULL AND refund_of_id IS NOT NULL AND refund_of_id != id)
+    OR
+    (type = 'repayment' AND category_id IS NULL AND (to_account_id IS NULL OR to_account_id != account_id) AND refund_of_id IS NULL)
+  )
+);
+
+INSERT INTO transactions_v6 (
+  id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+  occurred_on, note, created_at, updated_at
+)
+SELECT
+  id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+  occurred_on, note, created_at, updated_at
+FROM transactions;
+
+DROP TABLE transactions;
+ALTER TABLE transactions_v6 RENAME TO transactions;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_occurred_on
+  ON transactions (occurred_on DESC, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_account_id
+  ON transactions (account_id);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_to_account_id
+  ON transactions (to_account_id);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_category_id
+  ON transactions (category_id);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_refund_of_id
+  ON transactions (refund_of_id);
+`;
+
 interface MigrationRow {
   version: number;
 }
@@ -241,5 +298,21 @@ export async function initializeSchema(db: SqlExecutor): Promise<void> {
         [5, new Date().toISOString()]
       );
     });
+  }
+
+  if (currentVersion < 6) {
+    // SQLite 要求在事务外临时关闭外键检查以安全执行 transactions 表重建
+    await db.exec('PRAGMA foreign_keys = OFF;');
+    try {
+      await db.withTransaction(async (tx) => {
+        await tx.exec(MIGRATION_V6_REBUILD_SQL);
+        await tx.run(
+          'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
+          [6, new Date().toISOString()]
+        );
+      });
+    } finally {
+      await db.exec('PRAGMA foreign_keys = ON;');
+    }
   }
 }

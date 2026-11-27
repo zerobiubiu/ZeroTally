@@ -15,6 +15,7 @@ import { resolveRememberedAccountId } from './rules';
 import {
   countAccountTransactions,
   createRefundTransaction,
+  createRepaymentTransaction,
   createTransaction,
   deleteAccountWithTransactions,
   deleteTransaction,
@@ -27,6 +28,7 @@ import {
   listTransactionRefunds,
   settleAccountBalance,
   updateRefundTransaction,
+  updateRepaymentTransaction,
   updateTransaction,
 } from './service';
 
@@ -537,5 +539,99 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     await db.run('UPDATE accounts SET is_archived = 1 WHERE id = ?', ['acc_bank']);
     await deleteAccountWithTransactions(db, 'acc_bank');
     expect(await getAccountById(db, 'acc_bank')).toBeNull();
+  });
+
+  it('负债还款完整闭环：支持资产转入与无账户直接还款、编辑切换、删除回滚与非法账户拦截', async () => {
+    // 信用卡初始欠款 1200 元（-120000），银行卡初始 10000 元（1000000），净资产基准先读取
+    const overviewBefore = await getAssetOverview(db);
+    const creditInitial = (await getAccountById(db, 'acc_credit'))!.balanceCents;
+    const bankInitial = (await getAccountById(db, 'acc_bank'))!.balanceCents;
+
+    // 1. 资产转入还款 500 元：银行卡 -500、信用卡 +500（欠款减至 700），净资产不变
+    const repAsset = await createRepaymentTransaction(db, {
+      liabilityAccountId: 'acc_credit',
+      sourceAccountId: 'acc_bank',
+      amountCents: 50_000,
+      occurredOn: '2026-11-26',
+      note: '银行卡还账单',
+    });
+    expect(repAsset.type).toBe('repayment');
+    expect((await getAccountById(db, 'acc_credit'))!.balanceCents).toBe(creditInitial + 50_000);
+    expect((await getAccountById(db, 'acc_bank'))!.balanceCents).toBe(bankInitial - 50_000);
+    expect((await getAssetOverview(db)).summary.netWorthCents).toBe(
+      overviewBefore.summary.netWorthCents
+    );
+
+    // 双向账户流水均可查到该笔还款
+    const creditTxs = await listAccountTransactions(db, 'acc_credit');
+    const bankTxs = await listAccountTransactions(db, 'acc_bank');
+    expect(creditTxs.some((t) => t.id === repAsset.id)).toBe(true);
+    expect(bankTxs.some((t) => t.id === repAsset.id)).toBe(true);
+
+    // 2. 无账户支出直接还款 300 元：信用卡再 +300，银行卡不变，净资产增加 300，且不计入月度收支
+    const repDirect = await createRepaymentTransaction(db, {
+      liabilityAccountId: 'acc_credit',
+      sourceAccountId: null,
+      amountCents: 30_000,
+      occurredOn: '2026-11-27',
+      note: '家人代还',
+    });
+    expect((await getAccountById(db, 'acc_credit'))!.balanceCents).toBe(creditInitial + 80_000);
+    expect((await getAccountById(db, 'acc_bank'))!.balanceCents).toBe(bankInitial - 50_000);
+    expect((await getAssetOverview(db)).summary.netWorthCents).toBe(
+      overviewBefore.summary.netWorthCents + 30_000
+    );
+
+    const ledger = await getMonthlyLedger(db, '2026-11');
+    expect(ledger.summary.expenseCents).toBe(0);
+    expect(ledger.summary.incomeCents).toBe(0);
+    expect(ledger.summary.transactionCount).toBe(2);
+
+    // 3. 编辑还款：把无账户直接还款 300 改为支付宝转入 400
+    const alipayInitial = (await getAccountById(db, 'acc_alipay'))!.balanceCents;
+    await updateRepaymentTransaction(db, repDirect.id, {
+      sourceAccountId: 'acc_alipay',
+      amountCents: 40_000,
+      occurredOn: '2026-11-27',
+      note: '改由支付宝转入',
+    });
+    expect((await getAccountById(db, 'acc_credit'))!.balanceCents).toBe(creditInitial + 90_000);
+    expect((await getAccountById(db, 'acc_alipay'))!.balanceCents).toBe(alipayInitial - 40_000);
+
+    // 4. 删除两笔还款后所有账户余额精确回滚到初始值
+    await deleteTransaction(db, repAsset.id);
+    await deleteTransaction(db, repDirect.id);
+    expect((await getAccountById(db, 'acc_credit'))!.balanceCents).toBe(creditInitial);
+    expect((await getAccountById(db, 'acc_bank'))!.balanceCents).toBe(bankInitial);
+    expect((await getAccountById(db, 'acc_alipay'))!.balanceCents).toBe(alipayInitial);
+
+    // 5. 边界校验：资产账户不可被还款；付款来源不可为负债账户或已归档账户
+    await expect(
+      createRepaymentTransaction(db, {
+        liabilityAccountId: 'acc_bank',
+        sourceAccountId: null,
+        amountCents: 1_000,
+        occurredOn: '2026-11-27',
+      })
+    ).rejects.toThrow('仅负债类型账户支持还款');
+
+    await expect(
+      createRepaymentTransaction(db, {
+        liabilityAccountId: 'acc_credit',
+        sourceAccountId: 'acc_credit',
+        amountCents: 1_000,
+        occurredOn: '2026-11-27',
+      })
+    ).rejects.toThrow('不能相同');
+
+    await archiveAccount(db, 'acc_cash');
+    await expect(
+      createRepaymentTransaction(db, {
+        liabilityAccountId: 'acc_credit',
+        sourceAccountId: 'acc_cash',
+        amountCents: 1_000,
+        occurredOn: '2026-11-27',
+      })
+    ).rejects.toThrow('已归档');
   });
 });

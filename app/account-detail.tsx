@@ -27,6 +27,7 @@ import { getAccountById } from '../src/features/accounts/service';
 import type { Account } from '../src/features/accounts/types';
 import { listCategories } from '../src/features/categories/service';
 import type { Category } from '../src/features/categories/types';
+import { RepaymentSheet } from '../src/features/transactions/components/RepaymentSheet';
 import { TransactionRow } from '../src/features/transactions/components/TransactionRow';
 import { useTransactionListInteractions } from '../src/features/transactions/components/useTransactionListInteractions';
 import { groupTransactionsByDay } from '../src/features/transactions/rules';
@@ -61,6 +62,7 @@ export default function AccountDetailScreen(): React.JSX.Element {
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settleOpen, setSettleOpen] = useState(false);
+  const [repaymentOpen, setRepaymentOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const interactions = useTransactionListInteractions();
 
@@ -370,39 +372,87 @@ export default function AccountDetailScreen(): React.JSX.Element {
             </Text>
           ) : null}
 
-          <View style={[styles.actionsRow, { marginTop: theme.spacing.lg }]}>
-            {!account.isArchived && account.isSelectable ? (
+          {account.kind === 'liability' && !account.isArchived ? (
+            <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
+              <View style={styles.actionsRow}>
+                <Button
+                  label="还款"
+                  size="sm"
+                  onPress={() => {
+                    hapticLight();
+                    setRepaymentOpen(true);
+                  }}
+                  style={styles.actionBtn}
+                />
+                {account.isSelectable ? (
+                  <Button
+                    label="记一笔"
+                    size="sm"
+                    variant="secondary"
+                    onPress={() =>
+                      router.push({ pathname: '/record', params: { accountId: account.id } })
+                    }
+                    style={styles.actionBtn}
+                  />
+                ) : null}
+              </View>
+              <View style={styles.actionsRow}>
+                <Button
+                  label="平账"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => {
+                    hapticLight();
+                    setSettleOpen(true);
+                  }}
+                  style={styles.actionBtn}
+                />
+                <Button
+                  label="编辑"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() =>
+                    router.push({ pathname: '/account-form', params: { id: account.id } })
+                  }
+                  style={styles.actionBtn}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.actionsRow, { marginTop: theme.spacing.lg }]}>
+              {!account.isArchived && account.isSelectable ? (
+                <Button
+                  label="记一笔"
+                  size="sm"
+                  onPress={() =>
+                    router.push({ pathname: '/record', params: { accountId: account.id } })
+                  }
+                  style={styles.actionBtn}
+                />
+              ) : null}
+              {!account.isArchived ? (
+                <Button
+                  label="平账"
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => {
+                    hapticLight();
+                    setSettleOpen(true);
+                  }}
+                  style={styles.actionBtn}
+                />
+              ) : null}
               <Button
-                label="记一笔"
+                label="编辑"
                 size="sm"
+                variant="secondary"
                 onPress={() =>
-                  router.push({ pathname: '/record', params: { accountId: account.id } })
+                  router.push({ pathname: '/account-form', params: { id: account.id } })
                 }
                 style={styles.actionBtn}
               />
-            ) : null}
-            {!account.isArchived ? (
-              <Button
-                label="平账"
-                size="sm"
-                variant="secondary"
-                onPress={() => {
-                  hapticLight();
-                  setSettleOpen(true);
-                }}
-                style={styles.actionBtn}
-              />
-            ) : null}
-            <Button
-              label="编辑"
-              size="sm"
-              variant="secondary"
-              onPress={() =>
-                router.push({ pathname: '/account-form', params: { id: account.id } })
-              }
-              style={styles.actionBtn}
-            />
-          </View>
+            </View>
+          )}
         </View>
 
         {/* 流水直排：按日分组，无独立分区标题 */}
@@ -496,6 +546,15 @@ export default function AccountDetailScreen(): React.JSX.Element {
           });
           notifyChange();
         }}
+      />
+
+      <RepaymentSheet
+        target={
+          repaymentOpen && account.kind === 'liability' && !account.isArchived
+            ? { mode: 'create', liabilityAccount: account }
+            : null
+        }
+        onClose={() => setRepaymentOpen(false)}
       />
 
       {interactions.overlays}

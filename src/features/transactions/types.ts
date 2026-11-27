@@ -2,18 +2,18 @@
  * 支出、收入与转账交易领域类型定义
  */
 
-export type TransactionType = 'expense' | 'income' | 'transfer' | 'refund';
+export type TransactionType = 'expense' | 'income' | 'transfer' | 'refund' | 'repayment';
 
 export interface Transaction {
   id: string;
   type: TransactionType;
   /** 交易金额（恒为正整数，单位：分） */
   amountCents: number;
-  /** 支出、收入或退款归属分类 ID（退款沿用原支出分类）；转账为 null */
+  /** 支出、收入或退款归属分类 ID（退款沿用原支出分类）；转账与还款为 null */
   categoryId: string | null;
-  /** 支出账户 / 收入账户 / 转账转出账户 / 退款入账账户 ID */
+  /** 支出账户 / 收入账户 / 转账转出账户 / 退款入账账户 / 还款负债账户 ID */
   accountId: string;
-  /** 转账转入账户 ID；非转账为 null */
+  /** 转账转入账户 ID 或还款资金来源资产账户 ID（无账户直接还款为 null） */
   toAccountId: string | null;
   /** 关联的原支出交易 ID；仅 refund 类型非空 */
   refundOfId: string | null;
@@ -41,7 +41,7 @@ export interface TransactionListItem extends Transaction {
 }
 
 export interface CreateTransactionInput {
-  type: Exclude<TransactionType, 'refund'>;
+  type: Exclude<TransactionType, 'refund' | 'repayment'>;
   amountCents: number;
   categoryId: string | null;
   accountId: string;
@@ -51,6 +51,26 @@ export interface CreateTransactionInput {
 }
 
 export type UpdateTransactionInput = CreateTransactionInput;
+
+export interface CreateRepaymentInput {
+  /** 被还款的负债账户 ID */
+  liabilityAccountId: string;
+  /** 资金来源资产账户 ID；传 null 表示不使用转入，直接无账户支出还款 */
+  sourceAccountId: string | null;
+  /** 还款金额（分，须 > 0 且在系统安全范围内） */
+  amountCents: number;
+  /** 还款日期（YYYY-MM-DD） */
+  occurredOn: string;
+  note?: string;
+}
+
+export interface UpdateRepaymentInput {
+  /** 资金来源资产账户 ID；传 null 表示无账户直接还款 */
+  sourceAccountId: string | null;
+  amountCents: number;
+  occurredOn: string;
+  note?: string;
+}
 
 export interface CreateRefundInput {
   /** 被退款的原支出交易 ID */

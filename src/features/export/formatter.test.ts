@@ -265,5 +265,50 @@ describe('export 完整 JSON 备份格式化与导入校验', () => {
     });
     const validatedOverRefund = validateLedgerImportJson(JSON.stringify(overRefundPayload));
     expect(validatedOverRefund.payload.transactions).toHaveLength(2);
+
+    // 4. Schema v5 支持资产转入还款与无账户直接还款往返校验，拒绝非法自引用还款
+    const repayPayload = JSON.parse(serializeLedgerToJson(base)) as typeof base;
+    repayPayload.transactions.push(
+      {
+        ...repayPayload.transactions[0]!,
+        id: 'tx_rep_1',
+        type: 'repayment',
+        typeLabel: '还款',
+        amountCents: 50000,
+        amountYuan: '500.00',
+        categoryId: null,
+        categoryName: null,
+        parentCategoryName: null,
+        accountId: 'acc_credit',
+        accountName: '信用卡',
+        toAccountId: 'acc_wallet',
+        toAccountName: '钱包',
+        refundOfId: null,
+        refundedCents: 0,
+        note: '资产转入还款',
+      },
+      {
+        ...repayPayload.transactions[0]!,
+        id: 'tx_rep_2',
+        type: 'repayment',
+        typeLabel: '还款',
+        amountCents: 20000,
+        amountYuan: '200.00',
+        categoryId: null,
+        categoryName: null,
+        parentCategoryName: null,
+        accountId: 'acc_credit',
+        accountName: '信用卡',
+        toAccountId: null,
+        toAccountName: null,
+        refundOfId: null,
+        refundedCents: 0,
+        note: '无账户直接还款',
+      }
+    );
+    const validatedRepay = validateLedgerImportJson(JSON.stringify(repayPayload));
+    expect(validatedRepay.payload.transactions).toHaveLength(3);
+    expect(validatedRepay.payload.transactions[1]?.typeLabel).toBe('还款');
+    expect(validatedRepay.payload.transactions[2]?.toAccountId).toBeNull();
   });
 });

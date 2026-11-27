@@ -274,6 +274,41 @@ describe('db 历史版本增量迁移', () => {
         card_number: '',
         opened_on: '',
       });
+
+      // v6：支持负债还款（可选付款资产账户与无账户直接还款），拒绝带分类或自引用还款
+      await legacy.run(
+        `INSERT INTO transactions (
+          id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+          occurred_on, note, created_at, updated_at
+        ) VALUES ('tx_rep_asset', 'repayment', 1000, NULL, 'acc_old_credit', 'acc_wechat', NULL, '2026-11-22', '储蓄卡还款', ?, ?)`,
+        [now, now]
+      );
+      await legacy.run(
+        `INSERT INTO transactions (
+          id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+          occurred_on, note, created_at, updated_at
+        ) VALUES ('tx_rep_direct', 'repayment', 500, NULL, 'acc_old_credit', NULL, NULL, '2026-11-23', '无账户直接还款', ?, ?)`,
+        [now, now]
+      );
+      await expect(
+        legacy.run(
+          `INSERT INTO transactions (
+            id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+            occurred_on, note, created_at, updated_at
+          ) VALUES ('tx_rep_bad_cat', 'repayment', 500, 'cat_exp_food', 'acc_old_credit', NULL, NULL, '2026-11-23', '', ?, ?)`,
+          [now, now]
+        )
+      ).rejects.toThrow();
+      await expect(
+        legacy.run(
+          `INSERT INTO transactions (
+            id, type, amount_cents, category_id, account_id, to_account_id, refund_of_id,
+            occurred_on, note, created_at, updated_at
+          ) VALUES ('tx_rep_bad_self', 'repayment', 500, NULL, 'acc_old_credit', 'acc_old_credit', NULL, '2026-11-23', '', ?, ?)`,
+          [now, now]
+        )
+      ).rejects.toThrow();
+
       const fkIssues = await legacy.getAll('PRAGMA foreign_key_check;');
       expect(fkIssues).toHaveLength(0);
     } finally {

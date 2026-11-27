@@ -35,18 +35,22 @@ import {
   invertBalanceDeltas,
   mergeBalanceDeltas,
   normalizeRefundInput,
+  normalizeRepaymentInput,
   normalizeTransactionInput,
+  normalizeUpdateRepaymentInput,
 } from './rules';
 import type {
   BalanceDelta,
   CategoryAccountMemory,
   CreateRefundInput,
+  CreateRepaymentInput,
   CreateTransactionInput,
   MonthlyLedger,
   PeriodLedger,
   Transaction,
   TransactionListItem,
   UpdateRefundInput,
+  UpdateRepaymentInput,
   UpdateTransactionInput,
 } from './types';
 
@@ -152,6 +156,9 @@ export async function updateTransaction(
     }
     if (existing.type === 'refund') {
       throw new Error('退款记录请使用退款编辑入口修改');
+    }
+    if (existing.type === 'repayment') {
+      throw new Error('还款记录请使用还款编辑入口修改');
     }
 
     if (existing.type === 'expense') {
@@ -292,6 +299,132 @@ export async function updateRefundTransaction(
       accountId: normalized.accountId,
       occurredOn: normalized.occurredOn,
       note: normalized.note ?? '',
+      updatedAt: now,
+    };
+
+    await updateTransactionRow(tx, updated);
+
+    const oldDeltas = computeBalanceDeltas(existing);
+    const newDeltas = computeBalanceDeltas(updated);
+    const netDeltas = mergeBalanceDeltas([...invertBalanceDeltas(oldDeltas), ...newDeltas]);
+    for (const delta of netDeltas) {
+      await applyAccountBalanceDelta(tx, delta.accountId, delta.deltaCents, now);
+    }
+
+    return updated;
+  });
+}
+
+/**
+ * 为负债账户创建一笔还款记录，并在同一事务内原子减少负债欠款（余额增加）：
+ * - 指定 sourceAccountId（资产账户）时，同时从该资产账户扣减等额余额；
+ * - sourceAccountId 为 null 时，仅减少负债欠款，不从任何资产账户扣款，不计入收支统计。
+ */
+export async function createRepaymentTransaction(
+  db: SqlExecutor,
+  rawInput: CreateRepaymentInput
+): Promise<Transaction> {
+  const input = normalizeRepaymentInput(rawInput);
+  const now = new Date().toISOString();
+
+  return db.withTransaction(async (tx) => {
+    const liabilityAccount = await findAccountById(tx, input.liabilityAccountId);
+    if (!liabilityAccount) {
+      throw new Error('所选负债账户不存在');
+    }
+    if (liabilityAccount.kind !== 'liability') {
+      throw new Error('仅负债类型账户支持还款操作');
+    }
+    if (liabilityAccount.isArchived) {
+      throw new Error(`负债账户「${liabilityAccount.name}」已归档，请先恢复后再还款`);
+    }
+
+    if (input.sourceAccountId) {
+      const sourceAccount = await findAccountById(tx, input.sourceAccountId);
+      if (!sourceAccount) {
+        throw new Error('所选付款资产账户不存在');
+      }
+      if (sourceAccount.kind !== 'asset') {
+        throw new Error('还款资金来源仅支持选择资产账户');
+      }
+      if (sourceAccount.isArchived) {
+        throw new Error(`付款账户「${sourceAccount.name}」已归档，无法用于还款`);
+      }
+      if (!sourceAccount.isSelectable) {
+        throw new Error(`付款账户「${sourceAccount.name}」已设为不可选，无法用于还款`);
+      }
+    }
+
+    const record: Transaction = {
+      id: createId('tx'),
+      type: 'repayment',
+      amountCents: input.amountCents,
+      categoryId: null,
+      accountId: input.liabilityAccountId,
+      toAccountId: input.sourceAccountId,
+      refundOfId: null,
+      occurredOn: input.occurredOn,
+      note: input.note ?? '',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await insertTransactionRow(tx, record);
+
+    const deltas = computeBalanceDeltas(record);
+    for (const delta of deltas) {
+      await applyAccountBalanceDelta(tx, delta.accountId, delta.deltaCents, now);
+    }
+
+    return record;
+  });
+}
+
+/**
+ * 编辑既有还款记录（支持修改金额、切换资产转入 / 无账户直接还款、调整付款账户与日期备注），
+ * 并在同一事务内按净差额原子重算受影响账户余额。
+ */
+export async function updateRepaymentTransaction(
+  db: SqlExecutor,
+  repaymentId: string,
+  rawInput: UpdateRepaymentInput
+): Promise<Transaction> {
+  const now = new Date().toISOString();
+
+  return db.withTransaction(async (tx) => {
+    const existing = await findTransactionById(tx, repaymentId);
+    if (!existing) {
+      throw new Error('还款记录不存在或已被删除');
+    }
+    if (existing.type !== 'repayment') {
+      throw new Error('目标记录不是还款记录');
+    }
+
+    const input = normalizeUpdateRepaymentInput(existing.accountId, rawInput);
+
+    if (input.sourceAccountId) {
+      const sourceAccount = await findAccountById(tx, input.sourceAccountId);
+      if (!sourceAccount) {
+        throw new Error('所选付款资产账户不存在');
+      }
+      if (sourceAccount.kind !== 'asset') {
+        throw new Error('还款资金来源仅支持选择资产账户');
+      }
+      const keepingOldSource = existing.toAccountId === input.sourceAccountId;
+      if (sourceAccount.isArchived && !keepingOldSource) {
+        throw new Error(`付款账户「${sourceAccount.name}」已归档，无法用于还款`);
+      }
+      if (!sourceAccount.isSelectable && !keepingOldSource) {
+        throw new Error(`付款账户「${sourceAccount.name}」已设为不可选，无法用于还款`);
+      }
+    }
+
+    const updated: Transaction = {
+      ...existing,
+      amountCents: input.amountCents,
+      toAccountId: input.sourceAccountId,
+      occurredOn: input.occurredOn,
+      note: input.note ?? '',
       updatedAt: now,
     };
 

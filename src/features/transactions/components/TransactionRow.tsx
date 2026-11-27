@@ -56,6 +56,7 @@ export function TransactionRow({
 
   const isTransfer = item.type === 'transfer';
   const isRefund = item.type === 'refund';
+  const isRepayment = item.type === 'repayment';
   const hasRefund = item.type === 'expense' && item.refundedCents > 0;
   const isFullyRefunded = hasRefund && item.refundedCents >= item.amountCents;
   const isExactFullRefund = hasRefund && item.refundedCents === item.amountCents;
@@ -182,9 +183,11 @@ export function TransactionRow({
 
   const title = isTransfer
     ? `${item.accountName} → ${item.toAccountName ?? '未知账户'}`
-    : isRefund
-      ? `退款 · ${item.categoryName ?? '支出'}`
-      : categoryTitle;
+    : isRepayment
+      ? `还款 · ${item.accountName}`
+      : isRefund
+        ? `退款 · ${item.categoryName ?? '支出'}`
+        : categoryTitle;
 
   const subtitleParts: string[] = [];
   if (isTransfer) {
@@ -192,6 +195,16 @@ export function TransactionRow({
       subtitleParts.push(item.accountId === perspectiveAccountId ? '转出' : '转入');
     } else {
       subtitleParts.push('账户转账');
+    }
+  } else if (isRepayment) {
+    if (item.toAccountName) {
+      if (perspectiveAccountId && item.toAccountId === perspectiveAccountId) {
+        subtitleParts.push('转出还款');
+      } else {
+        subtitleParts.push(`${item.toAccountName} 转入`);
+      }
+    } else {
+      subtitleParts.push('无账户支出还款');
     }
   } else {
     subtitleParts.push(item.accountName);
@@ -215,6 +228,19 @@ export function TransactionRow({
     badgeBg = theme.colors.warningSubtle;
     badgeIconColor = theme.colors.warningTextOnSubtle;
     iconName = 'return-down-back-outline';
+  } else if (isRepayment) {
+    amountColor = theme.colors.transfer;
+    badgeBg = theme.colors.actionSubtle;
+    badgeIconColor = theme.colors.actionTextOnSubtle;
+    iconName = 'cash-outline';
+    if (perspectiveAccountId) {
+      const isOutgoingFromAsset = item.toAccountId === perspectiveAccountId;
+      amountText = formatTransactionAmount(
+        isOutgoingFromAsset ? 'expense' : 'income',
+        item.amountCents
+      );
+      amountColor = isOutgoingFromAsset ? theme.colors.transfer : theme.colors.income;
+    }
   } else if (isTransfer) {
     amountColor = theme.colors.transfer;
     badgeBg = theme.colors.transferSubtle;

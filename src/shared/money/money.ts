@@ -143,7 +143,7 @@ export function formatCentsToYuan(cents: number): string {
  * 将交易金额格式化为显式带符号文本（不单靠颜色传递语义，符合无障碍要求）。
  */
 export function formatTransactionAmount(
-  type: 'expense' | 'income' | 'transfer' | 'refund',
+  type: 'expense' | 'income' | 'transfer' | 'refund' | 'repayment',
   amountCents: number
 ): string {
   const plain = formatCentsPlain(Math.abs(Math.trunc(amountCents)), true);

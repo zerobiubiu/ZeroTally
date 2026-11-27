@@ -20,6 +20,7 @@ const TYPE_BADGE_LABEL: Record<TransactionType, string> = {
   income: '收入',
   transfer: '转账',
   refund: '退款',
+  repayment: '还款',
 };
 
 function formatLocalTimestamp(iso: string): string {
@@ -112,6 +113,7 @@ export function TransactionDetailSheet({
 
   const isTransfer = activeItem.type === 'transfer';
   const isRefund = activeItem.type === 'refund';
+  const isRepayment = activeItem.type === 'repayment';
   const isExpense = activeItem.type === 'expense';
   const hasRefund = isExpense && activeItem.refundedCents > 0;
   const remainingRefundableCents = isExpense
@@ -121,7 +123,7 @@ export function TransactionDetailSheet({
     ? Math.max(0, activeItem.refundedCents - activeItem.amountCents)
     : 0;
   const canRefund = isExpense;
-  const canCopy = !isRefund;
+  const canCopy = !isRefund && !isRepayment;
 
   const categoryTitle = activeItem.categoryParentName
     ? `${activeItem.categoryParentName} · ${activeItem.categoryName ?? ''}`
@@ -129,9 +131,11 @@ export function TransactionDetailSheet({
 
   const headerTitle = isTransfer
     ? `${activeItem.accountName} → ${activeItem.toAccountName ?? '未知账户'}`
-    : isRefund
-      ? `退款 · ${activeItem.categoryName ?? '支出'}`
-      : categoryTitle;
+    : isRepayment
+      ? `还款 · ${activeItem.accountName}`
+      : isRefund
+        ? `退款 · ${activeItem.categoryName ?? '支出'}`
+        : categoryTitle;
 
   let amountColor = theme.colors.expense;
   let badgeBg = theme.colors.expenseSubtle;
@@ -147,6 +151,11 @@ export function TransactionDetailSheet({
     badgeBg = theme.colors.warningSubtle;
     badgeFg = theme.colors.warningTextOnSubtle;
     iconName = 'return-down-back-outline';
+  } else if (isRepayment) {
+    amountColor = theme.colors.transfer;
+    badgeBg = theme.colors.actionSubtle;
+    badgeFg = theme.colors.actionTextOnSubtle;
+    iconName = 'cash-outline';
   } else if (isTransfer) {
     amountColor = theme.colors.transfer;
     badgeBg = theme.colors.transferSubtle;
@@ -462,6 +471,20 @@ export function TransactionDetailSheet({
                 <MetaRow
                   label="转入账户"
                   value={activeItem.toAccountName ?? '未知账户'}
+                  showDivider
+                />
+              </>
+            ) : isRepayment ? (
+              <>
+                <MetaRow label="负债账户" value={activeItem.accountName} showDivider />
+                <MetaRow
+                  label="付款来源"
+                  value={
+                    activeItem.toAccountName
+                      ? `${activeItem.toAccountName}（资产转入）`
+                      : '无账户支出（直接还款）'
+                  }
+                  mutedValue={!activeItem.toAccountName}
                   showDivider
                 />
               </>

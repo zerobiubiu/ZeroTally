@@ -270,4 +270,60 @@ describe('transactions 领域规则', () => {
     expect(updated.byRootCategoryId.cat_food).toBe('acc_alipay');
     expect(updated.byType.expense).toBe('acc_alipay');
   });
+
+  it('负债还款余额增量与统计口径：资产转入双边联动、无账户直接还款仅减债，且均不计入月度与单日收支', () => {
+    const assetRepayDeltas = computeBalanceDeltas({
+      type: 'repayment',
+      amountCents: 100_000,
+      accountId: 'acc_credit',
+      toAccountId: 'acc_bank',
+    });
+    expect(assetRepayDeltas).toEqual([
+      { accountId: 'acc_credit', deltaCents: 100_000 },
+      { accountId: 'acc_bank', deltaCents: -100_000 },
+    ]);
+
+    const directRepayDeltas = computeBalanceDeltas({
+      type: 'repayment',
+      amountCents: 50_000,
+      accountId: 'acc_credit',
+      toAccountId: null,
+    });
+    expect(directRepayDeltas).toEqual([
+      { accountId: 'acc_credit', deltaCents: 50_000 },
+    ]);
+
+    const items: TransactionListItem[] = [
+      makeTxItem({ id: 'e1', type: 'expense', amountCents: 20_000, occurredOn: '2026-11-27' }),
+      makeTxItem({
+        id: 'rep1',
+        type: 'repayment',
+        amountCents: 100_000,
+        categoryId: null,
+        accountId: 'acc_credit',
+        toAccountId: 'acc_bank',
+        occurredOn: '2026-11-27',
+      }),
+      makeTxItem({
+        id: 'rep2',
+        type: 'repayment',
+        amountCents: 50_000,
+        categoryId: null,
+        accountId: 'acc_credit',
+        toAccountId: null,
+        occurredOn: '2026-11-27',
+      }),
+    ];
+
+    const summary = computeMonthlySummary(items);
+    expect(summary.expenseCents).toBe(20_000);
+    expect(summary.incomeCents).toBe(0);
+    expect(summary.transferCents).toBe(0);
+    expect(summary.transactionCount).toBe(3);
+
+    const sections = groupTransactionsByDay(items);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.expenseCents).toBe(20_000);
+    expect(sections[0]?.incomeCents).toBe(0);
+  });
 });

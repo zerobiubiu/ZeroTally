@@ -74,7 +74,7 @@ import { AppIcon } from '../src/shared/ui/AppIcon';
 import { SafeScreen } from '../src/shared/ui/SafeScreen';
 import { useTheme } from '../src/theme/theme-context';
 
-type RecordableTransactionType = Exclude<TransactionType, 'refund'>;
+type RecordableTransactionType = Exclude<TransactionType, 'refund' | 'repayment'>;
 
 const TYPE_TABS: readonly { value: RecordableTransactionType; label: string }[] = [
   { value: 'expense', label: '支出' },
@@ -330,7 +330,7 @@ export default function RecordScreen(): React.JSX.Element {
       if (isFirstInit) {
         initializedKeyRef.current = initKey;
 
-        if (existingTx && existingTx.type !== 'refund') {
+        if (existingTx && existingTx.type !== 'refund' && existingTx.type !== 'repayment') {
           setTxType(existingTx.type);
           setAmountExpr(centsToInputString(existingTx.amountCents));
           setCategoryId(existingTx.categoryId);
@@ -340,7 +340,11 @@ export default function RecordScreen(): React.JSX.Element {
           setOccurredOn(existingTx.occurredOn);
           setNote(existingTx.note);
           setAccountLocked(true);
-        } else if (templateTx && templateTx.type !== 'refund') {
+        } else if (
+          templateTx &&
+          templateTx.type !== 'refund' &&
+          templateTx.type !== 'repayment'
+        ) {
           setTxType(templateTx.type);
           setAmountExpr(centsToInputString(templateTx.amountCents));
           setCategoryId(

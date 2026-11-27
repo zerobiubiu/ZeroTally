@@ -5,15 +5,70 @@ import type { Category } from '../categories/types';
 import type {
   BalanceDelta,
   CategoryAccountMemory,
+  CreateRepaymentInput,
   CreateTransactionInput,
   DailyTransactionSection,
   MonthlySummary,
   Transaction,
   TransactionListItem,
   UpdateRefundInput,
+  UpdateRepaymentInput,
 } from './types';
 
 export const MAX_TRANSACTION_NOTE_LENGTH = 120;
+
+export function normalizeRepaymentInput(input: CreateRepaymentInput): CreateRepaymentInput {
+  if (
+    !Number.isSafeInteger(input.amountCents) ||
+    input.amountCents <= 0 ||
+    input.amountCents > MAX_AMOUNT_CENTS
+  ) {
+    throw new Error('请输入大于 0 且在有效范围内的还款金额');
+  }
+
+  if (!isValidIsoDate(input.occurredOn)) {
+    throw new Error('还款日期格式无效，应为 YYYY-MM-DD');
+  }
+
+  const liabilityAccountId = input.liabilityAccountId.trim();
+  if (!liabilityAccountId) {
+    throw new Error('缺少需要还款的负债账户');
+  }
+
+  const sourceAccountId =
+    input.sourceAccountId && input.sourceAccountId.trim().length > 0
+      ? input.sourceAccountId.trim()
+      : null;
+  if (sourceAccountId && sourceAccountId === liabilityAccountId) {
+    throw new Error('付款账户与还款负债账户不能相同');
+  }
+
+  const note = (input.note ?? '').trim();
+  if (note.length > MAX_TRANSACTION_NOTE_LENGTH) {
+    throw new Error(`备注不能超过 ${MAX_TRANSACTION_NOTE_LENGTH} 个字符`);
+  }
+
+  return {
+    liabilityAccountId,
+    sourceAccountId,
+    amountCents: input.amountCents,
+    occurredOn: input.occurredOn,
+    note,
+  };
+}
+
+export function normalizeUpdateRepaymentInput(
+  liabilityAccountId: string,
+  input: UpdateRepaymentInput
+): CreateRepaymentInput {
+  return normalizeRepaymentInput({
+    liabilityAccountId,
+    sourceAccountId: input.sourceAccountId,
+    amountCents: input.amountCents,
+    occurredOn: input.occurredOn,
+    note: input.note,
+  });
+}
 
 export function normalizeRefundInput(input: UpdateRefundInput): UpdateRefundInput {
   if (
@@ -100,6 +155,7 @@ export function normalizeTransactionInput(input: CreateTransactionInput): Create
  * - income：收入账户增加 amountCents
  * - refund：退款入账账户增加 amountCents（资金退回）
  * - transfer：转出账户扣减 amountCents，转入账户增加 amountCents
+ * - repayment：负债账户（accountId）增加 amountCents（欠款减少）；若指定付款来源资产账户（toAccountId），同时扣减该资产账户 amountCents
  */
 export function computeBalanceDeltas(
   tx: Pick<Transaction, 'type' | 'amountCents' | 'accountId' | 'toAccountId'>
@@ -118,6 +174,15 @@ export function computeBalanceDeltas(
         { accountId: tx.accountId, deltaCents: -tx.amountCents },
         { accountId: tx.toAccountId, deltaCents: tx.amountCents },
       ];
+    case 'repayment': {
+      const deltas: BalanceDelta[] = [
+        { accountId: tx.accountId, deltaCents: tx.amountCents },
+      ];
+      if (tx.toAccountId) {
+        deltas.push({ accountId: tx.toAccountId, deltaCents: -tx.amountCents });
+      }
+      return deltas;
+    }
     default: {
       const exhaustive: never = tx.type;
       throw new Error(`不支持的交易类型：${String(exhaustive)}`);
@@ -155,7 +220,7 @@ export function mergeBalanceDeltas(deltas: readonly BalanceDelta[]): BalanceDelt
 
 /**
  * 权威月度统计规则：
- * - 转账仅在账户间迁移资金，不计入当月支出或收入。
+ * - 转账与负债还款（无论是否指定转出资产账户）均不计入当月支出或收入。
  * - 退款抵扣当月支出（不虚增收入），月度净支出 = 支出 - 退款。
  * - 月度结余 = 当月收入 - 当月净支出。
  */
@@ -173,7 +238,7 @@ export function computeMonthlySummary(items: readonly Transaction[]): MonthlySum
       refundCents += item.amountCents;
     } else if (item.type === 'income') {
       incomeCents += item.amountCents;
-    } else {
+    } else if (item.type === 'transfer') {
       transferCents += item.amountCents;
     }
   }
