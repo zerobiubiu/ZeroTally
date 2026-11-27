@@ -61,6 +61,7 @@
 | [changes/0040-transaction-search-and-filters.md](changes/0040-transaction-search-and-filters.md) | 变更记录 | 已执行 | 新增账单搜索与多维筛选页（关键词、类型、分类、账户、日期与金额区间组合查询及分页懒加载，v1.8.0） |
 | [changes/0041-lazy-pagination-ledger-and-account-detail.md](changes/0041-lazy-pagination-ledger-and-account-detail.md) | 变更记录 | 已执行 | 明细与账户详情页全面接入 90% 触底懒加载分页，SQL 聚合周期汇总并解除 1000 笔截断上限（v1.8.1） |
 | [changes/0042-error-boundary-and-privacy-consistency.md](changes/0042-error-boundary-and-privacy-consistency.md) | 变更记录 | 已执行 | 新增全局崩溃兜底 AppErrorBoundary，修正关于页云备份表述并新增独立隐私说明页（v1.8.2） |
+| [changes/0043-privacy-and-security-center.md](changes/0043-privacy-and-security-center.md) | 变更记录 | 已执行 | 新增个性化隐私与安全中心（可选应用启动锁、生物识别、独立 PIN、防截屏遮罩与金额隐藏，v1.8.3） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

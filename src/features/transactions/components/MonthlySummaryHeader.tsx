@@ -11,6 +11,8 @@ import { hapticLight, hapticSelection } from '../../../shared/haptics/haptics';
 import { formatCentsToYuan } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
+import { maskSensitiveAmount } from '../../security/rules';
+import { useSecurity } from '../../security/security-context';
 import type { LedgerPeriodMode, MonthlySummary } from '../types';
 
 interface MonthlySummaryHeaderProps {
@@ -36,6 +38,7 @@ export function MonthlySummaryHeader({
   onPressAnalytics,
 }: MonthlySummaryHeaderProps): React.JSX.Element {
   const { theme } = useTheme();
+  const { config, amountsHidden, toggleAmountsHidden } = useSecurity();
   const [labelTranslateX] = useState(() => new Animated.Value(0));
   const draggingRef = useRef(false);
   const onPrevRef = useRef(onPrevPeriod);
@@ -274,26 +277,49 @@ export function MonthlySummaryHeader({
                 },
               ]}
             >
-              {formatCentsToYuan(summary.expenseCents)}
+              {maskSensitiveAmount(formatCentsToYuan(summary.expenseCents), amountsHidden)}
             </Text>
           </View>
 
-          {onPressAnalytics ? (
-            <View style={styles.analyticsCue}>
-              <AppIcon name="bar-chart-outline" size={14} color={theme.colors.heroSubtext} />
-              <Text
-                style={{
-                  color: theme.colors.heroSubtext,
-                  fontSize: theme.fontSize.xs,
-                  fontWeight: theme.fontWeight.semibold,
-                  marginLeft: 4,
+          <View style={styles.rightCueRow}>
+            {config.showAmountPrivacyToggle ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={amountsHidden ? '显示金额' : '隐藏金额'}
+                hitSlop={10}
+                onPress={() => {
+                  hapticLight();
+                  toggleAmountsHidden();
                 }}
+                style={({ pressed }) => [
+                  styles.eyeBtn,
+                  pressed && { opacity: theme.opacity.pressed },
+                ]}
               >
-                分析
-              </Text>
-              <AppIcon name="chevron-forward" size={14} color={theme.colors.heroSubtext} />
-            </View>
-          ) : null}
+                <AppIcon
+                  name={amountsHidden ? 'eye-off-outline' : 'eye-outline'}
+                  size={17}
+                  color={theme.colors.heroSubtext}
+                />
+              </Pressable>
+            ) : null}
+            {onPressAnalytics ? (
+              <View style={styles.analyticsCue}>
+                <AppIcon name="bar-chart-outline" size={14} color={theme.colors.heroSubtext} />
+                <Text
+                  style={{
+                    color: theme.colors.heroSubtext,
+                    fontSize: theme.fontSize.xs,
+                    fontWeight: theme.fontWeight.semibold,
+                    marginLeft: 4,
+                  }}
+                >
+                  分析
+                </Text>
+                <AppIcon name="chevron-forward" size={14} color={theme.colors.heroSubtext} />
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <View
@@ -329,7 +355,7 @@ export function MonthlySummaryHeader({
                 },
               ]}
             >
-              {formatCentsToYuan(summary.incomeCents)}
+              {maskSensitiveAmount(formatCentsToYuan(summary.incomeCents), amountsHidden)}
             </Text>
           </View>
 
@@ -355,7 +381,7 @@ export function MonthlySummaryHeader({
                 },
               ]}
             >
-              {formatCentsToYuan(summary.balanceCents)}
+              {maskSensitiveAmount(formatCentsToYuan(summary.balanceCents), amountsHidden)}
             </Text>
           </View>
         </View>
@@ -398,6 +424,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  rightCueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  eyeBtn: {
+    padding: 4,
   },
   analyticsCue: {
     flexDirection: 'row',

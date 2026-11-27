@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.8.2
+- **生效版本**：v1.8.3
 
 ## 结论概览
 
@@ -20,7 +20,8 @@
 | `src/features/analytics/` | 多周期账务分析职责 | 分类占比排行、账户资金分布、日均支出、结余率与月/年/全量收支趋势聚合 | 交易写入、余额变更 | `app/` |
 | `src/features/export/` | 完整 JSON 备份导入导出职责 | Schema v5 完整 JSON 备份（含外观/账户三开关与卡信息/分类/快捷模板/含还款的交易明细与 FNV-1a 校验指纹，兼容 v1~v4 导入）生成、严格校验、单事务原子恢复及 Android 原生文件读写 | 单笔业务记账规则 | `app/`、`cloud-backup` |
 | `src/features/cloud-backup/` | 双通道云备份与多版本快照恢复职责 | WebDAV（HTTPS 默认校验、`PROPFIND`/`MKCOL`/`PUT`/`GET`/`DELETE`）与 Google Drive（OAuth 2.0 PKCE `S256` + `drive.file` + `ZeroTally/` 文件夹 + Token 自动续期）、硬件安全凭据隔离（`expo-secure-store`）、多版本历史快照管理/超限清理与防抖自动云备份编排 | 账本 JSON 序列化/反序列化规则（复用 `export`）、核心账目与资产业务规则 | `app/` |
-| `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（顶栏右侧纯「i」关于图标、置顶外观切换持久化、分类管理、云备份、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export`、`cloud-backup` |
+| `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（顶栏右侧纯「i」关于图标、置顶外观切换持久化、分类管理、云备份、隐私与安全、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export`、`cloud-backup` |
+| `src/features/security/` | 个性化隐私与安全中心职责 | 应用启动锁、系统生物识别验证器、加盐哈希 PIN（`SecureStore` 硬件隔离）、后台重锁策略、防截屏/后台遮罩与敏感金额隐私脱敏开关 | 业务账务与云同步 | `app/`、`accounts`、`transactions` |
 | `src/features/navigation/` | 主导航路由与共享顶栏上下文职责 | Expo Router 双页 Tab 占位描述符补齐、固定顺序规范化纯逻辑及主界面共享顶栏/抽屉上下文 | 具体页面渲染与业务规则 | `app/(tabs)/` |
 | `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema v6 迁移（含 `app_settings`、`quick_templates`、账户三开关/卡信息列及 `repayment` 还款类型）、幂等默认单一钱包与分类种子、Expo/Node 适配器、变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
 | `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化与正数输入规整、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、统一可拖拽 `BottomSheet`（内置标准顶栏/滚动手势协同/两段展开与非展开禁上拉）/ 统一滑动分段控件 `SlidingSegmentedControl` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |

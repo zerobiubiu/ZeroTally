@@ -7,6 +7,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
+import { maskSensitiveAmount } from '../../security/rules';
+import { useSecurity } from '../../security/security-context';
 import { describeAccountBalance, getAccountCategoryMeta } from '../rules';
 import type { Account } from '../types';
 
@@ -22,6 +24,7 @@ export function AccountRow({
   showDivider = false,
 }: AccountRowProps): React.JSX.Element {
   const { theme } = useTheme();
+  const { amountsHidden } = useSecurity();
   const categoryMeta = getAccountCategoryMeta(account.category);
   const balanceInfo = describeAccountBalance(account);
 
@@ -110,7 +113,7 @@ export function AccountRow({
             },
           ]}
         >
-          {balanceInfo.amountText}
+          {maskSensitiveAmount(balanceInfo.amountText, amountsHidden)}
         </Text>
         <Text
           style={{

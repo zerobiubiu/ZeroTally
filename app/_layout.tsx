@@ -6,6 +6,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
 import { runAutoCloudBackupIfNeeded } from '../src/features/cloud-backup/service';
+import { AppLockOverlay } from '../src/features/security/components/AppLockOverlay';
+import { SecurityProvider } from '../src/features/security/security-context';
 import { getThemePreferenceSetting } from '../src/features/settings/repository';
 import { AppErrorBoundary } from '../src/shared/ui/AppErrorBoundary';
 import { ThemeProvider, useTheme } from '../src/theme/theme-context';
@@ -173,6 +175,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="security"
+          options={{
+            title: '隐私与安全',
+          }}
+        />
+        <Stack.Screen
           name="about"
           options={{
             title: '关于',
@@ -197,6 +205,7 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
       </Stack>
+      <AppLockOverlay />
     </>
   );
 }
@@ -208,7 +217,9 @@ export default function RootLayout(): React.JSX.Element {
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <ThemeProvider>
             <DatabaseProvider>
-              <RootNavigator />
+              <SecurityProvider>
+                <RootNavigator />
+              </SecurityProvider>
             </DatabaseProvider>
           </ThemeProvider>
         </SafeAreaProvider>

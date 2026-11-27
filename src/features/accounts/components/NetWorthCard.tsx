@@ -4,9 +4,13 @@
  * - 令牌：heroBg / heroText / heroSubtext / heroDivider
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { hapticLight } from '../../../shared/haptics/haptics';
 import { formatCentsToYuan } from '../../../shared/money/money';
+import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
+import { maskSensitiveAmount } from '../../security/rules';
+import { useSecurity } from '../../security/security-context';
 import type { NetWorthSummary } from '../types';
 
 interface NetWorthCardProps {
@@ -15,6 +19,7 @@ interface NetWorthCardProps {
 
 export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element {
   const { theme } = useTheme();
+  const { config, amountsHidden, toggleAmountsHidden } = useSecurity();
 
   return (
     <View
@@ -27,14 +32,34 @@ export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element 
         },
       ]}
     >
-      <Text
-        style={{
-          color: theme.colors.heroSubtext,
-          fontSize: theme.fontSize.xs,
-        }}
-      >
-        净资产
-      </Text>
+      <View style={styles.topRow}>
+        <Text
+          style={{
+            color: theme.colors.heroSubtext,
+            fontSize: theme.fontSize.xs,
+          }}
+        >
+          净资产
+        </Text>
+        {config.showAmountPrivacyToggle ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={amountsHidden ? '显示金额' : '隐藏金额'}
+            hitSlop={10}
+            onPress={() => {
+              hapticLight();
+              toggleAmountsHidden();
+            }}
+            style={({ pressed }) => [pressed && { opacity: theme.opacity.pressed }]}
+          >
+            <AppIcon
+              name={amountsHidden ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color={theme.colors.heroSubtext}
+            />
+          </Pressable>
+        ) : null}
+      </View>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
@@ -48,7 +73,7 @@ export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element 
           },
         ]}
       >
-        {formatCentsToYuan(summary.netWorthCents)}
+        {maskSensitiveAmount(formatCentsToYuan(summary.netWorthCents), amountsHidden)}
       </Text>
 
       <View
@@ -79,7 +104,7 @@ export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element 
               },
             ]}
           >
-            {formatCentsToYuan(summary.totalAssetsCents)}
+            {maskSensitiveAmount(formatCentsToYuan(summary.totalAssetsCents), amountsHidden)}
           </Text>
         </View>
 
@@ -100,7 +125,7 @@ export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element 
               },
             ]}
           >
-            {formatCentsToYuan(summary.totalLiabilitiesCents)}
+            {maskSensitiveAmount(formatCentsToYuan(summary.totalLiabilitiesCents), amountsHidden)}
           </Text>
         </View>
       </View>
@@ -122,6 +147,11 @@ export function NetWorthCard({ summary }: NetWorthCardProps): React.JSX.Element 
 
 const styles = StyleSheet.create({
   card: {},
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   divider: {
     height: 1,
   },

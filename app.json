@@ -2,7 +2,7 @@
   "expo": {
     "name": "ZeroTally",
     "slug": "keep-accounts",
-    "version": "1.8.2",
+    "version": "1.8.3",
     "orientation": "portrait",
     "scheme": [
       "keep-accounts",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.keepaccounts.app",
-      "versionCode": 36,
+      "versionCode": 37,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
@@ -30,7 +30,13 @@
       "expo-sqlite",
       "./plugins/with-windows-cmake-path-fix",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "允许 ZeroTally 使用面容识别解锁账本"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

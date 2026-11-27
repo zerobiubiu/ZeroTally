@@ -54,7 +54,7 @@ export function SettingsPanel({
   };
 
   const navigateTo = (
-    pathname: '/categories' | '/cloud-backup' | '/about' | '/advanced-settings'
+    pathname: '/categories' | '/cloud-backup' | '/security' | '/about' | '/advanced-settings'
   ) => {
     hapticLight();
     onClose?.();
@@ -78,6 +78,12 @@ export function SettingsPanel({
       label: '云备份',
       icon: 'cloud-upload-outline',
       onPress: () => navigateTo('/cloud-backup'),
+    },
+    {
+      key: 'security',
+      label: '隐私与安全',
+      icon: 'shield-checkmark-outline',
+      onPress: () => navigateTo('/security'),
     },
     {
       key: 'advanced',

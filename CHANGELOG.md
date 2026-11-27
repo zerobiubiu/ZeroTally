@@ -2,6 +2,15 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.8.3] - 2026-11-27
+
+### 新增
+
+- **个性化「隐私与安全」中心（全部细粒度可选项，默认关闭零打扰）**（新增 `src/features/security/`、`app/security.tsx`，引入 `expo-local-authentication` 与 `expo-screen-capture`，接入 `app/_layout.tsx`、`SettingsPanel.tsx`、`NetWorthCard.tsx`、`MonthlySummaryHeader.tsx`、`AccountRow.tsx`）：
+  - **应用启动锁与双路径解锁**：支持独立开启应用启动锁、按需启用系统生物识别（指纹 / 面容）解锁，及设置 4~6 位独立数字密码（PIN 经 16 字节随机盐 + 128 轮 SHA-256 拉伸后仅存系统 `SecureStore`，绝不写入 SQLite 或备份 JSON），并支持自由配置切后台重锁时间（立即 / 30 秒 / 1 分钟 / 5 分钟）。
+  - **防截屏与多任务后台遮罩**：独立开关控制 Android `FLAG_SECURE` 防截屏与切出后台自动覆盖品牌隐私遮罩。
+  - **敏感金额隐私显示**：独立拆分「启动默认隐藏金额」与「总览卡快捷小眼睛显隐开关」，按需一键将净资产、总览收支与账户余额遮蔽为 `****`。
+
 ## [1.8.2] - 2026-11-27
 
 ### 新增与修复
