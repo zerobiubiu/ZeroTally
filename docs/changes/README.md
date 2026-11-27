@@ -55,3 +55,4 @@
 | [0046-recurring-bills-salary-mortgage-and-credit-cycle.md](0046-recurring-bills-salary-mortgage-and-credit-cycle.md) | 变更记录 | 已执行 | v1.9.1 | 新增设置侧栏一级入口「周期账单」：固定支出自动/手动入账、弹性月薪（提前/延时/扣款补贴）、双模式房贷与提前还款试算执行、信用卡账单/还款日追踪 |
 
 | [0047-quick-batch-recording.md](0047-quick-batch-recording.md) | 变更记录 | 已执行 | v1.9.2 | 新增快捷批量记账页（由快捷面板进入，支持模板一键追加多行与单事务原子批量入账） |
+| [0048-analytics-drilldown-and-comparison.md](0048-analytics-drilldown-and-comparison.md) | 变更记录 | 已执行 | 财务分析深度增强：环比/同比增幅、二级分类展开、大额单笔 Top 5 与全链路明细下钻（v1.9.3） |

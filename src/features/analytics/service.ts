@@ -8,13 +8,17 @@ import {
 import {
   findAllTransactionsForExport,
   findTransactionsByDateRange,
+  summarizeTransactionsByDateRange,
 } from '../transactions/repository';
 import { computeMonthlySummary } from '../transactions/rules';
 import {
   buildAccountBreakdown,
   buildAllYearsTrend,
   buildCategoryBreakdown,
+  buildPeriodComparisonSnapshot,
+  buildPeriodHighlights,
   buildSixMonthTrend,
+  buildTopTransactions,
   buildYearMonthlyTrend,
   computeAllTimeDailyAvgExpenseCents,
   computeDailyAvgExpenseCents,
@@ -53,11 +57,14 @@ export async function getMonthlyAnalytics(
     expenseByAccount: buildAccountBreakdown(monthItems, 'expense'),
     incomeByAccount: buildAccountBreakdown(monthItems, 'income'),
     trend6Months: buildSixMonthTrend(monthKey, sixMonthItems),
+    highlights: buildPeriodHighlights(monthItems),
+    topExpenses: buildTopTransactions(monthItems, 'expense', 5),
+    topIncomes: buildTopTransactions(monthItems, 'income', 5),
   };
 }
 
 /**
- * 按「月 / 年 / 全部」三种周期维度生成完整账务分析报告。
+ * 按「月 / 年 / 全部」三种周期维度生成完整账务分析报告（含环比/同比、二级分类下钻、消费洞察与大额排行）。
  */
 export async function getScopedAnalytics(
   db: SqlExecutor,
@@ -72,6 +79,20 @@ export async function getScopedAnalytics(
 
   if (params.scope === 'month') {
     const monthly = await getMonthlyAnalytics(db, params.monthKey, todayIso);
+    const prevMonthKey = shiftMonthKey(params.monthKey, -1);
+    const yoyMonthKey = shiftMonthKey(params.monthKey, -12);
+    const prevPoint = monthly.trend6Months.find((pt) => pt.monthKey === prevMonthKey);
+    const prevSummary = prevPoint
+      ? {
+          expenseCents: prevPoint.expenseCents,
+          incomeCents: prevPoint.incomeCents,
+          balanceCents: prevPoint.balanceCents,
+        }
+      : { expenseCents: 0, incomeCents: 0, balanceCents: 0 };
+
+    const yoyRange = getMonthDateRange(yoyMonthKey);
+    const yoySummary = await summarizeTransactionsByDateRange(db, yoyRange.start, yoyRange.end);
+
     return {
       scope: 'month',
       periodKey: monthly.monthKey,
@@ -79,10 +100,17 @@ export async function getScopedAnalytics(
       summary: monthly.summary,
       dailyAvgExpenseCents: monthly.dailyAvgExpenseCents,
       savingsRatePercent: monthly.savingsRatePercent,
+      comparison: {
+        previous: buildPeriodComparisonSnapshot('环比上月', monthly.summary, prevSummary),
+        yearOverYear: buildPeriodComparisonSnapshot('同比去年', monthly.summary, yoySummary),
+      },
+      highlights: monthly.highlights,
       expenseByCategory: monthly.expenseByCategory,
       incomeByCategory: monthly.incomeByCategory,
       expenseByAccount: monthly.expenseByAccount,
       incomeByAccount: monthly.incomeByAccount,
+      topExpenses: monthly.topExpenses,
+      topIncomes: monthly.topIncomes,
       trendTitle: '近 6 个月趋势',
       trendGranularity: 'month',
       trendPoints: monthly.trend6Months.map((pt) => ({
@@ -97,7 +125,11 @@ export async function getScopedAnalytics(
 
   if (params.scope === 'year') {
     const { start, end } = getYearDateRange(params.year);
-    const yearItems = await findTransactionsByDateRange(db, start, end);
+    const prevYearRange = getYearDateRange(params.year - 1);
+    const [yearItems, prevYearSummary] = await Promise.all([
+      findTransactionsByDateRange(db, start, end),
+      summarizeTransactionsByDateRange(db, prevYearRange.start, prevYearRange.end),
+    ]);
     const summary = computeMonthlySummary(yearItems);
 
     return {
@@ -111,10 +143,17 @@ export async function getScopedAnalytics(
         todayIso
       ),
       savingsRatePercent: computeSavingsRatePercent(summary.incomeCents, summary.expenseCents),
+      comparison: {
+        previous: buildPeriodComparisonSnapshot('同比上年', summary, prevYearSummary),
+        yearOverYear: null,
+      },
+      highlights: buildPeriodHighlights(yearItems),
       expenseByCategory: buildCategoryBreakdown(yearItems, 'expense'),
       incomeByCategory: buildCategoryBreakdown(yearItems, 'income'),
       expenseByAccount: buildAccountBreakdown(yearItems, 'expense'),
       incomeByAccount: buildAccountBreakdown(yearItems, 'income'),
+      topExpenses: buildTopTransactions(yearItems, 'expense', 5),
+      topIncomes: buildTopTransactions(yearItems, 'income', 5),
       trendTitle: `${params.year}年各月趋势`,
       trendGranularity: 'month',
       trendPoints: buildYearMonthlyTrend(params.year, yearItems),
@@ -147,10 +186,14 @@ export async function getScopedAnalytics(
       todayIso
     ),
     savingsRatePercent: computeSavingsRatePercent(summary.incomeCents, summary.expenseCents),
+    comparison: null,
+    highlights: buildPeriodHighlights(allItems),
     expenseByCategory: buildCategoryBreakdown(allItems, 'expense'),
     incomeByCategory: buildCategoryBreakdown(allItems, 'income'),
     expenseByAccount: buildAccountBreakdown(allItems, 'expense'),
     incomeByAccount: buildAccountBreakdown(allItems, 'income'),
+    topExpenses: buildTopTransactions(allItems, 'expense', 5),
+    topIncomes: buildTopTransactions(allItems, 'income', 5),
     trendTitle: '年度收支趋势',
     trendGranularity: 'year',
     trendPoints: buildAllYearsTrend(allItems, todayIso),

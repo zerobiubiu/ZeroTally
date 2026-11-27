@@ -3,8 +3,11 @@ import type { TransactionListItem } from '../transactions/types';
 import {
   buildAccountBreakdown,
   buildCategoryBreakdown,
+  buildPeriodHighlights,
   buildSixMonthTrend,
+  buildTopTransactions,
   computeDailyAvgExpenseCents,
+  computeMetricDelta,
   computeSavingsRatePercent,
 } from './rules';
 
@@ -132,5 +135,79 @@ describe('analytics 账务分析纯规则', () => {
     expect(trend[3]?.expenseCents).toBe(5000);
     expect(trend[5]?.incomeCents).toBe(20000);
     expect(trend[5]?.expenseCents).toBe(0);
+  });
+
+  it('为存在二级子分类的一级分类生成降序 children 拆分，并保留直接记在一级上的未细分项', () => {
+    const items: TransactionListItem[] = [
+      makeItem({
+        id: '1',
+        categoryId: 'cat_exp_food_lunch',
+        categoryName: '午餐',
+        categoryParentId: 'cat_exp_food',
+        categoryParentName: '餐饮美食',
+        amountCents: 6000,
+      }),
+      makeItem({
+        id: '2',
+        categoryId: 'cat_exp_food_drinks',
+        categoryName: '饮品',
+        categoryParentId: 'cat_exp_food',
+        categoryParentName: '餐饮美食',
+        amountCents: 1500,
+      }),
+      makeItem({
+        id: '3',
+        categoryId: 'cat_exp_food',
+        categoryName: '餐饮美食',
+        amountCents: 2500,
+      }),
+    ];
+
+    const cats = buildCategoryBreakdown(items, 'expense');
+    expect(cats).toHaveLength(1);
+    expect(cats[0]?.children).toHaveLength(3);
+    expect(cats[0]?.children[0]).toMatchObject({
+      categoryId: 'cat_exp_food_lunch',
+      name: '午餐',
+      totalCents: 6000,
+      percentage: 60,
+    });
+    expect(cats[0]?.children[1]).toMatchObject({
+      categoryId: 'cat_exp_food',
+      name: '未细分',
+      totalCents: 2500,
+      percentage: 25,
+      isDirectParent: true,
+    });
+    expect(cats[0]?.children[2]).toMatchObject({
+      categoryId: 'cat_exp_food_drinks',
+      name: '饮品',
+      totalCents: 1500,
+      percentage: 15,
+    });
+  });
+
+  it('正确计算环比/同比增减百分比、消费节奏洞察与大额单笔排行', () => {
+    expect(computeMetricDelta(12000, 10000)).toEqual({ deltaCents: 2000, changePercent: 20 });
+    expect(computeMetricDelta(8000, 0)).toEqual({ deltaCents: 8000, changePercent: null });
+
+    const items: TransactionListItem[] = [
+      makeItem({ id: '1', amountCents: 5000, occurredOn: '2026-11-01', refundedCents: 2000 }),
+      makeItem({ id: '2', amountCents: 8000, occurredOn: '2026-11-01' }),
+      makeItem({ id: '3', type: 'refund', amountCents: 2000, occurredOn: '2026-11-01', refundOfId: '1' }),
+      makeItem({ id: '4', amountCents: 4000, occurredOn: '2026-11-05' }),
+    ];
+
+    const highlights = buildPeriodHighlights(items);
+    expect(highlights.activeExpenseDays).toBe(2);
+    expect(highlights.peakExpenseDay).toEqual({ occurredOn: '2026-11-01', totalCents: 11000 });
+    expect(highlights.avgExpensePerTxCents).toBe(5000);
+
+    const top = buildTopTransactions(items, 'expense', 2);
+    expect(top).toHaveLength(2);
+    expect(top[0]?.transaction.id).toBe('2');
+    expect(top[0]?.effectiveCents).toBe(8000);
+    expect(top[1]?.transaction.id).toBe('4');
+    expect(top[1]?.effectiveCents).toBe(4000);
   });
 });

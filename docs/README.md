@@ -66,6 +66,7 @@
 | [changes/0045-optional-budget-management.md](changes/0045-optional-budget-management.md) | 变更记录 | 已执行 | 新增设置可选「预算管理」模块（默认关闭零干扰，支持月度总预算、分类预算与按月轻量进度条，v1.9.0） |
 | [changes/0046-recurring-bills-salary-mortgage-and-credit-cycle.md](changes/0046-recurring-bills-salary-mortgage-and-credit-cycle.md) | 变更记录 | 已执行 | 新增设置侧栏「周期账单」中心：覆盖固定支出、弹性月薪、等额本息/等额本金房贷与提前还款、信用卡账单/还款日（v1.9.1） |
 | [changes/0047-quick-batch-recording.md](changes/0047-quick-batch-recording.md) | 变更记录 | 已执行 | 新增快捷批量记账页与单事务原子批量入账服务（v1.9.2） |
+| [changes/0048-analytics-drilldown-and-comparison.md](changes/0048-analytics-drilldown-and-comparison.md) | 变更记录 | 已执行 | 财务分析深度增强：环比/同比增幅、二级分类展开、大额单笔 Top 5 与全链路明细下钻（v1.9.3） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

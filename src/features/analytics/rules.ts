@@ -4,13 +4,18 @@ import {
   getTodayIsoDate,
   shiftMonthKey,
 } from '../../shared/date/date';
-import type { TransactionListItem } from '../transactions/types';
+import type { MonthlySummary, TransactionListItem } from '../transactions/types';
 import type {
   AccountBreakdownItem,
   AnalyticsKind,
   AnalyticsTrendPoint,
   CategoryBreakdownItem,
+  MetricDelta,
   MonthlyTrendPoint,
+  PeriodComparisonSnapshot,
+  PeriodHighlights,
+  SubcategoryBreakdownItem,
+  TopTransactionItem,
 } from './types';
 
 function roundPercent(part: number, total: number): number {
@@ -20,14 +25,33 @@ function roundPercent(part: number, total: number): number {
   return Math.round((part / total) * 1000) / 10;
 }
 
+interface MutableSubcategoryEntry {
+  categoryId: string;
+  name: string;
+  icon: string;
+  totalCents: number;
+  count: number;
+  isDirectParent: boolean;
+}
+
+interface MutableCategoryEntry {
+  categoryId: string;
+  name: string;
+  icon: string;
+  color: string;
+  totalCents: number;
+  count: number;
+  childMap: Map<string, MutableSubcategoryEntry>;
+}
+
 /**
- * 按一级分类聚合支出或收入排行（二级分类金额并入所属一级；支出维度下退款自动抵扣对应一级分类支出）。
+ * 按一级分类聚合支出或收入排行（二级分类金额并入所属一级并保留二级下钻拆分；支出维度下退款自动抵扣对应分类支出）。
  */
 export function buildCategoryBreakdown(
   items: readonly TransactionListItem[],
   kind: AnalyticsKind
 ): CategoryBreakdownItem[] {
-  const map = new Map<string, Omit<CategoryBreakdownItem, 'percentage'>>();
+  const map = new Map<string, MutableCategoryEntry>();
 
   for (const item of items) {
     const isMatch = item.type === kind;
@@ -38,21 +62,41 @@ export function buildCategoryBreakdown(
 
     const isChild = item.categoryParentId !== null;
     const key = (isChild ? item.categoryParentId : item.categoryId) ?? 'uncategorized';
+    const rootName = (isChild ? item.categoryParentName : item.categoryName) ?? '未分类';
+    const rootIcon = (isChild ? item.categoryParentIcon : item.categoryIcon) ?? 'pricetag-outline';
+    const rootColor = (isChild ? item.categoryParentColor : item.categoryColor) ?? '#5C6479';
     const delta = isExpenseRefund ? -item.amountCents : item.amountCents;
     const countDelta = isExpenseRefund ? 0 : 1;
 
-    const prev = map.get(key);
-    if (prev) {
-      prev.totalCents += delta;
-      prev.count += countDelta;
-    } else {
-      map.set(key, {
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
         categoryId: key,
-        name: (isChild ? item.categoryParentName : item.categoryName) ?? '未分类',
-        icon: (isChild ? item.categoryParentIcon : item.categoryIcon) ?? 'pricetag-outline',
-        color: (isChild ? item.categoryParentColor : item.categoryColor) ?? '#5C6479',
+        name: rootName,
+        icon: rootIcon,
+        color: rootColor,
+        totalCents: 0,
+        count: 0,
+        childMap: new Map(),
+      };
+      map.set(key, entry);
+    }
+    entry.totalCents += delta;
+    entry.count += countDelta;
+
+    const subKey = isChild ? (item.categoryId ?? 'uncategorized') : `__direct__:${key}`;
+    const prevSub = entry.childMap.get(subKey);
+    if (prevSub) {
+      prevSub.totalCents += delta;
+      prevSub.count += countDelta;
+    } else {
+      entry.childMap.set(subKey, {
+        categoryId: isChild ? (item.categoryId ?? key) : key,
+        name: isChild ? (item.categoryName ?? '未分类') : '未细分',
+        icon: isChild ? (item.categoryIcon ?? rootIcon) : rootIcon,
         totalCents: delta,
         count: countDelta,
+        isDirectParent: !isChild,
       });
     }
   }
@@ -62,10 +106,148 @@ export function buildCategoryBreakdown(
 
   return positiveEntries
     .sort((a, b) => b.totalCents - a.totalCents)
-    .map((entry) => ({
-      ...entry,
-      percentage: roundPercent(entry.totalCents, grandTotal),
-    }));
+    .map((entry) => {
+      const positiveSubs = Array.from(entry.childMap.values()).filter((sub) => sub.totalCents > 0);
+      const hasRealSubcategory = positiveSubs.some((sub) => !sub.isDirectParent);
+      let children: SubcategoryBreakdownItem[] = [];
+      if (hasRealSubcategory) {
+        const subTotal = positiveSubs.reduce((sum, sub) => sum + sub.totalCents, 0);
+        children = positiveSubs
+          .sort((a, b) => b.totalCents - a.totalCents)
+          .map((sub) => ({
+            categoryId: sub.categoryId,
+            name: sub.name,
+            icon: sub.icon,
+            totalCents: sub.totalCents,
+            count: sub.count,
+            percentage: roundPercent(sub.totalCents, subTotal),
+            ...(sub.isDirectParent ? { isDirectParent: true } : {}),
+          }));
+      }
+
+      return {
+        categoryId: entry.categoryId,
+        name: entry.name,
+        icon: entry.icon,
+        color: entry.color,
+        totalCents: entry.totalCents,
+        count: entry.count,
+        percentage: roundPercent(entry.totalCents, grandTotal),
+        children,
+      };
+    });
+}
+
+/**
+ * 计算单项金额相对基期的增减额与变化百分比（基期 <= 0 返回 null 避免除以零）。
+ */
+export function computeMetricDelta(currentCents: number, previousCents: number): MetricDelta {
+  const deltaCents = currentCents - previousCents;
+  if (previousCents <= 0) {
+    return { deltaCents, changePercent: null };
+  }
+  const changePercent = Math.round((deltaCents / previousCents) * 1000) / 10;
+  return { deltaCents, changePercent };
+}
+
+/**
+ * 构建周期环比 / 同比快照。
+ */
+export function buildPeriodComparisonSnapshot(
+  label: string,
+  current: Pick<MonthlySummary, 'expenseCents' | 'incomeCents'>,
+  previous: Pick<MonthlySummary, 'expenseCents' | 'incomeCents' | 'balanceCents'>
+): PeriodComparisonSnapshot {
+  return {
+    label,
+    expenseCents: previous.expenseCents,
+    incomeCents: previous.incomeCents,
+    balanceCents: previous.balanceCents,
+    expenseDelta: computeMetricDelta(current.expenseCents, previous.expenseCents),
+    incomeDelta: computeMetricDelta(current.incomeCents, previous.incomeCents),
+  };
+}
+
+/**
+ * 计算周期消费节奏洞察（消费活跃天数、峰值消费日、单笔均价）。
+ */
+export function buildPeriodHighlights(items: readonly TransactionListItem[]): PeriodHighlights {
+  const dailyExpenseMap = new Map<string, number>();
+  let expenseTxCount = 0;
+  let netExpenseCents = 0;
+
+  for (const item of items) {
+    if (item.type === 'expense') {
+      dailyExpenseMap.set(
+        item.occurredOn,
+        (dailyExpenseMap.get(item.occurredOn) ?? 0) + item.amountCents
+      );
+      expenseTxCount += 1;
+      netExpenseCents += item.amountCents;
+    } else if (item.type === 'refund') {
+      dailyExpenseMap.set(
+        item.occurredOn,
+        (dailyExpenseMap.get(item.occurredOn) ?? 0) - item.amountCents
+      );
+      netExpenseCents -= item.amountCents;
+    }
+  }
+
+  let activeExpenseDays = 0;
+  let peakExpenseDay: { occurredOn: string; totalCents: number } | null = null;
+  for (const [occurredOn, totalCents] of dailyExpenseMap.entries()) {
+    if (totalCents <= 0) {
+      continue;
+    }
+    activeExpenseDays += 1;
+    if (
+      !peakExpenseDay ||
+      totalCents > peakExpenseDay.totalCents ||
+      (totalCents === peakExpenseDay.totalCents && occurredOn > peakExpenseDay.occurredOn)
+    ) {
+      peakExpenseDay = { occurredOn, totalCents };
+    }
+  }
+
+  const avgExpensePerTxCents =
+    expenseTxCount > 0 && netExpenseCents > 0 ? Math.round(netExpenseCents / expenseTxCount) : 0;
+
+  return {
+    activeExpenseDays,
+    peakExpenseDay,
+    avgExpensePerTxCents,
+  };
+}
+
+/**
+ * 提取本周期 Top N 大额单笔支出或收入（支出按扣减已退款后的净额排序）。
+ */
+export function buildTopTransactions(
+  items: readonly TransactionListItem[],
+  kind: AnalyticsKind,
+  limit = 5
+): TopTransactionItem[] {
+  const candidates: TopTransactionItem[] = [];
+  for (const item of items) {
+    if (item.type !== kind) {
+      continue;
+    }
+    const effectiveCents =
+      kind === 'expense' ? Math.max(0, item.amountCents - item.refundedCents) : item.amountCents;
+    if (effectiveCents <= 0) {
+      continue;
+    }
+    candidates.push({ transaction: item, effectiveCents });
+  }
+
+  return candidates
+    .sort((a, b) => {
+      if (b.effectiveCents !== a.effectiveCents) {
+        return b.effectiveCents - a.effectiveCents;
+      }
+      return b.transaction.occurredOn.localeCompare(a.transaction.occurredOn);
+    })
+    .slice(0, Math.max(1, limit));
 }
 
 /**

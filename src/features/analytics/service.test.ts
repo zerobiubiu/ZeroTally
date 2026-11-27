@@ -206,4 +206,67 @@ describe('analytics 账务分析服务集成测试（真实 SQLite）', () => {
     expect(allReport.dateRangeLabel).toBe('2025-12-20 至 2026-11-15');
     expect(allReport.trendPoints.map((pt) => pt.key)).toEqual(['2025', '2026']);
   });
+
+  it('按月与按年分析输出环比/同比增减、二级分类 children 及大额单笔排行', async () => {
+    // 去年同月
+    await createTransaction(db, {
+      type: 'expense',
+      amountCents: 10_000,
+      categoryId: 'cat_exp_food_lunch',
+      accountId: 'acc_wechat',
+      toAccountId: null,
+      occurredOn: '2025-11-10',
+    });
+    // 上月
+    await createTransaction(db, {
+      type: 'expense',
+      amountCents: 20_000,
+      categoryId: 'cat_exp_food_lunch',
+      accountId: 'acc_wechat',
+      toAccountId: null,
+      occurredOn: '2026-10-12',
+    });
+    // 本月两笔二级分类支出
+    await createTransaction(db, {
+      type: 'expense',
+      amountCents: 18_000,
+      categoryId: 'cat_exp_food_lunch',
+      accountId: 'acc_wechat',
+      toAccountId: null,
+      occurredOn: '2026-11-08',
+    });
+    await createTransaction(db, {
+      type: 'expense',
+      amountCents: 12_000,
+      categoryId: 'cat_exp_food_drinks',
+      accountId: 'acc_alipay',
+      toAccountId: null,
+      occurredOn: '2026-11-08',
+    });
+
+    const report = await getScopedAnalytics(db, {
+      scope: 'month',
+      monthKey: '2026-11',
+      year: 2026,
+      todayIso: '2026-11-20',
+    });
+
+    expect(report.comparison?.previous.expenseDelta).toEqual({
+      deltaCents: 10_000,
+      changePercent: 50,
+    });
+    expect(report.comparison?.yearOverYear?.expenseDelta).toEqual({
+      deltaCents: 20_000,
+      changePercent: 200,
+    });
+    expect(report.expenseByCategory[0]?.children).toHaveLength(2);
+    expect(report.expenseByCategory[0]?.children[0]?.categoryId).toBe('cat_exp_food_lunch');
+    expect(report.highlights.activeExpenseDays).toBe(1);
+    expect(report.highlights.peakExpenseDay).toEqual({
+      occurredOn: '2026-11-08',
+      totalCents: 30_000,
+    });
+    expect(report.topExpenses).toHaveLength(2);
+    expect(report.topExpenses[0]?.effectiveCents).toBe(18_000);
+  });
 });
