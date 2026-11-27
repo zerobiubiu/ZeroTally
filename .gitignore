@@ -30,6 +30,10 @@ coverage/
 .vitest/
 .markindex/
 
+# AOCI 本地二进制与本机路径宿主 MCP 配置（不纳入 Git 与 Managed Scope）
+/.aoci-bin/
+/.agents/mcp_config.json
+
 # 系统与编辑器文件
 .DS_Store
 Thumbs.db

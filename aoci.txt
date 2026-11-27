@@ -1,0 +1,7 @@
+#AOCI-ROOT-MANIFEST: 1
+#Format-Version: cognition-volumes/v1
+#Locale: zh-CN
+#Project: ZeroTally（keep-accounts）是面向 Android 的本地离线个人记账与资产管理应用，基于 Expo SDK 58、React Native、TypeScript、Expo Router 与本地 SQLite，提供支出/收入/转账/关联退款、多账户资产负债、二级分类、多周期分析、快捷记账及完整 JSON 备份恢复。
+#Global-Invariants: 1.金额统一以整数分(cents)存储计算，解析与格式化走src/shared/money/money.ts，负债欠款存为负净值；2.所有SQLite查询写入须参数化绑定且启用foreign_keys，记账/改账/删账/平账与级联删户须在单一事务内原子联动余额(由transactions/service.ts编排)，写库后调notifyChange()刷新；3.严格模块边界：app/路由禁直连SQL，accounts与categories独立且禁反向依赖transactions，shared/禁依赖features/或db/；4.升级兼容红线：永久保留Android包名com.keepaccounts.app、库名keep_accounts.db与18个预设一级分类ID；5.package.json#version为版本单一事实来源并同步app.json与CHANGELOG.md，Bun保持hoisted扁平依赖，UI须经useTheme()消费语义令牌且禁用原生Alert。
+#Volume: id=meta kind=meta path=aoci.meta.txt format=meta-v1 depends=- state=enabled
+#Volume: id=code kind=code path=aoci.code.txt format=object-fras-v2 depends=meta state=enabled
