@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -7,6 +7,7 @@ import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-c
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
 import { runAutoCloudBackupIfNeeded } from '../src/features/cloud-backup/service';
 import { processAutoDueRecurringPlans } from '../src/features/recurring/service';
+import { subscribeReminderNotificationTap } from '../src/features/reminders/native-reminder';
 import { AppLockOverlay } from '../src/features/security/components/AppLockOverlay';
 import { SecurityProvider } from '../src/features/security/security-context';
 import { getThemePreferenceSetting } from '../src/features/settings/repository';
@@ -17,10 +18,20 @@ import { ThemeProvider, useTheme } from '../src/theme/theme-context';
 const AUTO_CLOUD_BACKUP_DEBOUNCE_MS = 15_000;
 
 function RootNavigator(): React.JSX.Element {
+  const router = useRouter();
   const { theme, setPreference } = useTheme();
   const { db, isReady, error, revision, notifyChange } = useDatabaseContext();
   const lastObservedRevisionRef = useRef(0);
   const autoRecurringCheckedRef = useRef(false);
+
+  // 点击每日记账本地通知时直达记一笔页（零权限弹窗、零性能开销）
+  useEffect(() => {
+    return subscribeReminderNotificationTap((route) => {
+      if (route === '/record') {
+        router.push('/record');
+      }
+    });
+  }, [router]);
 
   // 启动时静默检查到期且开启自动入账的周期计划（幂等防重，零打扰未配置用户）
   useEffect(() => {
@@ -225,6 +236,12 @@ function RootNavigator(): React.JSX.Element {
           name="gestures-guide"
           options={{
             title: '手势与快捷技巧',
+          }}
+        />
+        <Stack.Screen
+          name="reminders"
+          options={{
+            title: '提醒与小组件',
           }}
         />
         <Stack.Screen

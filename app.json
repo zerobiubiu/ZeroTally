@@ -2,7 +2,7 @@
   "expo": {
     "name": "ZeroTally",
     "slug": "keep-accounts",
-    "version": "1.10.0",
+    "version": "1.10.1",
     "orientation": "portrait",
     "scheme": [
       "keep-accounts",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.keepaccounts.app",
-      "versionCode": 44,
+      "versionCode": 45,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
@@ -30,8 +30,10 @@
       "expo-sqlite",
       "./plugins/with-windows-cmake-path-fix",
       "./plugins/with-release-signing-and-shrink",
+      "./plugins/with-android-quick-widget",
       "expo-secure-store",
       "expo-web-browser",
+      "expo-notifications",
       [
         "expo-local-authentication",
         {

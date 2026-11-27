@@ -2,6 +2,14 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.10.1] - 2026-11-27
+
+### 新增
+
+- **可选每日记账本地提醒与 Android 桌面小组件（Widget）**（新增 `src/features/reminders/`、`app/reminders.tsx`、`plugins/with-android-quick-widget.js`，引入 `expo-notifications`，接入 `SettingsPanel.tsx` 与 `app/_layout.tsx`）：
+  - **每日本地记账提醒（默认关闭）**：用户可在设置 →「提醒与小组件」按需开启，支持 ±15 分钟微调、常用时段快选与自定义提醒文案；纯本地定时通知触发，点击通知直达「记一笔」，未开启时不请求任何通知权限。
+  - **零三方重依赖 Android 桌面小组件（4×2）**：通过自定义 Expo Config Plugin 注入原生 Kotlin `ZeroTallyWidgetProvider`，只读本地 `keep_accounts.db` 实时展示当月净支出与收入（自动遵循隐私「默认隐藏敏感金额」脱敏规则），并提供桌面一键「+ 记一笔」（`keep-accounts://record`）与手动刷新入口。
+
 ## [1.10.0] - 2026-11-27
 
 ### 新增

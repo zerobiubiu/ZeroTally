@@ -1,6 +1,6 @@
 {
   "name": "zerotally",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,6 +31,7 @@
     "expo-haptics": "~58.0.8",
     "expo-linking": "~58.0.17",
     "expo-local-authentication": "~58.0.3",
+    "expo-notifications": "~58.1.10",
     "expo-router": "~58.0.32",
     "expo-screen-capture": "~58.0.6",
     "expo-secure-store": "~58.0.3",

@@ -69,6 +69,7 @@
 | [changes/0048-analytics-drilldown-and-comparison.md](changes/0048-analytics-drilldown-and-comparison.md) | 变更记录 | 已执行 | 财务分析深度增强：环比/同比增幅、二级分类展开、大额单笔 Top 5 与全链路明细下钻（v1.9.3） |
 | [changes/0049-onboarding-and-gestures-guide.md](changes/0049-onboarding-and-gestures-guide.md) | 变更记录 | 已执行 | 新增首次启动极轻量手势提示与设置「手势与快捷技巧」页，完成 P1 阶段 APK 构建校验（v1.9.4） |
 | [changes/0050-optional-reimbursement-tracking.md](changes/0050-optional-reimbursement-tracking.md) | 变更记录 | 已执行 | 新增设置可选「报销追踪」模块（默认关闭零干扰，支持退款抵扣与收入双口径核销，v1.10.0） |
+| [changes/0051-android-widget-and-daily-reminder.md](changes/0051-android-widget-and-daily-reminder.md) | 变更记录 | 已执行 | 新增设置可选每日记账本地提醒与零三方依赖 Android 桌面小组件（v1.10.1） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

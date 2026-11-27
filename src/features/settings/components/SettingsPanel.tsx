@@ -61,6 +61,7 @@ export function SettingsPanel({
       | '/reimbursements'
       | '/cloud-backup'
       | '/security'
+      | '/reminders'
       | '/gestures-guide'
       | '/about'
       | '/advanced-settings'
@@ -111,6 +112,12 @@ export function SettingsPanel({
       label: '隐私与安全',
       icon: 'shield-checkmark-outline',
       onPress: () => navigateTo('/security'),
+    },
+    {
+      key: 'reminders',
+      label: '提醒与小组件',
+      icon: 'notifications-outline',
+      onPress: () => navigateTo('/reminders'),
     },
     {
       key: 'gestures-guide',
