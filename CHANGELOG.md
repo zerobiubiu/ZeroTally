@@ -2,6 +2,14 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.2.1] - 2026-11-27
+
+### 修复
+
+- **修复底部手势卡片上滑展开后下滑收起失效的问题**（`BottomSheet.tsx`、`bottom-sheet-rules.ts`）：
+  - **根因**：`react-native-gesture-handler` v3 原生 `PanGestureHandler` 在进入 `onActivate` 前会调用 `resetProgress()` 将位移起点重置，导致 `onActivate` 回调中 `event.translationY` 恒为 `0`；此前展开态与单段滚动弹窗在 `onActivate` 中使用 `event.translationY <= 0` 过滤方向，误将所有下滑手势恒定拦截，导致退款卡片、账目详情上滑展开后以及账户选择列表区下滑收起失效。
+  - **修复**：新增纯手势状态决策规则 `resolveBodyPanActivationMode` / `resolveBodyPanUpdateDecision`（附 Vitest 回归单测）；展开态与单段滚动态采用单向配置 `activeOffsetY: 12` + `failOffsetY: -12` 并由首帧实时位移确认下滑接管（上滑直接释放给 `ScrollView`），为内置 `ScrollView` 关闭顶部越界拉伸（`overScrollMode="never"` / `bounces={false}`），同时解耦进场动画对窗口高度变化的依赖以防软键盘/布局微变重置展开态。
+
 ## [1.2.0] - 2026-11-27
 
 ### 新增与优化

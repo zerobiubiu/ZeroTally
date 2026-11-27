@@ -109,3 +109,68 @@ export function resolveBottomSheetSnapTarget({
 
   return 'collapsed';
 }
+
+export type BodyPanDragMode = 'none' | 'pending-down' | 'dragging';
+
+export interface BodyPanActivationParams {
+  expandable: boolean;
+  expanded: boolean;
+  keyboardVisible: boolean;
+  scrollOffsetY: number;
+}
+
+/**
+ * 判定内置滚动区协同手势（bodyPanGesture）在 onActivate 时的接管模式：
+ * - RNGH v3 触发 onActivate 前会调用 resetProgress() 将平移起点归零，回调内 event.translationY 恒为 0，
+ *   不能在 onActivate 中用 translationY <= 0 拦截下滑；
+ * - 两段半屏态无滚动冲突时直接进入 dragging（全区双向跟手）；
+ * - 两段展开态或单段滚动态在列表滚至顶部（scrollOffsetY <= 2）时进入 pending-down，
+ *   由后续 onUpdate 首帧位移方向确认下滑接管或上滑释放给 ScrollView。
+ */
+export function resolveBodyPanActivationMode({
+  expandable,
+  expanded,
+  keyboardVisible,
+  scrollOffsetY,
+}: BodyPanActivationParams): BodyPanDragMode {
+  if (expandable && !expanded) {
+    if (keyboardVisible && scrollOffsetY > 2) {
+      return 'none';
+    }
+    return 'dragging';
+  }
+
+  if (scrollOffsetY > 2) {
+    return 'none';
+  }
+  return 'pending-down';
+}
+
+export interface BodyPanUpdateDecision {
+  nextMode: BodyPanDragMode;
+  shouldApplyDrag: boolean;
+  justConfirmedDrag: boolean;
+}
+
+/**
+ * 根据当前接管模式与本帧实时位移，确认是否正式接管下滑拖拽或交还给内部 ScrollView。
+ */
+export function resolveBodyPanUpdateDecision(
+  mode: BodyPanDragMode,
+  translationY: number,
+  scrollOffsetY: number
+): BodyPanUpdateDecision {
+  if (mode === 'none') {
+    return { nextMode: 'none', shouldApplyDrag: false, justConfirmedDrag: false };
+  }
+  if (mode === 'dragging') {
+    return { nextMode: 'dragging', shouldApplyDrag: true, justConfirmedDrag: false };
+  }
+  if (scrollOffsetY > 2 || translationY < 0) {
+    return { nextMode: 'none', shouldApplyDrag: false, justConfirmedDrag: false };
+  }
+  if (translationY > 0) {
+    return { nextMode: 'dragging', shouldApplyDrag: true, justConfirmedDrag: true };
+  }
+  return { nextMode: 'pending-down', shouldApplyDrag: false, justConfirmedDrag: false };
+}

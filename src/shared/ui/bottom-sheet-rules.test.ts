@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampBottomSheetDragOffset,
+  resolveBodyPanActivationMode,
+  resolveBodyPanUpdateDecision,
   resolveBottomSheetSnapTarget,
 } from './bottom-sheet-rules';
 
@@ -141,5 +143,72 @@ describe('BottomSheet 拖拽阻尼与吸附决策规则', () => {
         velocityY: 1500,
       })
     ).toBe('dismiss');
+  });
+
+  it('滚动区协同手势：展开态与单段态在列表顶部激活时不受初始 translationY=0 拦死，下滑接管且上滑让出', () => {
+    // 两段半屏态：直接双向接管
+    expect(
+      resolveBodyPanActivationMode({
+        expandable: true,
+        expanded: false,
+        keyboardVisible: false,
+        scrollOffsetY: 0,
+      })
+    ).toBe('dragging');
+
+    // 两段展开态列表位于顶部：进入待确认下拉态（不因激活瞬间 translationY=0 失败）
+    const expandedTopMode = resolveBodyPanActivationMode({
+      expandable: true,
+      expanded: true,
+      keyboardVisible: false,
+      scrollOffsetY: 0,
+    });
+    expect(expandedTopMode).toBe('pending-down');
+
+    // 首帧 translationY=0 保持等待，随后正向位移立刻确认正式下滑接管
+    expect(resolveBodyPanUpdateDecision(expandedTopMode, 0, 0)).toEqual({
+      nextMode: 'pending-down',
+      shouldApplyDrag: false,
+      justConfirmedDrag: false,
+    });
+    expect(resolveBodyPanUpdateDecision(expandedTopMode, 14, 0)).toEqual({
+      nextMode: 'dragging',
+      shouldApplyDrag: true,
+      justConfirmedDrag: true,
+    });
+    // 若首帧向上滑动，则释放给 ScrollView 浏览内容
+    expect(resolveBodyPanUpdateDecision(expandedTopMode, -8, 0)).toEqual({
+      nextMode: 'none',
+      shouldApplyDrag: false,
+      justConfirmedDrag: false,
+    });
+
+    // 两段展开态列表已向下滚动：不抢占下滑手势
+    expect(
+      resolveBodyPanActivationMode({
+        expandable: true,
+        expanded: true,
+        keyboardVisible: false,
+        scrollOffsetY: 48,
+      })
+    ).toBe('none');
+
+    // 单段滚动态（如账户选择）在顶部同样支持下滑接管、未到顶不接管
+    expect(
+      resolveBodyPanActivationMode({
+        expandable: false,
+        expanded: false,
+        keyboardVisible: false,
+        scrollOffsetY: 0,
+      })
+    ).toBe('pending-down');
+    expect(
+      resolveBodyPanActivationMode({
+        expandable: false,
+        expanded: false,
+        keyboardVisible: false,
+        scrollOffsetY: 20,
+      })
+    ).toBe('none');
   });
 });

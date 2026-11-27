@@ -51,6 +51,7 @@
 | [changes/0030-polish-segmented-alignment-and-quick-cards.md](changes/0030-polish-segmented-alignment-and-quick-cards.md) | 变更记录 | 已执行 | 修复全应用分段滑块选中框偏下对齐问题并重构快捷记账卡片为舒展 2×3 宽卡排版（v1.1.4） |
 | [changes/0031-ledger-daily-totals-and-all-mode-year.md](changes/0031-ledger-daily-totals-and-all-mode-year.md) | 变更记录 | 已执行 | 明细单日收支仅保留「支 / 收」并将退款归入收入，同时「全部」模式日分组标题附带年份（v1.1.5） |
 | [changes/0032-refund-input-and-unified-bottom-sheet.md](changes/0032-refund-input-and-unified-bottom-sheet.md) | 变更记录 | 已执行 | 退款金额占位默认、两位截断规整与放开上限，并升级统一手势 BottomSheet 基座收口全仓 6 处底部弹窗（v1.2.0） |
+| [changes/0033-fix-expanded-bottom-sheet-swipe-down.md](changes/0033-fix-expanded-bottom-sheet-swipe-down.md) | 变更记录 | 已执行 | 修复 RNGH v3 `onActivate` 位移归零导致底部手势卡片上滑展开后与单段滚动区下滑收起失效的问题（v1.2.1） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

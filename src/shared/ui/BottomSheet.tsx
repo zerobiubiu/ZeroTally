@@ -44,7 +44,10 @@ import { hapticLight, hapticSelection } from '../haptics/haptics';
 import { AppIcon } from './AppIcon';
 import {
   clampBottomSheetDragOffset,
+  resolveBodyPanActivationMode,
+  resolveBodyPanUpdateDecision,
   resolveBottomSheetSnapTarget,
+  type BodyPanDragMode,
 } from './bottom-sheet-rules';
 
 export interface BottomSheetHandle {
@@ -171,16 +174,18 @@ export function BottomSheet({
   const expandedRef = useRef(false);
   const keyboardVisibleRef = useRef(false);
   const sheetHeightRef = useRef(expandable ? expandedHeight : defaultSingleHeight);
+  const expandedHeightRef = useRef(expandedHeight);
   const collapsedOffsetRef = useRef(collapsedOffset);
   const dragStartOffsetRef = useRef(collapsedOffset);
   const headerDraggingRef = useRef(false);
-  const bodyDraggingRef = useRef(false);
+  const bodyDragModeRef = useRef<BodyPanDragMode>('none');
   const scrollOffsetYRef = useRef(0);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     visibleRef.current = visible;
     onCloseRef.current = onClose;
+    expandedHeightRef.current = expandedHeight;
     collapsedOffsetRef.current = collapsedOffset;
     if (expandable) {
       sheetHeightRef.current = expandedHeight;
@@ -188,6 +193,7 @@ export function BottomSheet({
   }, [visible, onClose, collapsedOffset, expandable, expandedHeight]);
 
   // 每次由关闭转为显示时，重置到默认态并播放平滑上滑进场动画
+  // 不依赖 expandedHeight / collapsedOffset，避免软键盘或窗口高度微变重置展开态与重播进场动画
   useEffect(() => {
     if (!mounted) {
       return;
@@ -196,12 +202,14 @@ export function BottomSheet({
     if (visible) {
       closingRef.current = false;
       expandedRef.current = false;
+      headerDraggingRef.current = false;
+      bodyDragModeRef.current = 'none';
       scrollOffsetYRef.current = 0;
 
       const startFrom = expandable
-        ? expandedHeight
+        ? expandedHeightRef.current
         : Math.max(320, sheetHeightRef.current);
-      const restY = expandable ? collapsedOffset : 0;
+      const restY = expandable ? collapsedOffsetRef.current : 0;
 
       translateY.setValue(startFrom);
       backdropAnim.setValue(0);
@@ -223,7 +231,7 @@ export function BottomSheet({
       // 父级直接将 visible 置为 false 时，平滑收起后卸载 Modal
       closingRef.current = true;
       const dismissTo = expandable
-        ? expandedHeight
+        ? expandedHeightRef.current
         : Math.max(320, sheetHeightRef.current);
 
       Animated.parallel([
@@ -245,7 +253,7 @@ export function BottomSheet({
         }
       });
     }
-  }, [mounted, visible, expandable, expandedHeight, collapsedOffset, translateY, backdropAnim]);
+  }, [mounted, visible, expandable, translateY, backdropAnim]);
 
   const animateToSnap = useCallback(
     (targetExpanded: boolean, withHaptic = false) => {
@@ -321,6 +329,10 @@ export function BottomSheet({
         }),
       ]).start(() => {
         closingRef.current = false;
+        expandedRef.current = false;
+        headerDraggingRef.current = false;
+        bodyDragModeRef.current = 'none';
+        setExpanded(false);
         setMounted(false);
         onCloseRef.current();
         afterClose?.();
@@ -396,6 +408,7 @@ export function BottomSheet({
     disableReanimated: true,
     runOnJS: true,
     activeOffsetY: expandable ? [-10, 10] : 10,
+    failOffsetY: expandable ? undefined : -10,
     failOffsetX: scrollable || dragHandleOnly ? [-24, 24] : [-14, 14],
     onActivate: () => {
       if (closingRef.current) {
@@ -428,8 +441,9 @@ export function BottomSheet({
   });
 
   // 内置滚动区协同手势（scrollable=true）：
-  // - 两段半屏态：全区上滑直接展开、全区下滑直接关闭；
-  // - 展开态或单段滚动态：列表位于顶部（scrollOffsetY <= 2）时向下拉无缝接管收起/回半屏，不影响正常滚动。
+  // - 两段半屏态：双向响应（activeOffsetY: [-12, 12]），全区上滑展开、下滑关闭；
+  // - 展开态或单段滚动态：仅响应向下（activeOffsetY: 12, failOffsetY: -12），列表位于顶部时无缝接管下拉收起/回半屏，上滑直接让给 ScrollView。
+  const bodyAllowSwipeUp = expandable && !expanded;
   const nativeScrollGesture = useNativeGesture({
     disableReanimated: true,
   });
@@ -438,60 +452,71 @@ export function BottomSheet({
     enabled: visible && scrollable,
     disableReanimated: true,
     runOnJS: true,
-    activeOffsetY: expandable ? [-12, 12] : 12,
+    activeOffsetY: bodyAllowSwipeUp ? [-12, 12] : 12,
+    failOffsetY: bodyAllowSwipeUp ? undefined : -12,
     failOffsetX: [-16, 16],
-    onActivate: (event) => {
+    onActivate: () => {
       if (closingRef.current) {
-        bodyDraggingRef.current = false;
+        bodyDragModeRef.current = 'none';
         return;
       }
-      if (expandable) {
-        if (expandedRef.current) {
-          // 已展开时：仅在滚动到顶部且手指向下拉时接管，向上或列表未到顶则交给 ScrollView
-          if (event.translationY <= 0 || scrollOffsetYRef.current > 2) {
-            bodyDraggingRef.current = false;
-            return;
-          }
-          Keyboard.dismiss();
-          bodyDraggingRef.current = true;
-          dragStartOffsetRef.current = 0;
-        } else {
-          // 半屏态：若软键盘已展开且内部发生滚动，则先允许滚动，否则全区上下滑直接展开/关闭
-          if (keyboardVisibleRef.current && scrollOffsetYRef.current > 2) {
-            bodyDraggingRef.current = false;
-            return;
-          }
-          Keyboard.dismiss();
-          bodyDraggingRef.current = true;
-          dragStartOffsetRef.current = collapsedOffsetRef.current;
-        }
-      } else {
-        // 单段滚动弹窗：仅在列表处于顶部且向下拉时接管收起，严格不响应上滑
-        if (event.translationY <= 0 || scrollOffsetYRef.current > 2) {
-          bodyDraggingRef.current = false;
-          return;
-        }
+      const mode = resolveBodyPanActivationMode({
+        expandable,
+        expanded: expandedRef.current,
+        keyboardVisible: keyboardVisibleRef.current,
+        scrollOffsetY: scrollOffsetYRef.current,
+      });
+      bodyDragModeRef.current = mode;
+      if (mode === 'none') {
+        return;
+      }
+      dragStartOffsetRef.current =
+        expandable && !expandedRef.current ? collapsedOffsetRef.current : 0;
+      if (mode === 'dragging') {
         Keyboard.dismiss();
-        bodyDraggingRef.current = true;
-        dragStartOffsetRef.current = 0;
       }
     },
     onUpdate: (event) => {
-      if (!bodyDraggingRef.current || closingRef.current) {
+      if (closingRef.current) {
+        return;
+      }
+      const decision = resolveBodyPanUpdateDecision(
+        bodyDragModeRef.current,
+        event.translationY,
+        scrollOffsetYRef.current
+      );
+      bodyDragModeRef.current = decision.nextMode;
+      if (decision.justConfirmedDrag) {
+        Keyboard.dismiss();
+      }
+      if (!decision.shouldApplyDrag) {
         return;
       }
       applyDragUpdate(event.translationY);
     },
     onDeactivate: (event) => {
-      if (!bodyDraggingRef.current || closingRef.current) {
+      const prevMode = bodyDragModeRef.current;
+      bodyDragModeRef.current = 'none';
+      if (closingRef.current) {
         return;
       }
-      bodyDraggingRef.current = false;
-      finishDrag(event.translationY, event.velocityY);
+      if (prevMode === 'dragging') {
+        finishDrag(event.translationY, event.velocityY);
+        return;
+      }
+      // 极快下甩若在激活后直接松手（零帧 onUpdate），仍按顶部下滑正常结算
+      if (
+        prevMode === 'pending-down' &&
+        scrollOffsetYRef.current <= 2 &&
+        (event.translationY > 0 || event.velocityY > 400)
+      ) {
+        finishDrag(event.translationY, event.velocityY);
+      }
     },
     onFinalize: () => {
-      if (bodyDraggingRef.current && !closingRef.current) {
-        bodyDraggingRef.current = false;
+      const prevMode = bodyDragModeRef.current;
+      bodyDragModeRef.current = 'none';
+      if (prevMode === 'dragging' && !closingRef.current) {
         animateToSnap(expandable && expandedRef.current, false);
       }
     },
@@ -616,6 +641,8 @@ export function BottomSheet({
           !expandable && scrollMaxHeight !== undefined ? { maxHeight: scrollMaxHeight } : null,
         ]}
         scrollEnabled={!expandable || expanded || keyboardVisible}
+        bounces={false}
+        overScrollMode="never"
         scrollEventThrottle={16}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
         onScroll={(e) => {
