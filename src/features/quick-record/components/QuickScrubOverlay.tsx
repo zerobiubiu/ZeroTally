@@ -10,7 +10,6 @@ import { formatCentsToYuan } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { useTheme } from '../../../theme/theme-context';
 import type { Account } from '../../accounts/types';
-import { resolveAmountScrubStepCents } from '../scrub-rules';
 import type { ActiveQuickScrubState } from './QuickRecordTile';
 
 export interface QuickScrubOverlayProps {
@@ -54,7 +53,7 @@ export function QuickScrubOverlay({
   const sign = scrub.item.type === 'expense' ? '-' : '+';
   const amountColor = scrub.item.type === 'expense' ? theme.colors.expense : theme.colors.income;
   const formattedAmount = `${sign}${formatCentsToYuan(scrub.amountCents)}`;
-  const stepText = formatCentsToYuan(resolveAmountScrubStepCents(scrub.item.amountCents));
+  const stepText = formatCentsToYuan(scrub.stepCents);
 
   const scale = anim.interpolate({
     inputRange: [0, 1],
@@ -183,7 +182,7 @@ export function QuickScrubOverlay({
               </Text>
             </View>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-              上下滑动调金额 · 松手保存
+              快滑大步 · 慢滑精调 · 松手保存
             </Text>
           </View>
         ) : scrub.axis === 'account' ? (

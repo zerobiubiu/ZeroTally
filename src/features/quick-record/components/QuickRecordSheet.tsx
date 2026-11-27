@@ -48,6 +48,7 @@ import {
 } from '../service';
 import type { CreateQuickTemplateInput, QuickRecordButtonItem } from '../types';
 import {
+  QUICK_TILE_HEIGHT,
   QUICK_UNDO_DURATION_MS,
   QuickRecordTile,
   type ActiveQuickScrubState,
@@ -927,94 +928,110 @@ export function QuickRecordSheet({
                           },
                         ]}
                       >
-                        {pageRows.map((row, rowIdx) => (
-                          <View
-                            key={`p${pIdx}_r${rowIdx}`}
-                            style={[styles.gridRow, { gap: 10 }]}
-                          >
+                        {pageRows.map((row, rowIdx) => {
+                          const rowHasActiveScrub =
+                            activeScrub !== null &&
+                            row.some(
+                              (cell) => cell?.kind === 'item' && cell.item.id === activeScrub.item.id
+                            );
+                          return (
+                            <View
+                              key={`p${pIdx}_r${rowIdx}`}
+                              style={[
+                                styles.gridRow,
+                                { gap: 10, zIndex: rowHasActiveScrub ? 20 : 1 },
+                              ]}
+                            >
                             {row.map((cell, colIdx) => {
                               if (!cell) {
-                                return <View key={`spacer_${colIdx}`} style={styles.cellFlex} />;
+                                return <View key={`spacer_${colIdx}`} style={styles.gridCell} />;
                               }
                               if (cell.kind === 'add') {
                                 return (
-                                  <Pressable
-                                    key="add_quick_tile"
-                                    accessibilityRole="button"
-                                    accessibilityLabel="添加快捷记账卡片"
-                                    onPress={handleOpenAddComposer}
-                                    style={({ pressed }) => [
-                                      styles.addTile,
-                                      {
-                                        borderColor: theme.colors.borderStrong,
-                                        borderRadius: theme.radius.lg,
-                                        backgroundColor: theme.colors.surface,
-                                      },
-                                      pressed && {
-                                        opacity: theme.opacity.pressed,
-                                        transform: [{ scale: 0.97 }],
-                                      },
-                                    ]}
-                                  >
-                                    <View
-                                      style={[
-                                        styles.addIconCircle,
+                                  <View key="add_quick_tile" style={styles.gridCell}>
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      accessibilityLabel="添加快捷记账卡片"
+                                      onPress={handleOpenAddComposer}
+                                      style={({ pressed }) => [
+                                        styles.addTile,
                                         {
-                                          backgroundColor: theme.colors.surfaceRaised,
-                                          borderRadius: theme.radius.full,
+                                          borderColor: theme.colors.borderStrong,
+                                          borderRadius: theme.radius.lg,
+                                          backgroundColor: theme.colors.surface,
+                                        },
+                                        pressed && {
+                                          opacity: theme.opacity.pressed,
+                                          transform: [{ scale: 0.97 }],
                                         },
                                       ]}
                                     >
-                                      <AppIcon name="add" size={20} color={theme.colors.action} />
-                                    </View>
-                                    <View style={styles.addTextCol}>
-                                      <Text
-                                        numberOfLines={1}
-                                        style={{
-                                          color: theme.colors.textSecondary,
-                                          fontSize: theme.fontSize.sm,
-                                          fontWeight: theme.fontWeight.semibold,
-                                          includeFontPadding: false,
-                                        }}
+                                      <View
+                                        style={[
+                                          styles.addIconCircle,
+                                          {
+                                            backgroundColor: theme.colors.surfaceRaised,
+                                            borderRadius: theme.radius.full,
+                                          },
+                                        ]}
                                       >
-                                        添加快捷
-                                      </Text>
-                                      <Text
-                                        numberOfLines={1}
-                                        style={{
-                                          color: theme.colors.textMuted,
-                                          fontSize: 11,
-                                          includeFontPadding: false,
-                                        }}
-                                      >
-                                        长按卡片微调
-                                      </Text>
-                                    </View>
-                                  </Pressable>
+                                        <AppIcon name="add" size={20} color={theme.colors.action} />
+                                      </View>
+                                      <View style={styles.addTextCol}>
+                                        <Text
+                                          numberOfLines={1}
+                                          style={{
+                                            color: theme.colors.textSecondary,
+                                            fontSize: theme.fontSize.sm,
+                                            fontWeight: theme.fontWeight.semibold,
+                                            includeFontPadding: false,
+                                          }}
+                                        >
+                                          添加快捷
+                                        </Text>
+                                        <Text
+                                          numberOfLines={1}
+                                          style={{
+                                            color: theme.colors.textMuted,
+                                            fontSize: 11,
+                                            includeFontPadding: false,
+                                          }}
+                                        >
+                                          长按卡片微调
+                                        </Text>
+                                      </View>
+                                    </Pressable>
+                                  </View>
                                 );
                               }
 
                               const { item } = cell;
+                              const isActiveCell = activeScrub?.item.id === item.id;
                               return (
-                                <QuickRecordTile
+                                <View
                                   key={item.id}
-                                  item={item}
-                                  accounts={activeAccounts}
-                                  busy={recordingId === item.id}
-                                  disabled={Boolean(recordingId)}
-                                  undoState={undoCards[item.id] ?? null}
-                                  scrubPreview={activeScrub}
-                                  onQuickTap={(tapped) => void handleQuickTap(tapped)}
-                                  onUndoTap={(tapped, txId) => void handleUndoCardTap(tapped, txId)}
-                                  onOpenEdit={handleOpenEditComposer}
-                                  onScrubStart={setActiveScrub}
-                                  onScrubChange={setActiveScrub}
-                                  onScrubEnd={(target, res) => void handleScrubEnd(target, res)}
-                                />
+                                  style={[styles.gridCell, { zIndex: isActiveCell ? 20 : 1 }]}
+                                >
+                                  <QuickRecordTile
+                                    item={item}
+                                    accounts={activeAccounts}
+                                    busy={recordingId === item.id}
+                                    disabled={Boolean(recordingId)}
+                                    undoState={undoCards[item.id] ?? null}
+                                    scrubPreview={activeScrub}
+                                    onQuickTap={(tapped) => void handleQuickTap(tapped)}
+                                    onUndoTap={(tapped, txId) => void handleUndoCardTap(tapped, txId)}
+                                    onOpenEdit={handleOpenEditComposer}
+                                    onScrubStart={setActiveScrub}
+                                    onScrubChange={setActiveScrub}
+                                    onScrubEnd={(target, res) => void handleScrubEnd(target, res)}
+                                  />
+                                </View>
                               );
                             })}
-                          </View>
-                        ))}
+                            </View>
+                          );
+                        })}
                       </View>
                     ))}
                   </Animated.View>
@@ -1234,13 +1251,17 @@ const styles = StyleSheet.create({
   },
   gridRow: {
     flexDirection: 'row',
+    alignItems: 'stretch',
   },
-  cellFlex: {
+  // 所有网格格位统一套一层等宽等高纯 View，隔离 GestureDetector（display: contents）对 Flex 列宽均分的影响
+  gridCell: {
     flex: 1,
+    minWidth: 0,
+    height: QUICK_TILE_HEIGHT,
   },
   addTile: {
-    flex: 1,
-    height: 88,
+    width: '100%',
+    height: '100%',
     paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',

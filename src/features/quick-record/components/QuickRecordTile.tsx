@@ -17,19 +17,26 @@ import { CountdownRing } from '../../../shared/ui/CountdownRing';
 import { useTheme } from '../../../theme/theme-context';
 import type { Account } from '../../accounts/types';
 import {
+  advanceAmountScrubSession,
   computeScrubbedAccountIndex,
-  computeScrubbedAmountCents,
+  createAmountScrubSession,
   resolveQuickCardScrubAxis,
+  type AmountScrubSession,
+  type AmountScrubStepCents,
   type QuickScrubAxis,
 } from '../scrub-rules';
 import type { QuickRecordButtonItem } from '../types';
 
 export const QUICK_UNDO_DURATION_MS = 3000;
+/** 快捷记账卡片与「添加快捷」虚线卡的统一高度（单一事实来源） */
+export const QUICK_TILE_HEIGHT = 88;
 
 export interface ActiveQuickScrubState {
   item: QuickRecordButtonItem;
   axis: QuickScrubAxis;
   amountCents: number;
+  /** 当前速度档位对应的实时金额步进（分：1 / 5 / 10 / 50 / 100） */
+  stepCents: AmountScrubStepCents;
   accountId: string;
   accountName: string;
 }
@@ -93,7 +100,7 @@ export function QuickRecordTile({
   const scrubbingRef = useRef(false);
   const suppressTapRef = useRef(false);
   const axisRef = useRef<QuickScrubAxis>('none');
-  const baseAmountRef = useRef(item.amountCents);
+  const amountSessionRef = useRef<AmountScrubSession>(createAmountScrubSession(item.amountCents));
   const currentAmountRef = useRef(item.amountCents);
   const baseAccountIdxRef = useRef(0);
   const currentAccountIdxRef = useRef(0);
@@ -180,7 +187,7 @@ export function QuickRecordTile({
       scrubbingRef.current = true;
       suppressTapRef.current = true;
       axisRef.current = 'none';
-      baseAmountRef.current = curItem.amountCents;
+      amountSessionRef.current = createAmountScrubSession(curItem.amountCents, 0);
       currentAmountRef.current = curItem.amountCents;
       baseAccountIdxRef.current = startAccIdx;
       currentAccountIdxRef.current = startAccIdx;
@@ -193,6 +200,7 @@ export function QuickRecordTile({
         item: curItem,
         axis: 'none',
         amountCents: curItem.amountCents,
+        stepCents: amountSessionRef.current.stepCents,
         accountId: startAcc?.id ?? curItem.accountId,
         accountName: startAcc?.name ?? curItem.accountName,
       });
@@ -214,16 +222,23 @@ export function QuickRecordTile({
       }
 
       if (axisRef.current === 'amount') {
-        const nextAmount = computeScrubbedAmountCents(baseAmountRef.current, event.translationY);
-        if (nextAmount !== currentAmountRef.current) {
-          currentAmountRef.current = nextAmount;
+        const prevSession = amountSessionRef.current;
+        const nextSession = advanceAmountScrubSession(
+          prevSession,
+          event.translationY,
+          event.velocityY
+        );
+        amountSessionRef.current = nextSession;
+        if (nextSession.amountCents !== currentAmountRef.current) {
+          currentAmountRef.current = nextSession.amountCents;
           hapticSelection();
         }
         const acc = accs[currentAccountIdxRef.current];
         onScrubChangeRef.current({
           item: curItem,
           axis: 'amount',
-          amountCents: currentAmountRef.current,
+          amountCents: nextSession.amountCents,
+          stepCents: nextSession.stepCents,
           accountId: acc?.id ?? curItem.accountId,
           accountName: acc?.name ?? curItem.accountName,
         });
@@ -242,6 +257,7 @@ export function QuickRecordTile({
           item: curItem,
           axis: 'account',
           amountCents: currentAmountRef.current,
+          stepCents: amountSessionRef.current.stepCents,
           accountId: acc?.id ?? curItem.accountId,
           accountName: acc?.name ?? curItem.accountName,
         });
@@ -448,10 +464,12 @@ export function QuickRecordTile({
 
 const styles = StyleSheet.create({
   tileWrap: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   quickTile: {
-    height: 88,
+    width: '100%',
+    height: '100%',
     paddingHorizontal: 13,
     paddingVertical: 11,
     justifyContent: 'space-between',
@@ -485,7 +503,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   undoTile: {
-    height: 88,
+    width: '100%',
+    height: '100%',
     paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',

@@ -39,3 +39,4 @@
 | [0031-ledger-daily-totals-and-all-mode-year.md](0031-ledger-daily-totals-and-all-mode-year.md) | 变更记录 | 已执行 | v1.1.5 | 明细单日收支仅保留「支 / 收」并将当日退款归入收入（其余逻辑不变），同时在「全部」模式日分组标题中显示完整年份 |
 | [0032-refund-input-and-unified-bottom-sheet.md](0032-refund-input-and-unified-bottom-sheet.md) | 变更记录 | 已执行 | v1.2.0 | 退款金额改占位默认、自动两位截断/规整并放开金额上限；升级统一可手势拖拽 BottomSheet 基座并收口全仓 6 处弹窗 |
 | [0033-fix-expanded-bottom-sheet-swipe-down.md](0033-fix-expanded-bottom-sheet-swipe-down.md) | 变更记录 | 已执行 | v1.2.1 | 修复 RNGH v3 `onActivate` 位移归零导致底部手势卡片上滑展开后与单段滚动区下滑收起失效的问题 |
+| [0034-quick-card-sizing-and-velocity-scrub-steps.md](0034-quick-card-sizing-and-velocity-scrub-steps.md) | 变更记录 | 已执行 | v1.3.0 | 统一快捷卡片与「添加快捷」卡片等宽等高对齐，并将长按上下滑调金额升级为 0.01~1 元五档速度自适应步进 |
