@@ -64,6 +64,7 @@
 | [changes/0043-privacy-and-security-center.md](changes/0043-privacy-and-security-center.md) | 变更记录 | 已执行 | 新增个性化隐私与安全中心（可选应用启动锁、生物识别、独立 PIN、防截屏遮罩与金额隐藏，v1.8.3） |
 | [changes/0044-strict-release-signing-and-r8-shrink.md](changes/0044-strict-release-signing-and-r8-shrink.md) | 变更记录 | 已执行 | 锁死正式发布签名链路（拒绝隐式 debug 回退）、新增仓库外 Keystore 生成脚本、开启 R8 瘦身并完成 P0 阶段 APK 校验（v1.8.4） |
 | [changes/0045-optional-budget-management.md](changes/0045-optional-budget-management.md) | 变更记录 | 已执行 | 新增设置可选「预算管理」模块（默认关闭零干扰，支持月度总预算、分类预算与按月轻量进度条，v1.9.0） |
+| [changes/0046-recurring-bills-salary-mortgage-and-credit-cycle.md](changes/0046-recurring-bills-salary-mortgage-and-credit-cycle.md) | 变更记录 | 已执行 | 新增设置侧栏「周期账单」中心：覆盖固定支出、弹性月薪、等额本息/等额本金房贷与提前还款、信用卡账单/还款日（v1.9.1） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

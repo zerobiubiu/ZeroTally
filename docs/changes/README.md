@@ -51,3 +51,5 @@
 | [0043-privacy-and-security-center.md](0043-privacy-and-security-center.md) | 变更记录 | 已执行 | v1.8.3 | 新增设置内个性化「隐私与安全」中心（可选应用启动锁、指纹/面容生物识别、加盐 PIN、后台防截屏遮罩与敏感金额隐藏） |
 | [0044-strict-release-signing-and-r8-shrink.md](0044-strict-release-signing-and-r8-shrink.md) | 变更记录 | 已执行 | v1.8.4 | 锁死 Android 正式发布签名链路（Gradle/本地脚本/CI 拒绝隐式 debug 回退）、提供仓库外 Keystore 生成脚本、开启 R8 资源压缩并完成 P0 阶段 APK 验证 |
 | [0045-optional-budget-management.md](0045-optional-budget-management.md) | 变更记录 | 已执行 | v1.9.0 | 新增设置内可选「预算管理」（默认关闭零打扰，支持月度总预算、分类预算、预警阈值及明细月度卡底部轻量进度条） |
+
+| [0046-recurring-bills-salary-mortgage-and-credit-cycle.md](0046-recurring-bills-salary-mortgage-and-credit-cycle.md) | 变更记录 | 已执行 | v1.9.1 | 新增设置侧栏一级入口「周期账单」：固定支出自动/手动入账、弹性月薪（提前/延时/扣款补贴）、双模式房贷与提前还款试算执行、信用卡账单/还款日追踪 |

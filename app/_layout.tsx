@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider, useDatabaseContext } from '../src/db/database-context';
 import { runAutoCloudBackupIfNeeded } from '../src/features/cloud-backup/service';
+import { processAutoDueRecurringPlans } from '../src/features/recurring/service';
 import { AppLockOverlay } from '../src/features/security/components/AppLockOverlay';
 import { SecurityProvider } from '../src/features/security/security-context';
 import { getThemePreferenceSetting } from '../src/features/settings/repository';
@@ -17,8 +18,24 @@ const AUTO_CLOUD_BACKUP_DEBOUNCE_MS = 15_000;
 
 function RootNavigator(): React.JSX.Element {
   const { theme, setPreference } = useTheme();
-  const { db, isReady, error, revision } = useDatabaseContext();
+  const { db, isReady, error, revision, notifyChange } = useDatabaseContext();
   const lastObservedRevisionRef = useRef(0);
+  const autoRecurringCheckedRef = useRef(false);
+
+  // 启动时静默检查到期且开启自动入账的周期计划（幂等防重，零打扰未配置用户）
+  useEffect(() => {
+    if (!isReady || !db || autoRecurringCheckedRef.current) {
+      return;
+    }
+    autoRecurringCheckedRef.current = true;
+    void processAutoDueRecurringPlans(db)
+      .then((res) => {
+        if (res.postedCount > 0) {
+          notifyChange();
+        }
+      })
+      .catch(() => {});
+  }, [db, isReady, notifyChange]);
 
   // 启动及导入全量备份后，从本地 SQLite 同步持久化的外观主题偏好
   useEffect(() => {
@@ -184,6 +201,12 @@ function RootNavigator(): React.JSX.Element {
           name="budgets"
           options={{
             title: '预算管理',
+          }}
+        />
+        <Stack.Screen
+          name="recurring"
+          options={{
+            title: '周期账单',
           }}
         />
         <Stack.Screen

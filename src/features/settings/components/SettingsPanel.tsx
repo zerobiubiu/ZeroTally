@@ -54,7 +54,14 @@ export function SettingsPanel({
   };
 
   const navigateTo = (
-    pathname: '/categories' | '/budgets' | '/cloud-backup' | '/security' | '/about' | '/advanced-settings'
+    pathname:
+      | '/categories'
+      | '/recurring'
+      | '/budgets'
+      | '/cloud-backup'
+      | '/security'
+      | '/about'
+      | '/advanced-settings'
   ) => {
     hapticLight();
     onClose?.();
@@ -72,6 +79,12 @@ export function SettingsPanel({
       label: '分类管理',
       icon: 'pricetags-outline',
       onPress: () => navigateTo('/categories'),
+    },
+    {
+      key: 'recurring',
+      label: '周期账单',
+      icon: 'repeat-outline',
+      onPress: () => navigateTo('/recurring'),
     },
     {
       key: 'budgets',
