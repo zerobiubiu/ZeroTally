@@ -24,6 +24,8 @@ expo-env.d.ts
 .env
 .env.local
 .env.*.local
+signing.local.json
+signing.local.properties
 
 # 测试与工具缓存
 coverage/

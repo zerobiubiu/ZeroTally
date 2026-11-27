@@ -2,6 +2,15 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.8.4] - 2026-11-27
+
+### 安全与工程化（P0 阶段收官）
+
+- **锁死正式发布签名链路并开启 R8 资源压缩瘦身**（新增 `plugins/with-release-signing-and-shrink.js`、`scripts/generate-release-keystore.mjs`，更新 `scripts/build-android-apk.mjs`、`.github/workflows/release-apk.yml`、`.gitignore`）：
+  - **拒绝隐式调试签名**：Gradle Release 构建、本地 `build:apk` 与 GitHub Actions `v*` 发版流水线均默认要求提供正式 Keystore 凭据（环境变量或被 `.gitignore` 忽略的 `signing.local.json`），缺失时直接失败中断，彻底杜绝首版误用 debug 签名导致后续无法覆盖升级的风险；本地无密钥自测须显式传入 `--allow-debug-signing`。
+  - **一键生成仓库外正式 Keystore**：新增 `bun run keystore:init`，默认在仓库外 `~/.zerotally-keys/` 生成 RSA-2048 长期 PKCS12 正式签名文件并自动拒绝生成在 Git 仓库内。
+  - **R8 压缩与资源裁剪**：在 `gradle.properties` 自动开启 `enableMinifyInReleaseBuilds=true` 与 `enableShrinkResourcesInReleaseBuilds=true`，有效压缩 Release APK 体积。
+
 ## [1.8.3] - 2026-11-27
 
 ### 新增

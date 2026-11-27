@@ -11,6 +11,11 @@ on:
         required: false
         default: 'arm64-v8a,x86_64'
         type: string
+      allow_debug_signing:
+        description: '仅限 CI 调试演练：未配置正式 Keystore 时允许临时调试签名（Tag 发布恒拒绝）'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -64,24 +69,46 @@ jobs:
       - name: Prebuild Android native project
         run: bun x expo prebuild --platform android --clean --no-install
 
-      - name: Build Android Release APK
+      - name: Build Android Release APK with strict signing gate
         env:
           TARGET_ABIS: ${{ github.event.inputs.abis || 'arm64-v8a,x86_64' }}
-        shell: bash
-        run: |
-          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease "-PreactNativeArchitectures=${TARGET_ABIS}" --no-daemon
-
-      - name: Package APK artifact and optional production signing
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
           IS_TAG_PUSH: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          ALLOW_DEBUG_DRYRUN: ${{ github.event.inputs.allow_debug_signing || 'false' }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+          GRADLE_ARGS=("-PreactNativeArchitectures=${TARGET_ABIS}" "--no-daemon")
+
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            KEYSTORE_FILE="$(mktemp "${RUNNER_TEMP:-/tmp}/zerotally-release-XXXXXX.keystore")"
+            trap 'rm -f "$KEYSTORE_FILE"' EXIT
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+            export ZEROTALLY_KEYSTORE_PATH="$KEYSTORE_FILE"
+            export ZEROTALLY_KEYSTORE_PASSWORD="$ANDROID_KEYSTORE_PASSWORD"
+            export ZEROTALLY_KEY_ALIAS="$ANDROID_KEY_ALIAS"
+            export ZEROTALLY_KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
+            echo "SIGN_MODE=正式发布签名" >> "$GITHUB_ENV"
+          elif [ "$IS_TAG_PUSH" = "true" ] || [ "$ALLOW_DEBUG_DRYRUN" != "true" ]; then
+            echo "发布门禁拦截：未配置正式签名 Secrets（ANDROID_KEYSTORE_BASE64 / PASSWORD / ALIAS / KEY_PASSWORD），禁止产出调试签名 Release APK。" >&2
+            exit 1
+          else
+            GRADLE_ARGS+=("-PzerotallyAllowDebugSigning=true")
+            echo "SIGN_MODE=CI 临时调试演练签名（不可分发）" >> "$GITHUB_ENV"
+          fi
+
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease "${GRADLE_ARGS[@]}"
+
+      - name: Package APK artifact and checksum
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          IS_TAG_PUSH: ${{ startsWith(github.ref, 'refs/tags/v') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -101,25 +128,12 @@ jobs:
           OUT_APK="dist-apk/ZeroTally-${ARTIFACT_LABEL}-android.apk"
           cp "$SRC_APK" "$OUT_APK"
 
-          SIGN_MODE="本地调试签名（未配置正式发布 Keystore Secrets）"
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
-            trap 'rm -f release.keystore' EXIT
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
-            APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
-            "$APKSIGNER" sign \
-              --ks release.keystore \
-              --ks-key-alias "$ANDROID_KEY_ALIAS" \
-              --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
-              --key-pass env:ANDROID_KEY_PASSWORD \
-              "$OUT_APK"
-            rm -f release.keystore
-            SIGN_MODE="正式发布签名"
-          fi
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+          "$APKSIGNER" verify --verbose "$OUT_APK"
 
           (cd dist-apk && sha256sum "$(basename "$OUT_APK")" > "$(basename "$OUT_APK").sha256")
           echo "OUT_APK=$OUT_APK" >> "$GITHUB_ENV"
           echo "OUT_SHA=${OUT_APK}.sha256" >> "$GITHUB_ENV"
-          echo "SIGN_MODE=$SIGN_MODE" >> "$GITHUB_ENV"
 
       - name: Upload APK build artifact
         uses: actions/upload-artifact@v4

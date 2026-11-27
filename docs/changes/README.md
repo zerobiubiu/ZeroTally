@@ -49,3 +49,4 @@
 | [0041-lazy-pagination-ledger-and-account-detail.md](0041-lazy-pagination-ledger-and-account-detail.md) | 变更记录 | 已执行 | v1.8.1 | 明细与账户详情页接入 90% 滚动触底懒加载分页（SQL 实时聚合汇总 + 40 条/页增量读取，移除 `limit = 1000` 截断） |
 | [0042-error-boundary-and-privacy-consistency.md](0042-error-boundary-and-privacy-consistency.md) | 变更记录 | 已执行 | v1.8.2 | 新增根级崩溃兜底边界 AppErrorBoundary，修正关于页云备份表述并新增独立隐私说明页 |
 | [0043-privacy-and-security-center.md](0043-privacy-and-security-center.md) | 变更记录 | 已执行 | v1.8.3 | 新增设置内个性化「隐私与安全」中心（可选应用启动锁、指纹/面容生物识别、加盐 PIN、后台防截屏遮罩与敏感金额隐藏） |
+| [0044-strict-release-signing-and-r8-shrink.md](0044-strict-release-signing-and-r8-shrink.md) | 变更记录 | 已执行 | v1.8.4 | 锁死 Android 正式发布签名链路（Gradle/本地脚本/CI 拒绝隐式 debug 回退）、提供仓库外 Keystore 生成脚本、开启 R8 资源压缩并完成 P0 阶段 APK 验证 |

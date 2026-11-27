@@ -1,6 +1,6 @@
 {
   "name": "zerotally",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,6 +13,7 @@
     "android": "expo run:android",
     "prebuild:android": "expo prebuild --platform android",
     "build:apk": "node scripts/build-android-apk.mjs",
+    "keystore:init": "node scripts/generate-release-keystore.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
