@@ -703,7 +703,7 @@ export function RecordKeypad({
             </View>
           </Pressable>
         ) : (
-          <View style={styles.accountsScroll} />
+          <View style={styles.transferFallbackSpacer} />
         )}
 
         {!hideDateButton ? (
@@ -910,9 +910,15 @@ const styles = StyleSheet.create({
   },
   accountsScrollWrap: {
     flex: 1,
+    minHeight: 46,
+    justifyContent: 'center',
     position: 'relative',
   },
   accountsScroll: {
+    width: '100%',
+    flexGrow: 0,
+  },
+  transferFallbackSpacer: {
     flex: 1,
   },
   edgeFadeLeft: {

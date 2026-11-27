@@ -2,6 +2,14 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.1.3] - 2026-11-27
+
+### 修复
+
+- **修复快捷记账卡片新增/编辑时横向账户条塌陷不可见、无法选择账户的问题**（`RecordKeypad.tsx`）：
+  - 根因：`RecordKeypad` 隐藏右侧日期按钮（`hideDateButton: true`）后，左侧横向账户 `ScrollView` 使用 `flex: 1`（`flexBasis: 0`）且缺少撑高锚点，在 Yoga 布局中高度塌陷为 `0px` 导致整个账户选择条不可见。
+  - 修复：为 `accountsScrollWrap` 设定 `minHeight: 46` 并将横向 `ScrollView` 改为 `width: '100%', flexGrow: 0`，确保有无日期按钮时均可完整展示并自由滑动点选动账账户。
+
 ## [1.1.2] - 2026-11-27
 
 ### 优化

@@ -47,6 +47,7 @@
 | [changes/0026-quick-record-radial-scrub-undo-ring.md](changes/0026-quick-record-radial-scrub-undo-ring.md) | 变更记录 | 已执行 | 底栏长按 `+` 扇形极速记账、快捷卡片原地 3 秒圆环倒计时撤销与轻/长震动区分、单卡长按调金额/切账户、内嵌复用记一笔 UI 编辑及顶栏精简（v1.1.0） |
 | [changes/0027-fix-longpress-gestures-floating-hud-and-settings-about.md](changes/0027-fix-longpress-gestures-floating-hud-and-settings-about.md) | 变更记录 | 已执行 | 修复长按手势误拦截单击、加固快捷卡 3 秒原地撤销、微调升级为顶层半透明悬浮 HUD 及设置顶栏纯 `i` 关于图标（v1.1.1） |
 | [changes/0028-fullscreen-quick-template-composer.md](changes/0028-fullscreen-quick-template-composer.md) | 变更记录 | 已执行 | 快捷卡片新增/编辑页升级为全屏「记一笔」同款页面并支持跟手下滑退回快捷面板（v1.1.2） |
+| [changes/0029-fix-quick-composer-account-strip.md](changes/0029-fix-quick-composer-account-strip.md) | 变更记录 | 已执行 | 修复快捷卡片新增/编辑页隐藏日期后横向账户选择条高度塌陷无法选账户的问题（v1.1.3） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范
