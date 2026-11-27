@@ -2,11 +2,11 @@
  * 约束简报（Workflow B / C）：
  * - 容器归属：顶部安全区与全局共享顶栏由 app/(tabs)/_layout.tsx 统一固定承接，本页专注深玉青总览卡与按日分组账单流水滚动区
  * - 信息层级：主（按月/按年/全部总览卡，按月/按年点击标题弹出周期选择器，点击数据区直达账务分析）、次（按日分组账单明细）、弱（日小计与笔数）
- * - 文案密度：零解释性段落，空状态仅保留简短状态与记账动作按钮
+ * - 懒加载分页：总览数据由 SQLite 实时聚合，明细列表按 40 条/页增量读取，滑动抵达内容高度 90% 时自动向下拉取下一页，兼顾超长账本性能与跟手横滑体验
  */
 import { useIsFocused, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { RefreshControl, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../src/db/database-context';
@@ -16,14 +16,16 @@ import { PeriodPickerSheet } from '../../src/features/transactions/components/Pe
 import { TransactionRow } from '../../src/features/transactions/components/TransactionRow';
 import { useTransactionListInteractions } from '../../src/features/transactions/components/useTransactionListInteractions';
 import {
-  getAllLedger,
-  getMonthlyLedger,
-  getYearlyLedger,
-} from '../../src/features/transactions/service';
+  DEFAULT_LEDGER_PAGE_SIZE,
+  mergePaginatedTransactions,
+  shouldTriggerLazyLoadMore,
+} from '../../src/features/transactions/pagination-rules';
+import { groupTransactionsByDay } from '../../src/features/transactions/rules';
+import { getPeriodLedgerPage } from '../../src/features/transactions/service';
 import type {
-  DailyTransactionSection,
   LedgerPeriodMode,
   MonthlySummary,
+  TransactionListItem,
 } from '../../src/features/transactions/types';
 import {
   formatDaySectionTitle,
@@ -36,21 +38,13 @@ import { formatCentsToYuan } from '../../src/shared/money/money';
 import { EmptyState } from '../../src/shared/ui/EmptyState';
 import { useTheme } from '../../src/theme/theme-context';
 
-interface LedgerViewState {
-  summary: MonthlySummary;
-  sections: DailyTransactionSection[];
-}
-
-const EMPTY_LEDGER_STATE: LedgerViewState = {
-  summary: {
-    expenseCents: 0,
-    incomeCents: 0,
-    balanceCents: 0,
-    transferCents: 0,
-    refundCents: 0,
-    transactionCount: 0,
-  },
-  sections: [],
+const EMPTY_SUMMARY: MonthlySummary = {
+  expenseCents: 0,
+  incomeCents: 0,
+  balanceCents: 0,
+  transferCents: 0,
+  refundCents: 0,
+  transactionCount: 0,
 };
 
 export default function LedgerScreen(): React.JSX.Element {
@@ -80,8 +74,21 @@ export default function LedgerScreen(): React.JSX.Element {
     }
   }
 
-  const [ledger, setLedger] = useState<LedgerViewState>(EMPTY_LEDGER_STATE);
+  const [summary, setSummary] = useState<MonthlySummary>(EMPTY_SUMMARY);
+  const [items, setItems] = useState<TransactionListItem[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const requestSeqRef = useRef(0);
+  const lastPeriodSignatureRef = useRef('');
+  const loadedCountRef = useRef(0);
+  const hasMoreRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const viewportHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const scrollOffsetYRef = useRef(0);
+
   const interactions = useTransactionListInteractions();
   const closeAllSwipes = interactions.closeAllSwipes;
 
@@ -95,41 +102,120 @@ export default function LedgerScreen(): React.JSX.Element {
     }
   }, [closeAllSwipes, isDrawerOpen]);
 
-  const loadLedger = useCallback(async (): Promise<LedgerViewState> => {
-    if (periodMode === 'month') {
-      const data = await getMonthlyLedger(db, monthKey);
-      return { summary: data.summary, sections: data.sections };
-    }
-    if (periodMode === 'year') {
-      const data = await getYearlyLedger(db, year);
-      return { summary: data.summary, sections: data.sections };
-    }
-    const data = await getAllLedger(db);
-    return { summary: data.summary, sections: data.sections };
-  }, [db, monthKey, periodMode, year]);
+  const periodSignature = `${periodMode}:${periodMode === 'month' ? monthKey : periodMode === 'year' ? year : 'all'}`;
 
   useEffect(() => {
-    let active = true;
+    const seq = ++requestSeqRef.current;
+    const isSamePeriod = lastPeriodSignatureRef.current === periodSignature;
+    lastPeriodSignatureRef.current = periodSignature;
+    // 同周期内数据变更（编辑/删除/新增）时保留已展开页数，切换周期时重置回首页 40 条
+    const initialLimit = isSamePeriod
+      ? Math.max(DEFAULT_LEDGER_PAGE_SIZE, loadedCountRef.current)
+      : DEFAULT_LEDGER_PAGE_SIZE;
+
+    loadingMoreRef.current = false;
+
     void (async () => {
-      const data = await loadLedger();
-      if (active) {
-        setLedger(data);
+      const page = await getPeriodLedgerPage(db, {
+        mode: periodMode,
+        monthKey,
+        year,
+        limit: initialLimit,
+        offset: 0,
+      });
+      if (requestSeqRef.current !== seq) {
+        return;
+      }
+      loadedCountRef.current = page.items.length;
+      hasMoreRef.current = page.hasMore;
+      setSummary(page.summary);
+      setItems(page.items);
+      setHasMore(page.hasMore);
+      setLoadingMore(false);
+    })();
+  }, [db, monthKey, periodMode, periodSignature, revision, year]);
+
+  const loadNextPage = useCallback(() => {
+    if (!hasMoreRef.current || loadingMoreRef.current) {
+      return;
+    }
+    const seq = requestSeqRef.current;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    void (async () => {
+      try {
+        const page = await getPeriodLedgerPage(db, {
+          mode: periodMode,
+          monthKey,
+          year,
+          limit: DEFAULT_LEDGER_PAGE_SIZE,
+          offset: loadedCountRef.current,
+        });
+        if (requestSeqRef.current !== seq) {
+          return;
+        }
+        setSummary(page.summary);
+        setItems((prev) => {
+          const merged = mergePaginatedTransactions(prev, page.items);
+          loadedCountRef.current = merged.length;
+          return merged;
+        });
+        hasMoreRef.current = page.hasMore;
+        setHasMore(page.hasMore);
+      } finally {
+        if (requestSeqRef.current === seq) {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        }
       }
     })();
-    return () => {
-      active = false;
-    };
-  }, [loadLedger, revision]);
+  }, [db, monthKey, periodMode, year]);
+
+  const checkLazyLoad = useCallback(
+    (offsetY = scrollOffsetYRef.current) => {
+      if (
+        shouldTriggerLazyLoadMore({
+          contentOffsetY: offsetY,
+          layoutHeight: viewportHeightRef.current,
+          contentHeight: contentHeightRef.current,
+          hasMore: hasMoreRef.current,
+          loadingMore: loadingMoreRef.current,
+        })
+      ) {
+        loadNextPage();
+      }
+    },
+    [loadNextPage]
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    const seq = ++requestSeqRef.current;
+    loadingMoreRef.current = false;
     try {
-      const data = await loadLedger();
-      setLedger(data);
+      const page = await getPeriodLedgerPage(db, {
+        mode: periodMode,
+        monthKey,
+        year,
+        limit: DEFAULT_LEDGER_PAGE_SIZE,
+        offset: 0,
+      });
+      if (requestSeqRef.current !== seq) {
+        return;
+      }
+      loadedCountRef.current = page.items.length;
+      hasMoreRef.current = page.hasMore;
+      setSummary(page.summary);
+      setItems(page.items);
+      setHasMore(page.hasMore);
+      setLoadingMore(false);
     } finally {
       setRefreshing(false);
     }
-  }, [loadLedger]);
+  }, [db, monthKey, periodMode, year]);
+
+  const sections = useMemo(() => groupTransactionsByDay(items), [items]);
 
   const periodLabel =
     periodMode === 'month'
@@ -150,6 +236,20 @@ export default function LedgerScreen(): React.JSX.Element {
       <ScrollView
         style={styles.scroll}
         onScrollBeginDrag={closeAllSwipes}
+        scrollEventThrottle={32}
+        onLayout={(e) => {
+          viewportHeightRef.current = e.nativeEvent.layout.height;
+          checkLazyLoad();
+        }}
+        onContentSizeChange={(_, h) => {
+          contentHeightRef.current = h;
+          checkLazyLoad();
+        }}
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          scrollOffsetYRef.current = y;
+          checkLazyLoad(y);
+        }}
         contentContainerStyle={{
           paddingTop: theme.spacing.sm,
           paddingHorizontal: theme.spacing.lg,
@@ -166,7 +266,7 @@ export default function LedgerScreen(): React.JSX.Element {
         <MonthlySummaryHeader
           mode={periodMode}
           periodLabel={periodLabel}
-          summary={ledger.summary}
+          summary={summary}
           onPrevPeriod={() => {
             if (periodMode === 'month') {
               setMonthKey((prev) => shiftMonthKey(prev, -1));
@@ -198,7 +298,7 @@ export default function LedgerScreen(): React.JSX.Element {
           }
         />
 
-        {ledger.sections.length === 0 ? (
+        {sections.length === 0 ? (
           <View style={{ marginTop: theme.spacing.xl }}>
             <EmptyState
               icon="receipt-outline"
@@ -209,7 +309,7 @@ export default function LedgerScreen(): React.JSX.Element {
           </View>
         ) : (
           <View style={{ marginTop: theme.spacing.xl, gap: theme.spacing.lg }}>
-            {ledger.sections.map((section) => (
+            {sections.map((section) => (
               <View key={section.occurredOn}>
                 <View style={[styles.sectionHeader, { marginBottom: theme.spacing.sm }]}>
                   <Text
@@ -277,6 +377,16 @@ export default function LedgerScreen(): React.JSX.Element {
                 </View>
               </View>
             ))}
+
+            {loadingMore ? (
+              <View style={styles.lazyFooter}>
+                <ActivityIndicator size="small" color={theme.colors.action} />
+              </View>
+            ) : !hasMore && items.length >= DEFAULT_LEDGER_PAGE_SIZE ? (
+              <Text style={[styles.lazyEndText, { color: theme.colors.placeholder }]}>
+                已加载全部 {summary.transactionCount} 笔账目
+              </Text>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -321,6 +431,15 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     overflow: 'hidden',
+  },
+  lazyFooter: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  lazyEndText: {
+    textAlign: 'center',
+    fontSize: 12,
+    paddingVertical: 8,
   },
   tabular: {
     fontVariant: ['tabular-nums'],

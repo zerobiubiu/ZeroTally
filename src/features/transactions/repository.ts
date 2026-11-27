@@ -2,6 +2,7 @@ import type { SqlExecutor } from '../../db/types';
 import { buildTransactionSearchWhere, normalizeSearchPagination } from './search-rules';
 import type {
   CategoryAccountMemory,
+  MonthlySummary,
   Transaction,
   TransactionListItem,
   TransactionSearchFilter,
@@ -44,6 +45,14 @@ interface SearchSummaryRow {
   total_count: number;
   expense_cents: number | null;
   income_cents: number | null;
+  refund_cents: number | null;
+}
+
+interface PeriodSummaryRow {
+  total_count: number;
+  raw_expense_cents: number | null;
+  income_cents: number | null;
+  transfer_cents: number | null;
   refund_cents: number | null;
 }
 
@@ -179,6 +188,122 @@ export async function findTransactionsByAccountId(
     [accountId, accountId, limit]
   );
   return rows.map(mapTransactionJoinRow);
+}
+
+/**
+ * 在 SQLite 层直接计算周期汇总（与 rules.ts computeMonthlySummary 口径完全一致：
+ * 转账与还款不计入收支，退款抵扣支出，净支出 = 支出 - 退款），免去分页首屏拉全表。
+ */
+export async function summarizeTransactionsByDateRange(
+  db: SqlExecutor,
+  startIso?: string | null,
+  endIso?: string | null
+): Promise<MonthlySummary> {
+  const whereClauses: string[] = [];
+  const params: string[] = [];
+  if (startIso) {
+    whereClauses.push('occurred_on >= ?');
+    params.push(startIso);
+  }
+  if (endIso) {
+    whereClauses.push('occurred_on <= ?');
+    params.push(endIso);
+  }
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const row = await db.getFirst<PeriodSummaryRow>(
+    `SELECT
+       COUNT(*) AS total_count,
+       SUM(CASE WHEN type = 'expense' THEN amount_cents ELSE 0 END) AS raw_expense_cents,
+       SUM(CASE WHEN type = 'income' THEN amount_cents ELSE 0 END) AS income_cents,
+       SUM(CASE WHEN type = 'transfer' THEN amount_cents ELSE 0 END) AS transfer_cents,
+       SUM(CASE WHEN type = 'refund' THEN amount_cents ELSE 0 END) AS refund_cents
+     FROM transactions
+     ${whereSql}`,
+    params
+  );
+
+  const rawExpense = row?.raw_expense_cents ?? 0;
+  const refundCents = row?.refund_cents ?? 0;
+  const expenseCents = rawExpense - refundCents;
+  const incomeCents = row?.income_cents ?? 0;
+
+  return {
+    expenseCents,
+    incomeCents,
+    balanceCents: incomeCents - expenseCents,
+    transferCents: row?.transfer_cents ?? 0,
+    refundCents,
+    transactionCount: row?.total_count ?? 0,
+  };
+}
+
+/**
+ * 按日期区间分页查询明细流水（多查 1 条探测 hasMore，无需额外 COUNT）。
+ */
+export async function findTransactionsPageByDateRange(
+  db: SqlExecutor,
+  options: {
+    startIso?: string | null;
+    endIso?: string | null;
+    limit: number;
+    offset: number;
+  }
+): Promise<{ items: TransactionListItem[]; hasMore: boolean }> {
+  const limit = Math.max(1, Math.trunc(options.limit));
+  const offset = Math.max(0, Math.trunc(options.offset));
+  const whereClauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (options.startIso) {
+    whereClauses.push('t.occurred_on >= ?');
+    params.push(options.startIso);
+  }
+  if (options.endIso) {
+    whereClauses.push('t.occurred_on <= ?');
+    params.push(options.endIso);
+  }
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  const rows = await db.getAll<TransactionJoinRow>(
+    `${TRANSACTION_LIST_SELECT}
+     ${whereSql}
+     ORDER BY t.occurred_on DESC, t.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit + 1, offset]
+  );
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  return {
+    items: pageRows.map(mapTransactionJoinRow),
+    hasMore,
+  };
+}
+
+/**
+ * 分页查询单账户关联流水（无 1000 笔硬截断，支持任意深度历史翻页）。
+ */
+export async function findTransactionsPageByAccountId(
+  db: SqlExecutor,
+  accountId: string,
+  options: { limit: number; offset: number }
+): Promise<{ items: TransactionListItem[]; hasMore: boolean }> {
+  const limit = Math.max(1, Math.trunc(options.limit));
+  const offset = Math.max(0, Math.trunc(options.offset));
+  const rows = await db.getAll<TransactionJoinRow>(
+    `${TRANSACTION_LIST_SELECT}
+     WHERE t.account_id = ? OR t.to_account_id = ?
+     ORDER BY t.occurred_on DESC, t.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [accountId, accountId, limit + 1, offset]
+  );
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  return {
+    items: pageRows.map(mapTransactionJoinRow),
+    hasMore,
+  };
 }
 
 /**

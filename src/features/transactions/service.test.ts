@@ -22,9 +22,11 @@ import {
   getAllLedger,
   getCategoryAccountMemory,
   getMonthlyLedger,
+  getPeriodLedgerPage,
   getTransactionById,
   getYearlyLedger,
   listAccountTransactions,
+  listAccountTransactionsPage,
   listTransactionRefunds,
   searchTransactions,
   settleAccountBalance,
@@ -705,5 +707,67 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     expect(page2.items).toHaveLength(1);
     expect(page2.hasMore).toBe(false);
     expect(page2.items[0]?.id).not.toBe(page1.items[0]?.id);
+  });
+
+  it('明细周期分页与单账户分页：SQL 汇总口径与全量一致且无 1000 笔截断', async () => {
+    const exp1 = await createTransaction(db, {
+      type: 'expense',
+      amountCents: 10_000,
+      categoryId: 'cat_exp_food',
+      accountId: 'acc_bank',
+      toAccountId: null,
+      occurredOn: '2026-11-01',
+    });
+    await createRefundTransaction(db, {
+      originalTransactionId: exp1.id,
+      amountCents: 2_500,
+      accountId: 'acc_bank',
+      occurredOn: '2026-11-02',
+    });
+    await createTransaction(db, {
+      type: 'income',
+      amountCents: 50_000,
+      categoryId: 'cat_inc_salary',
+      accountId: 'acc_bank',
+      toAccountId: null,
+      occurredOn: '2026-11-03',
+    });
+    await createTransaction(db, {
+      type: 'transfer',
+      amountCents: 8_000,
+      categoryId: null,
+      accountId: 'acc_bank',
+      toAccountId: 'acc_wechat',
+      occurredOn: '2026-11-04',
+    });
+
+    const full = await getMonthlyLedger(db, '2026-11');
+    const p1 = await getPeriodLedgerPage(db, {
+      mode: 'month',
+      monthKey: '2026-11',
+      year: 2026,
+      limit: 2,
+      offset: 0,
+    });
+    expect(p1.summary).toEqual(full.summary);
+    expect(p1.items).toHaveLength(2);
+    expect(p1.hasMore).toBe(true);
+
+    const p2 = await getPeriodLedgerPage(db, {
+      mode: 'month',
+      monthKey: '2026-11',
+      year: 2026,
+      limit: 2,
+      offset: 2,
+    });
+    expect(p2.items).toHaveLength(2);
+    expect(p2.hasMore).toBe(false);
+
+    const accP1 = await listAccountTransactionsPage(db, 'acc_bank', { limit: 3, offset: 0 });
+    expect(accP1.items).toHaveLength(3);
+    expect(accP1.hasMore).toBe(true);
+    const accP2 = await listAccountTransactionsPage(db, 'acc_bank', { limit: 3, offset: 3 });
+    expect(accP2.items).toHaveLength(1);
+    expect(accP2.hasMore).toBe(false);
   });
 });

@@ -127,6 +127,21 @@ export interface PeriodLedger {
   sections: DailyTransactionSection[];
 }
 
+/** 按周期分页查询返回结构（汇总由 SQL 直接全量聚合，流水增量分页读取） */
+export interface PeriodLedgerPage {
+  mode: LedgerPeriodMode;
+  periodKey: string;
+  summary: MonthlySummary;
+  items: TransactionListItem[];
+  hasMore: boolean;
+}
+
+/** 单账户流水分页查询返回结构（彻底消除硬编码 1000 笔上限） */
+export interface AccountTransactionsPage {
+  items: TransactionListItem[];
+  hasMore: boolean;
+}
+
 export interface BalanceDelta {
   accountId: string;
   deltaCents: number;

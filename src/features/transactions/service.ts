@@ -23,8 +23,11 @@ import {
   findTransactionDetailById,
   findTransactionsByAccountId,
   findTransactionsByDateRange,
+  findTransactionsPageByAccountId,
+  findTransactionsPageByDateRange,
   insertTransactionRow,
   searchTransactionsPage,
+  summarizeTransactionsByDateRange,
   sumRefundsByOriginalId,
   updateRefundsCategoryByOriginalId,
   updateTransactionRow,
@@ -41,13 +44,16 @@ import {
   normalizeUpdateRepaymentInput,
 } from './rules';
 import type {
+  AccountTransactionsPage,
   BalanceDelta,
   CategoryAccountMemory,
   CreateRefundInput,
   CreateRepaymentInput,
   CreateTransactionInput,
+  LedgerPeriodMode,
   MonthlyLedger,
   PeriodLedger,
+  PeriodLedgerPage,
   Transaction,
   TransactionListItem,
   TransactionSearchFilter,
@@ -700,6 +706,67 @@ export async function listAccountTransactions(
   limit = 100
 ): Promise<TransactionListItem[]> {
   return findTransactionsByAccountId(db, accountId, limit);
+}
+
+/**
+ * 按周期（按月 / 按年 / 全部）分页读取明细流水，并在 SQL 层直接聚合精确周期汇总，
+ * 供明细首页在滑动至 90% 位置时按需增量加载。
+ */
+export async function getPeriodLedgerPage(
+  db: SqlExecutor,
+  params: {
+    mode: LedgerPeriodMode;
+    monthKey: string;
+    year: number;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<PeriodLedgerPage> {
+  const limit = params.limit ?? 40;
+  const offset = params.offset ?? 0;
+
+  let startIso: string | null = null;
+  let endIso: string | null = null;
+  let periodKey = 'all';
+
+  if (params.mode === 'month') {
+    const range = getMonthDateRange(params.monthKey);
+    startIso = range.start;
+    endIso = range.end;
+    periodKey = params.monthKey;
+  } else if (params.mode === 'year') {
+    const range = getYearDateRange(params.year);
+    startIso = range.start;
+    endIso = range.end;
+    periodKey = String(params.year);
+  }
+
+  const [summary, page] = await Promise.all([
+    summarizeTransactionsByDateRange(db, startIso, endIso),
+    findTransactionsPageByDateRange(db, { startIso, endIso, limit, offset }),
+  ]);
+
+  return {
+    mode: params.mode,
+    periodKey,
+    summary,
+    items: page.items,
+    hasMore: page.hasMore,
+  };
+}
+
+/**
+ * 分页查询单个账户关联流水（无 1000 笔硬截断限制），供账户详情页 90% 触底懒加载使用。
+ */
+export async function listAccountTransactionsPage(
+  db: SqlExecutor,
+  accountId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<AccountTransactionsPage> {
+  return findTransactionsPageByAccountId(db, accountId, {
+    limit: options?.limit ?? 40,
+    offset: options?.offset ?? 0,
+  });
 }
 
 /**

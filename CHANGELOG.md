@@ -2,6 +2,14 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.8.1] - 2026-11-27
+
+### 优化
+
+- **明细与账户详情页接入 90% 触底懒加载分页，彻底消除全量卡顿与 1000 笔截断**（新增 `pagination-rules.ts` & `pagination-rules.test.ts`，更新 `repository.ts`、`service.ts`、`app/(tabs)/index.tsx`、`app/account-detail.tsx`）：
+  - 新增 SQLite 聚合汇总查询 `summarizeTransactionsByDateRange` 与增量分页接口 `getPeriodLedgerPage`、`listAccountTransactionsPage`（每页 40 条，多读 1 条探测 `hasMore`）。
+  - 「明细」首页（按月/按年/全部）与「账户详情」页统一在滚动底缘达到内容总高度约 **90%** 时自动拉取下一页并按 `id` 去重合并，同时保留原横滑切页、左滑操作与 60fps 原生吸顶大卡片动效；账户详情彻底解除 `limit = 1000` 静默截断。
+
 ## [1.8.0] - 2026-11-27
 
 ### 新增

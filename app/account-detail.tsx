@@ -7,6 +7,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Clipboard,
   Easing,
@@ -34,9 +35,14 @@ import { listCategories } from '../src/features/categories/service';
 import type { Category } from '../src/features/categories/types';
 import { TransactionRow } from '../src/features/transactions/components/TransactionRow';
 import { useTransactionListInteractions } from '../src/features/transactions/components/useTransactionListInteractions';
+import {
+  DEFAULT_LEDGER_PAGE_SIZE,
+  mergePaginatedTransactions,
+  shouldTriggerLazyLoadMore,
+} from '../src/features/transactions/pagination-rules';
 import { groupTransactionsByDay } from '../src/features/transactions/rules';
 import {
-  listAccountTransactions,
+  listAccountTransactionsPage,
   settleAccountBalance,
 } from '../src/features/transactions/service';
 import type { TransactionListItem } from '../src/features/transactions/types';
@@ -64,6 +70,8 @@ export default function AccountDetailScreen(): React.JSX.Element {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
+  const [hasMoreTx, setHasMoreTx] = useState(false);
+  const [loadingMoreTx, setLoadingMoreTx] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settleOpen, setSettleOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -79,6 +87,13 @@ export default function AccountDetailScreen(): React.JSX.Element {
   const fabVisibleRef = useRef(true);
   const miniInteractiveRef = useRef(false);
   const collapseRangeRef = useRef(computeDetailCollapseRange(196));
+  const requestSeqRef = useRef(0);
+  const loadedTxCountRef = useRef(0);
+  const hasMoreTxRef = useRef(false);
+  const loadingMoreTxRef = useRef(false);
+  const viewportHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const checkLazyLoadRef = useRef<(offsetY: number) => void>(() => {});
 
   const interactions = useTransactionListInteractions();
 
@@ -95,23 +110,81 @@ export default function AccountDetailScreen(): React.JSX.Element {
     if (!accountId) {
       return;
     }
-    let active = true;
+    const seq = ++requestSeqRef.current;
+    loadingMoreTxRef.current = false;
+    const initialLimit = Math.max(DEFAULT_LEDGER_PAGE_SIZE, loadedTxCountRef.current);
+
     void (async () => {
-      const [acc, txs, cats] = await Promise.all([
+      const [acc, page, cats] = await Promise.all([
         getAccountById(db, accountId),
-        listAccountTransactions(db, accountId, 1000),
+        listAccountTransactionsPage(db, accountId, { limit: initialLimit, offset: 0 }),
         listCategories(db),
       ]);
-      if (active) {
+      if (requestSeqRef.current === seq) {
+        loadedTxCountRef.current = page.items.length;
+        hasMoreTxRef.current = page.hasMore;
         setAccount(acc);
-        setTransactions(txs);
+        setTransactions(page.items);
+        setHasMoreTx(page.hasMore);
+        setLoadingMoreTx(false);
         setCategories(cats);
       }
     })();
-    return () => {
-      active = false;
-    };
   }, [db, accountId, revision]);
+
+  const loadMoreAccountTransactions = useCallback(() => {
+    if (!accountId || !hasMoreTxRef.current || loadingMoreTxRef.current) {
+      return;
+    }
+    const seq = requestSeqRef.current;
+    loadingMoreTxRef.current = true;
+    setLoadingMoreTx(true);
+
+    void (async () => {
+      try {
+        const page = await listAccountTransactionsPage(db, accountId, {
+          limit: DEFAULT_LEDGER_PAGE_SIZE,
+          offset: loadedTxCountRef.current,
+        });
+        if (requestSeqRef.current !== seq) {
+          return;
+        }
+        setTransactions((prev) => {
+          const merged = mergePaginatedTransactions(prev, page.items);
+          loadedTxCountRef.current = merged.length;
+          return merged;
+        });
+        hasMoreTxRef.current = page.hasMore;
+        setHasMoreTx(page.hasMore);
+      } finally {
+        if (requestSeqRef.current === seq) {
+          loadingMoreTxRef.current = false;
+          setLoadingMoreTx(false);
+        }
+      }
+    })();
+  }, [accountId, db]);
+
+  const checkLazyLoad = useCallback(
+    (offsetY: number) => {
+      if (
+        shouldTriggerLazyLoadMore({
+          contentOffsetY: offsetY,
+          layoutHeight: viewportHeightRef.current,
+          contentHeight: contentHeightRef.current,
+          hasMore: hasMoreTxRef.current,
+          loadingMore: loadingMoreTxRef.current,
+        })
+      ) {
+        loadMoreAccountTransactions();
+      }
+    },
+    [loadMoreAccountTransactions]
+  );
+
+  useEffect(() => {
+    checkLazyLoadRef.current = checkLazyLoad;
+  }, [checkLazyLoad]);
 
   useEffect(() => {
     if (!copiedField) {
@@ -175,6 +248,9 @@ export default function AccountDetailScreen(): React.JSX.Element {
         miniInteractiveRef.current = shouldEnableMini;
         setMiniCardInteractive(shouldEnableMini);
       }
+
+      // 3. 抵达 90% 滚动位置时触底懒加载下一页老流水（解除 1000 笔上限）
+      checkLazyLoadRef.current(y);
     });
     return () => {
       scrollY.removeListener(listenerId);
@@ -303,6 +379,14 @@ export default function AccountDetailScreen(): React.JSX.Element {
           scrollEventThrottle={16}
           onScrollBeginDrag={interactions.closeAllSwipes}
           onScroll={onAnimatedScroll}
+          onLayout={(e) => {
+            viewportHeightRef.current = e.nativeEvent.layout.height;
+            checkLazyLoad(prevScrollYRef.current);
+          }}
+          onContentSizeChange={(_, h) => {
+            contentHeightRef.current = h;
+            checkLazyLoad(prevScrollYRef.current);
+          }}
           contentContainerStyle={{
             padding: theme.spacing.lg,
             paddingBottom:
@@ -626,6 +710,16 @@ export default function AccountDetailScreen(): React.JSX.Element {
                   </View>
                 </View>
               ))}
+
+              {loadingMoreTx ? (
+                <View style={styles.lazyFooter}>
+                  <ActivityIndicator size="small" color={theme.colors.action} />
+                </View>
+              ) : !hasMoreTx && transactions.length >= DEFAULT_LEDGER_PAGE_SIZE ? (
+                <Text style={[styles.lazyEndText, { color: theme.colors.placeholder }]}>
+                  已加载全部历史流水
+                </Text>
+              ) : null}
             </View>
           )}
         </Animated.ScrollView>
@@ -946,6 +1040,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  lazyFooter: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  lazyEndText: {
+    textAlign: 'center',
+    fontSize: 12,
+    paddingVertical: 8,
   },
   tabular: {
     fontVariant: ['tabular-nums'],
