@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.1.2
+- **生效版本**：v1.1.5
 
 ## 结论概览
 
@@ -59,7 +59,7 @@ flowchart TD
 | 金额以整数「分」存储、上限与千分位格式化 | `src/shared/money/money.ts` | 全部表单与展示组件 | 全项目 | `src/shared/money/money.test.ts` |
 | 业务日期（`YYYY-MM-DD`）与月度归属（`YYYY-MM`） | `src/shared/date/date.ts` | 明细筛选、记账日期、日分组 | `transactions` | `src/shared/date/date.test.ts` |
 | 交易余额增量计算（支出扣减、收入与退款增加、转账一减一增）与关联退款上限/连带回滚约束 | `src/features/transactions/rules.ts` | `src/features/transactions/service.ts` 事务内 | `accounts` 余额、`transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
-| 月度收支结余汇总（转账不计入支出/收入，退款抵扣当月净支出） | `src/features/transactions/rules.ts` | 明细页月度总览与账务分析 | `transactions`、`analytics` | `src/features/transactions/rules.test.ts`、`analytics/service.test.ts` |
+| 月度/周期收支结余汇总与单日小计（转账不计入收支；周期总览退款抵扣净支出，明细单日小计仅展示收/支且退款归入当日收入） | `src/features/transactions/rules.ts` | 明细页月度总览、按日小计与账务分析 | `transactions`、`analytics` | `src/features/transactions/rules.test.ts`、`analytics/service.test.ts` |
 | 总资产、总负债与净资产汇总（负债欠款以负数净值存储） | `src/features/accounts/rules.ts` | 资产页总览与账户调账 | `accounts` | `src/features/accounts/rules.test.ts`、`service.test.ts` |
 | 分类删除保护（已被账目引用时仅允许归档停用）与两级层级约束 | `src/features/categories/rules.ts` | `src/features/categories/service.ts` | `categories`、`transactions`、`analytics` | `src/features/categories/rules.test.ts`、`service.test.ts` |
 | 记账金额键盘表达式解析与分精度加减求值 | `src/features/transactions/amount-expression.ts` | `app/record.tsx`、`RecordKeypad.tsx` | `transactions` | `src/features/transactions/amount-expression.test.ts` |

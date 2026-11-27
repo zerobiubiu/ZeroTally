@@ -173,15 +173,21 @@ export function getMonthCalendarCells(monthKey: string): (string | null)[] {
   return cells;
 }
 
-/** 格式化按日分组标题（如 "11月25日 周三 · 今天"） */
-export function formatDaySectionTitle(isoDate: string, todayIso: string = getTodayIsoDate()): string {
+/** 格式化按日分组标题（如 "11月25日 周三 · 今天"；showYear 为 true 时附带年份如 "2025年11月20日 周四"） */
+export function formatDaySectionTitle(
+  isoDate: string,
+  todayIso: string = getTodayIsoDate(),
+  options?: { showYear?: boolean }
+): string {
   if (!isValidIsoDate(isoDate)) {
     return isoDate;
   }
   const [yearStr, monthStr, dayStr] = isoDate.split('-');
   const date = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr));
   const weekday = WEEKDAY_LABELS[date.getDay()] ?? '';
-  const base = `${Number(monthStr)}月${Number(dayStr)}日 ${weekday}`;
+  const monthDay = `${Number(monthStr)}月${Number(dayStr)}日`;
+  const datePart = options?.showYear ? `${yearStr}年${monthDay}` : monthDay;
+  const base = `${datePart} ${weekday}`;
 
   if (isoDate === todayIso) {
     return `${base} · 今天`;

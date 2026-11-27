@@ -213,13 +213,17 @@ export default function LedgerScreen(): React.JSX.Element {
               <View key={section.occurredOn}>
                 <View style={[styles.sectionHeader, { marginBottom: theme.spacing.sm }]}>
                   <Text
+                    numberOfLines={1}
                     style={{
+                      flexShrink: 1,
                       color: theme.colors.textSecondary,
                       fontSize: theme.fontSize.xs,
                       fontWeight: theme.fontWeight.semibold,
                     }}
                   >
-                    {formatDaySectionTitle(section.occurredOn)}
+                    {formatDaySectionTitle(section.occurredOn, undefined, {
+                      showYear: periodMode === 'all',
+                    })}
                   </Text>
 
                   <View style={styles.sectionTotals}>
@@ -231,15 +235,6 @@ export default function LedgerScreen(): React.JSX.Element {
                         ]}
                       >
                         支 {formatCentsToYuan(section.expenseCents)}
-                      </Text>
-                    ) : section.expenseCents < 0 ? (
-                      <Text
-                        style={[
-                          styles.tabular,
-                          { color: theme.colors.textMuted, fontSize: theme.fontSize.xs },
-                        ]}
-                      >
-                        退 {formatCentsToYuan(Math.abs(section.expenseCents))}
                       </Text>
                     ) : null}
                     {section.incomeCents > 0 ? (
@@ -317,6 +312,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     paddingHorizontal: 4,
   },
   sectionTotals: {

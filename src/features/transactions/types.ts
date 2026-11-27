@@ -84,8 +84,9 @@ export interface MonthlySummary {
 
 export interface DailyTransactionSection {
   occurredOn: string;
-  /** 当日净支出（原支出扣减当日退款，单位：分） */
+  /** 当日支出总额（单位：分） */
   expenseCents: number;
+  /** 当日收入总额（含当日退款，单位：分） */
   incomeCents: number;
   refundCents: number;
   items: TransactionListItem[];

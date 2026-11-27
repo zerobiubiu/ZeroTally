@@ -49,6 +49,7 @@
 | [changes/0028-fullscreen-quick-template-composer.md](changes/0028-fullscreen-quick-template-composer.md) | 变更记录 | 已执行 | 快捷卡片新增/编辑页升级为全屏「记一笔」同款页面并支持跟手下滑退回快捷面板（v1.1.2） |
 | [changes/0029-fix-quick-composer-account-strip.md](changes/0029-fix-quick-composer-account-strip.md) | 变更记录 | 已执行 | 修复快捷卡片新增/编辑页隐藏日期后横向账户选择条高度塌陷无法选账户的问题（v1.1.3） |
 | [changes/0030-polish-segmented-alignment-and-quick-cards.md](changes/0030-polish-segmented-alignment-and-quick-cards.md) | 变更记录 | 已执行 | 修复全应用分段滑块选中框偏下对齐问题并重构快捷记账卡片为舒展 2×3 宽卡排版（v1.1.4） |
+| [changes/0031-ledger-daily-totals-and-all-mode-year.md](changes/0031-ledger-daily-totals-and-all-mode-year.md) | 变更记录 | 已执行 | 明细单日收支仅保留「支 / 收」并将退款归入收入，同时「全部」模式日分组标题附带年份（v1.1.5） |
 | [troubleshooting/0001-windows-android-apk-build.md](troubleshooting/0001-windows-android-apk-build.md) | 部署运维 | 参考 | Windows 下扁平依赖 hoisting 与 CMake/Ninja 路径长度问题排查方案 |
 
 ## 文档规范

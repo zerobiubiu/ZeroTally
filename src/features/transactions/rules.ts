@@ -189,7 +189,8 @@ export function computeMonthlySummary(items: readonly Transaction[]): MonthlySum
 }
 
 /**
- * 将已按 occurredOn DESC 排序的交易流水按日分组，并计算每日净支出与收入小计。
+ * 将已按 occurredOn DESC 排序的交易流水按日分组，并计算每日支出与收入小计：
+ * - 单日仅统计「支」与「收」（不展示「退」），当日退款归入当日收入小计，不影响月度/周期净支出统计。
  */
 export function groupTransactionsByDay(
   items: readonly TransactionListItem[]
@@ -215,7 +216,7 @@ export function groupTransactionsByDay(
     if (item.type === 'expense') {
       section.expenseCents += item.amountCents;
     } else if (item.type === 'refund') {
-      section.expenseCents -= item.amountCents;
+      section.incomeCents += item.amountCents;
       section.refundCents += item.amountCents;
     } else if (item.type === 'income') {
       section.incomeCents += item.amountCents;

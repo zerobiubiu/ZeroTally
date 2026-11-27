@@ -41,8 +41,15 @@ describe('date 日期与月份工具', () => {
   it('正确偏移日期并格式化中文标题', () => {
     expect(shiftIsoDate('2026-11-25', -1)).toBe('2026-11-24');
     expect(formatMonthTitle('2026-03')).toBe('2026年3月');
-    expect(formatDaySectionTitle('2026-11-25', '2026-11-25')).toContain('今天');
-    expect(formatDaySectionTitle('2026-11-24', '2026-11-25')).toContain('昨天');
+    expect(formatDaySectionTitle('2026-11-25', '2026-11-25')).toBe('11月25日 周三 · 今天');
+    expect(formatDaySectionTitle('2026-11-24', '2026-11-25')).toBe('11月24日 周二 · 昨天');
+    expect(formatDaySectionTitle('2025-11-20', '2026-11-27')).toBe('11月20日 周四');
+    expect(formatDaySectionTitle('2025-11-20', '2026-11-27', { showYear: true })).toBe(
+      '2025年11月20日 周四'
+    );
+    expect(formatDaySectionTitle('2026-11-27', '2026-11-27', { showYear: true })).toBe(
+      '2026年11月27日 周五 · 今天'
+    );
   });
 
   it('格式化记账日期短标签并生成周一起始的月历网格', () => {

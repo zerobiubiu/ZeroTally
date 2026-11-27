@@ -131,6 +131,50 @@ describe('transactions 领域规则', () => {
     expect(sections[1]?.expenseCents).toBe(0);
   });
 
+  it('单日分组小计将退款归入当日收入且不扣减当日支出，同时保持月度净支出统计不变', () => {
+    const items: TransactionListItem[] = [
+      makeTxItem({ id: 'e1', type: 'expense', amountCents: 900, occurredOn: '2026-11-27' }),
+      makeTxItem({ id: 'i1', type: 'income', amountCents: 2000, occurredOn: '2026-11-27' }),
+      makeTxItem({
+        id: 'r1',
+        type: 'refund',
+        amountCents: 100,
+        refundOfId: 'e1',
+        occurredOn: '2026-11-27',
+      }),
+      makeTxItem({
+        id: 'r2',
+        type: 'refund',
+        amountCents: 500,
+        refundOfId: 'e1',
+        occurredOn: '2026-11-26',
+      }),
+    ];
+
+    // 月度汇总口径不变：退款仍抵扣月度净支出，不计入月度收入
+    const summary = computeMonthlySummary(items);
+    expect(summary.expenseCents).toBe(300);
+    expect(summary.incomeCents).toBe(2000);
+    expect(summary.refundCents).toBe(600);
+    expect(summary.balanceCents).toBe(1700);
+
+    // 单日分组小计：只算收和支，退款归入当日收入
+    const sections = groupTransactionsByDay(items);
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toMatchObject({
+      occurredOn: '2026-11-27',
+      expenseCents: 900,
+      incomeCents: 2100,
+      refundCents: 100,
+    });
+    expect(sections[1]).toMatchObject({
+      occurredOn: '2026-11-26',
+      expenseCents: 0,
+      incomeCents: 500,
+      refundCents: 500,
+    });
+  });
+
   it('分类账户记忆按精确分类 -> 所属大类 -> 同收支类型 -> 默认首活跃账户四层回退', () => {
     const categories = [
       { id: 'cat_food', parentId: null },
