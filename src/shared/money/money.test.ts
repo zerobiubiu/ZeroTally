@@ -5,8 +5,10 @@ import {
   formatCentsToYuan,
   formatTransactionAmount,
   MAX_AMOUNT_CENTS,
+  normalizePositiveAmountInput,
   parseSignedYuanToCents,
   parseYuanToCents,
+  truncateExcessDecimalsInput,
 } from './money';
 
 describe('money 金额权威工具', () => {
@@ -49,5 +51,53 @@ describe('money 金额权威工具', () => {
     expect(centsToInputString(10050)).toBe('100.5');
     expect(centsToInputString(10055)).toBe('100.55');
     expect(centsToInputString(0)).toBe('0');
+  });
+
+  it('正数金额输入规整：自动补前导零、去多余前导零、直接截断超两位小数且拒绝非正数', () => {
+    expect(truncateExcessDecimalsInput('0.123')).toBe('0.12');
+    expect(truncateExcessDecimalsInput('12.999')).toBe('12.99');
+    expect(truncateExcessDecimalsInput('.5')).toBe('.5');
+    expect(truncateExcessDecimalsInput('0001')).toBe('0001');
+
+    expect(normalizePositiveAmountInput('')).toEqual({ kind: 'empty', normalized: '' });
+    expect(normalizePositiveAmountInput('   ')).toEqual({ kind: 'empty', normalized: '' });
+    expect(normalizePositiveAmountInput('.5')).toEqual({
+      kind: 'valid',
+      normalized: '0.5',
+      cents: 50,
+    });
+    expect(normalizePositiveAmountInput('0001')).toEqual({
+      kind: 'valid',
+      normalized: '1',
+      cents: 100,
+    });
+    expect(normalizePositiveAmountInput('000.5')).toEqual({
+      kind: 'valid',
+      normalized: '0.5',
+      cents: 50,
+    });
+    expect(normalizePositiveAmountInput('0.123')).toEqual({
+      kind: 'valid',
+      normalized: '0.12',
+      cents: 12,
+    });
+    expect(normalizePositiveAmountInput('0.129')).toEqual({
+      kind: 'valid',
+      normalized: '0.12',
+      cents: 12,
+    });
+    expect(normalizePositiveAmountInput('5.')).toEqual({
+      kind: 'valid',
+      normalized: '5',
+      cents: 500,
+    });
+    expect(normalizePositiveAmountInput('0').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('000').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('0.00').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('.009').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('-5').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('1.2.3').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('.').kind).toBe('invalid');
+    expect(normalizePositiveAmountInput('abc').kind).toBe('invalid');
   });
 });

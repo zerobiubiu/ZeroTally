@@ -4,7 +4,7 @@
  * - 交互形态：基于统一 BottomSheet，支持顶部抓手与标题栏跟手下拉收起，不可见时卸载 Modal
  */
 import React, { useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { BottomSheet, type BottomSheetHandle } from '../../../shared/ui/BottomSheet';
 import { useTheme } from '../../../theme/theme-context';
@@ -41,46 +41,12 @@ export function AccountPickerSheet({
       ref={sheetRef}
       visible={visible}
       onClose={onClose}
+      title={title}
       backdropLabel="关闭账户选择"
-      dragHandleOnly
+      scrollable
+      scrollMaxHeight={360}
       maxHeight="72%"
-      header={
-        <View
-          style={[
-            styles.header,
-            {
-              paddingHorizontal: theme.spacing.lg,
-              paddingBottom: theme.spacing.md,
-              borderBottomColor: theme.colors.border,
-              borderBottomWidth: theme.borderWidth.hairline,
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.base,
-              fontWeight: theme.fontWeight.semibold,
-            }}
-          >
-            {title}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭"
-            onPress={() => sheetRef.current?.dismiss()}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="close" size={20} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
-      }
     >
-      <ScrollView style={styles.list}>
         {accounts.map((acc, index) => {
           const selected = acc.id === selectedAccountId;
           const isCounterpart = counterpartAccountId === acc.id;
@@ -169,26 +135,11 @@ export function AccountPickerSheet({
             </Pressable>
           );
         })}
-      </ScrollView>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  list: {
-    maxHeight: 360,
-  },
   row: {
     minHeight: 60,
     paddingVertical: 10,

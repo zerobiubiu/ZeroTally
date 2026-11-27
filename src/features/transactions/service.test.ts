@@ -215,16 +215,6 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
       note: '退部分商品',
     });
 
-    // 超额退款应被拦截（剩余可退仅 60 元）
-    await expect(
-      createRefundTransaction(db, {
-        originalTransactionId: expense.id,
-        amountCents: 7_000,
-        accountId: 'acc_wechat',
-        occurredOn: '2026-11-22',
-      })
-    ).rejects.toThrow('剩余可退金额');
-
     // 原支出详情正确统计已退 140 元
     const expenseDetail = await getTransactionById(db, expense.id);
     expect(expenseDetail?.refundedCents).toBe(14_000);
@@ -241,17 +231,31 @@ describe('transactions 事务与余额联动集成测试（真实 SQLite）', ()
     expect((await getAccountById(db, 'acc_wechat'))?.balanceCents).toBe(36_000); // 500 - 200 + 60
     expect((await getAccountById(db, 'acc_alipay'))?.balanceCents).toBe(8_000); // 0 + 80
 
-    // 原支出已有退款时，禁止改类型或把金额改小到已退以下
+    // 允许超额退款（如含运费/补偿金多退 70 元，总退款 210 > 原支出 200）
+    const overRefund = await createRefundTransaction(db, {
+      originalTransactionId: expense.id,
+      amountCents: 7_000,
+      accountId: 'acc_wechat',
+      occurredOn: '2026-11-22',
+      note: '运费补偿',
+    });
+    expect((await getTransactionById(db, expense.id))?.refundedCents).toBe(21_000);
+    expect((await getAccountById(db, 'acc_wechat'))?.balanceCents).toBe(43_000);
+    // 清理该超额退款验证余额精准回滚
+    await deleteTransaction(db, overRefund.id);
+    expect((await getAccountById(db, 'acc_wechat'))?.balanceCents).toBe(36_000);
+
+    // 原支出已有退款时，仍禁止更改类型（防止孤立退款）
     await expect(
       updateTransaction(db, expense.id, {
-        type: 'expense',
-        amountCents: 10_000,
-        categoryId: 'cat_exp_clothing_clothes',
+        type: 'income',
+        amountCents: 20_000,
+        categoryId: 'cat_inc_salary',
         accountId: 'acc_wechat',
         toAccountId: null,
         occurredOn: '2026-11-20',
       })
-    ).rejects.toThrow('不能小于已退款总额');
+    ).rejects.toThrow('请先删除退款后再更改类型');
 
     // 编辑退款1：60 元 -> 50 元，账户余额同步回扣 10 元
     await updateRefundTransaction(db, refund1.id, {

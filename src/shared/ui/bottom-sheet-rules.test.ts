@@ -38,6 +38,16 @@ describe('BottomSheet 拖拽阻尼与吸附决策规则', () => {
     expect(overdragSmall).toBeGreaterThan(-16);
     expect(overdragLarge).toBeLessThan(overdragSmall);
     expect(overdragLarge).toBeGreaterThanOrEqual(-16);
+
+    // 不支持展开的弹窗（maxOverdragUp = 0）向上拉严格归零，不做上滑越界
+    expect(
+      clampBottomSheetDragOffset({
+        startOffset: 0,
+        translationY: -120,
+        maxDismissOffset: 400,
+        maxOverdragUp: 0,
+      })
+    ).toBe(0);
   });
 
   it('单段半屏弹窗：下拉超阈值或快速下甩触发关闭，轻拉松手回弹', () => {

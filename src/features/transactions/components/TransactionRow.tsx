@@ -58,8 +58,8 @@ export function TransactionRow({
   const isRefund = item.type === 'refund';
   const hasRefund = item.type === 'expense' && item.refundedCents > 0;
   const isFullyRefunded = hasRefund && item.refundedCents >= item.amountCents;
-  const canRefund =
-    item.type === 'expense' && item.refundedCents < item.amountCents && Boolean(onRefund);
+  const isExactFullRefund = hasRefund && item.refundedCents === item.amountCents;
+  const canRefund = item.type === 'expense' && Boolean(onRefund);
 
   const actions = useMemo<SwipeActionItem[]>(() => {
     const list: SwipeActionItem[] = [];
@@ -314,7 +314,7 @@ export function TransactionRow({
               },
             ]}
           >
-            {isFullyRefunded ? '已全额退款' : `已退 ${formatCentsToYuan(item.refundedCents)}`}
+            {isExactFullRefund ? '已全额退款' : `已退 ${formatCentsToYuan(item.refundedCents)}`}
           </Text>
         ) : null}
       </View>

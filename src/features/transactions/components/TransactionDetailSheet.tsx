@@ -4,7 +4,7 @@
  * - 交互形态：基于两段式 BottomSheet，默认半屏浮出，支持抓手/标题/金额上半区上拉（或点按抓手）展开至近全屏，下拉回半屏或直接关闭；底部操作栏在半屏与全屏间始终贴底稳定
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
 import { formatDaySectionTitle } from '../../../shared/date/date';
@@ -117,7 +117,10 @@ export function TransactionDetailSheet({
   const remainingRefundableCents = isExpense
     ? Math.max(0, activeItem.amountCents - activeItem.refundedCents)
     : 0;
-  const canRefund = isExpense && remainingRefundableCents > 0;
+  const overRefundedCents = isExpense
+    ? Math.max(0, activeItem.refundedCents - activeItem.amountCents)
+    : 0;
+  const canRefund = isExpense;
   const canCopy = !isRefund;
 
   const categoryTitle = activeItem.categoryParentName
@@ -161,8 +164,13 @@ export function TransactionDetailSheet({
       backdropLabel="关闭账目详情"
       expandable
       collapsedRatio={0.56}
-      dragHandleOnly
+      scrollable
       includeBottomInset={false}
+      contentContainerStyle={{
+        paddingHorizontal: theme.spacing.lg,
+        paddingTop: theme.spacing.sm,
+        paddingBottom: theme.spacing.lg,
+      }}
       header={
         <View>
           {/* 头部：图标 + 分类/方向 + 类型标签 + 关闭 */}
@@ -226,7 +234,11 @@ export function TransactionDetailSheet({
                         },
                       ]}
                     >
-                      {remainingRefundableCents === 0 ? '已全额退款' : '部分已退'}
+                      {overRefundedCents > 0
+                        ? '已退款'
+                        : remainingRefundableCents === 0
+                          ? '已全额退款'
+                          : '部分已退'}
                     </Text>
                   ) : null}
                 </View>
@@ -294,8 +306,9 @@ export function TransactionDetailSheet({
                     },
                   ]}
                 >
-                  已退 {formatCentsToYuan(activeItem.refundedCents)} · 实付{' '}
-                  {formatCentsToYuan(remainingRefundableCents)}
+                  {overRefundedCents > 0
+                    ? `已退 ${formatCentsToYuan(activeItem.refundedCents)} · 多退 ${formatCentsToYuan(overRefundedCents)}`
+                    : `已退 ${formatCentsToYuan(activeItem.refundedCents)} · 实付 ${formatCentsToYuan(remainingRefundableCents)}`}
                 </Text>
               </View>
             ) : null}
@@ -432,15 +445,6 @@ export function TransactionDetailSheet({
         </View>
       }
     >
-      {({ collapsedScrollExtraPadding }) => (
-        <ScrollView
-          style={styles.bodyScroll}
-          contentContainerStyle={{
-            paddingHorizontal: theme.spacing.lg,
-            paddingTop: theme.spacing.sm,
-            paddingBottom: theme.spacing.lg + collapsedScrollExtraPadding,
-          }}
-        >
           {/* 结构化字段卡片 */}
           <View
             style={[
@@ -644,8 +648,6 @@ export function TransactionDetailSheet({
               </Pressable>
             </View>
           ) : null}
-        </ScrollView>
-      )}
     </BottomSheet>
   );
 }
@@ -733,9 +735,6 @@ const styles = StyleSheet.create({
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bodyScroll: {
-    flex: 1,
   },
   amountHero: {
     alignItems: 'center',

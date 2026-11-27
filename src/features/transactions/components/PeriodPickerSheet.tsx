@@ -204,42 +204,8 @@ export function PeriodPickerSheet({
       ref={sheetRef}
       visible={visible}
       onClose={handleClose}
+      title={mode === 'month' ? '选择月份' : '选择年份'}
       backdropLabel="关闭周期选择"
-      header={
-        <View
-          style={[
-            styles.header,
-            {
-              paddingHorizontal: theme.spacing.lg,
-              paddingBottom: theme.spacing.md,
-              borderBottomColor: theme.colors.border,
-              borderBottomWidth: theme.borderWidth.hairline,
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.base,
-              fontWeight: theme.fontWeight.semibold,
-            }}
-          >
-            {mode === 'month' ? '选择月份' : '选择年份'}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭"
-            onPress={() => sheetRef.current?.dismiss()}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="close" size={20} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
-      }
     >
       <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
           <View style={styles.periodBar}>
@@ -479,17 +445,6 @@ export function PeriodPickerSheet({
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   periodBar: {
     flexDirection: 'row',
     alignItems: 'center',

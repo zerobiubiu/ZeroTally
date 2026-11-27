@@ -1,7 +1,6 @@
 import type { SqlExecutor } from '../../db/types';
 import { getMonthDateRange, getYearDateRange } from '../../shared/date/date';
 import { createId } from '../../shared/id/id';
-import { formatCentsToYuan } from '../../shared/money/money';
 import { applyAccountBalanceDelta, findAccountById } from '../accounts/repository';
 import { findCategoryById } from '../categories/repository';
 import {
@@ -142,13 +141,8 @@ export async function updateTransaction(
 
     if (existing.type === 'expense') {
       const refundedCents = await sumRefundsByOriginalId(tx, id);
-      if (refundedCents > 0) {
-        if (input.type !== 'expense') {
-          throw new Error('该支出存在关联退款，请先删除退款后再更改类型');
-        }
-        if (input.amountCents < refundedCents) {
-          throw new Error(`支出金额不能小于已退款总额（${formatCentsToYuan(refundedCents)}）`);
-        }
+      if (refundedCents > 0 && input.type !== 'expense') {
+        throw new Error('该支出存在关联退款，请先删除退款后再更改类型');
       }
     }
 
@@ -186,7 +180,7 @@ export async function updateTransaction(
 }
 
 /**
- * 为一笔支出记录创建关联抵扣式退款（支持全额/部分/多次退款，累计不超过原支出金额），
+ * 为一笔支出记录创建关联退款（支持全额、部分、多次及含运费/补偿金的超额退款，只需金额 > 0），
  * 并在同一事务内将退款金额增加至指定入账账户。
  */
 export async function createRefundTransaction(
@@ -203,15 +197,6 @@ export async function createRefundTransaction(
     }
     if (original.type !== 'expense' || !original.categoryId) {
       throw new Error('仅支出记录支持退款');
-    }
-
-    const alreadyRefunded = await sumRefundsByOriginalId(tx, original.id);
-    const remainingCents = original.amountCents - alreadyRefunded;
-    if (remainingCents <= 0) {
-      throw new Error('该笔支出已全额退款');
-    }
-    if (normalized.amountCents > remainingCents) {
-      throw new Error(`退款金额不能超过剩余可退金额（${formatCentsToYuan(remainingCents)}）`);
     }
 
     const targetAccount = await findAccountById(tx, normalized.accountId);
@@ -248,7 +233,7 @@ export async function createRefundTransaction(
 }
 
 /**
- * 编辑既有退款记录（金额、退回账户、日期、备注），并在同一事务内校验上限与重算账户余额。
+ * 编辑既有退款记录（金额、退回账户、日期、备注），并在同一事务内重算账户余额（不设金额上限）。
  */
 export async function updateRefundTransaction(
   db: SqlExecutor,
@@ -270,12 +255,6 @@ export async function updateRefundTransaction(
     const original = await findTransactionById(tx, existing.refundOfId);
     if (!original) {
       throw new Error('原支出记录不存在');
-    }
-
-    const otherRefunded = await sumRefundsByOriginalId(tx, original.id, refundId);
-    const maxAllowed = original.amountCents - otherRefunded;
-    if (normalized.amountCents > maxAllowed) {
-      throw new Error(`退款金额不能超过可退上限（${formatCentsToYuan(maxAllowed)}）`);
     }
 
     const targetAccount = await findAccountById(tx, normalized.accountId);

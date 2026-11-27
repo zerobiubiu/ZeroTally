@@ -1,22 +1,25 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 信息层级：主（退款金额输入与一键「全额退」+ 底部唯一主按钮「确认退款 / 保存修改」）、次（原支出与剩余可退概览、退款入账账户与日期）、弱（备注输入与关闭按钮）
+ * - 信息层级：主（占位提示默认金额的退款输入框 + 底部唯一主按钮「确认退款 / 保存修改」）、次（原支出概览、退款入账账户与日期）、弱（备注输入与关闭按钮）
+ * - 金额输入策略：默认全额（或编辑态原金额）以浅色占位提示展示而不占用输入框，留空直接提交即沿用默认金额，点击输入直接覆盖无需先删数字；输入完成后自动规整合法性（.5->0.5、去多余前导零、直接截断超两位小数、仅校验 > 0 不限上限）
  * - 交互形态：基于统一 BottomSheet（内置软键盘避让 + 顶部抓手/标题栏随时跟手下拉关闭），日期选择器平级挂载避免 Android 嵌套 Modal
  */
-import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
 import {
   formatRelativeDateLabel,
   getTodayIsoDate,
   shiftIsoDate,
 } from '../../../shared/date/date';
+import { hapticLight, hapticSuccess, hapticWarning } from '../../../shared/haptics/haptics';
 import {
-  centsToInputString,
   CURRENCY_SYMBOL,
+  formatCentsPlain,
   formatCentsToYuan,
-  parseYuanToCents,
+  normalizePositiveAmountInput,
+  truncateExcessDecimalsInput,
 } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { BottomSheet, type BottomSheetHandle } from '../../../shared/ui/BottomSheet';
@@ -48,6 +51,7 @@ export function RefundSheet({
   onSaved,
 }: RefundSheetProps): React.JSX.Element | null {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { db, notifyChange } = useDatabase();
   const sheetRef = useRef<BottomSheetHandle>(null);
 
@@ -58,7 +62,8 @@ export function RefundSheet({
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [originalExpense, setOriginalExpense] = useState<TransactionListItem | null>(null);
-  const [maxRefundableCents, setMaxRefundableCents] = useState(0);
+  /** 留空提交时沿用的默认金额（新建为剩余全额，编辑为原退款额；若无剩余则 0 需手动输入） */
+  const [defaultAmountCents, setDefaultAmountCents] = useState(0);
   const [amountInput, setAmountInput] = useState('');
   const [accountId, setAccountId] = useState('');
   const [occurredOn, setOccurredOn] = useState(() => getTodayIsoDate());
@@ -94,12 +99,13 @@ export function RefundSheet({
       setAccounts(visibleAccounts);
       setOriginalExpense(resolvedOriginal);
       setError(null);
+      // 始终不预填文本，改以浅色占位提示展示默认金额，直接输入即可无需手动删除
+      setAmountInput('');
 
       if (target.mode === 'create') {
         const exp = resolvedOriginal ?? target.expense;
         const remaining = Math.max(0, exp.amountCents - exp.refundedCents);
-        setMaxRefundableCents(remaining);
-        setAmountInput(remaining > 0 ? centsToInputString(remaining) : '');
+        setDefaultAmountCents(remaining);
         const defaultAcc =
           visibleAccounts.find((a) => a.id === exp.accountId)?.id ?? visibleAccounts[0]?.id ?? '';
         setAccountId(defaultAcc);
@@ -107,13 +113,7 @@ export function RefundSheet({
         setNote('');
       } else {
         const ref = target.refund;
-        const exp = resolvedOriginal;
-        const otherRefunded = exp ? Math.max(0, exp.refundedCents - ref.amountCents) : 0;
-        const maxAllowed = exp
-          ? Math.max(ref.amountCents, exp.amountCents - otherRefunded)
-          : ref.amountCents;
-        setMaxRefundableCents(maxAllowed);
-        setAmountInput(centsToInputString(ref.amountCents));
+        setDefaultAmountCents(ref.amountCents);
         setAccountId(ref.accountId);
         setOccurredOn(ref.occurredOn);
         setNote(ref.note);
@@ -133,6 +133,9 @@ export function RefundSheet({
   const todayIso = getTodayIsoDate();
   const yesterdayIso = shiftIsoDate(todayIso, -1);
   const isEdit = activeTarget.mode === 'edit';
+  const hasTypedAmount = amountInput.trim().length > 0;
+  const amountPlaceholder =
+    defaultAmountCents > 0 ? formatCentsPlain(defaultAmountCents, false) : '输入金额';
 
   const originalTitle = originalExpense
     ? originalExpense.categoryParentName
@@ -140,18 +143,52 @@ export function RefundSheet({
       : (originalExpense.categoryName ?? '支出')
     : '支出';
 
+  /** 输入完成后自动规整（.5->0.5、去多余前导零、截断超两位小数）并校验是否 > 0 */
+  const handleAmountFinishEditing = () => {
+    const result = normalizePositiveAmountInput(amountInput);
+    if (result.kind === 'empty') {
+      if (amountInput.length > 0) {
+        setAmountInput('');
+      }
+      setError(null);
+      return;
+    }
+    if (result.kind === 'valid') {
+      if (result.normalized !== amountInput) {
+        setAmountInput(result.normalized);
+      }
+      setError(null);
+      return;
+    }
+    hapticWarning();
+    setError(result.reason);
+  };
+
   const handleSubmit = async () => {
     setError(null);
-    const amountCents = parseYuanToCents(amountInput);
-    if (amountCents === null || amountCents <= 0) {
-      setError('请输入大于 0 的退款金额（最多两位小数）');
+    const parsed = normalizePositiveAmountInput(amountInput);
+
+    let amountCents: number;
+    if (parsed.kind === 'invalid') {
+      hapticWarning();
+      setError(parsed.reason);
       return;
     }
-    if (maxRefundableCents > 0 && amountCents > maxRefundableCents) {
-      setError(`不能超过可退上限 ${formatCentsToYuan(maxRefundableCents)}`);
+    if (parsed.kind === 'valid') {
+      if (parsed.normalized !== amountInput) {
+        setAmountInput(parsed.normalized);
+      }
+      amountCents = parsed.cents;
+    } else if (defaultAmountCents > 0) {
+      amountCents = defaultAmountCents;
+    } else {
+      hapticWarning();
+      setError('请输入大于 0 的正数金额');
       return;
     }
+
     if (!accountId) {
+      hapticWarning();
       setError('请选择退款入账账户');
       return;
     }
@@ -175,16 +212,12 @@ export function RefundSheet({
         });
       }
 
-      try {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {
-        // 忽略无震动反馈设备异常
-      }
-
+      hapticSuccess();
       notifyChange();
       onSaved();
       sheetRef.current?.dismiss();
     } catch (err) {
+      hapticWarning();
       setError(err instanceof Error ? err.message : '退款保存失败');
     } finally {
       setSaving(false);
@@ -197,50 +230,36 @@ export function RefundSheet({
         ref={sheetRef}
         visible={visible}
         onClose={onClose}
+        title={isEdit ? '编辑退款' : '记录退款'}
         backdropLabel="关闭退款弹窗"
-        dragHandleOnly
+        expandable
+        collapsedRatio={0.68}
+        scrollable
         avoidKeyboard
-        maxHeight="86%"
-        header={
+        includeBottomInset={false}
+        contentContainerStyle={{ padding: theme.spacing.lg }}
+        footer={
           <View
             style={[
-              styles.header,
+              styles.footerBar,
               {
+                borderTopColor: theme.colors.border,
+                borderTopWidth: theme.borderWidth.hairline,
                 paddingHorizontal: theme.spacing.lg,
-                paddingBottom: theme.spacing.md,
-                borderBottomColor: theme.colors.border,
-                borderBottomWidth: theme.borderWidth.hairline,
+                paddingTop: theme.spacing.md,
+                paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
               },
             ]}
           >
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
-              }}
-            >
-              {isEdit ? '编辑退款' : '记录退款'}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="关闭"
-              onPress={() => sheetRef.current?.dismiss()}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.closeBtn,
-                pressed && { opacity: theme.opacity.pressed },
-              ]}
-            >
-              <AppIcon name="close" size={20} color={theme.colors.textMuted} />
-            </Pressable>
+            <Button
+              label={isEdit ? '保存修改' : '确认退款'}
+              onPress={() => void handleSubmit()}
+              loading={saving}
+              disabled={saving}
+            />
           </View>
         }
       >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: theme.spacing.lg }}
-        >
             {/* 原支出概览 */}
             {originalExpense ? (
               <View
@@ -273,13 +292,15 @@ export function RefundSheet({
                     },
                   ]}
                 >
-                  原支出 {formatCentsToYuan(originalExpense.amountCents)} · 可退上限{' '}
-                  {formatCentsToYuan(maxRefundableCents)}
+                  原支出 {formatCentsToYuan(originalExpense.amountCents)}
+                  {originalExpense.refundedCents > 0
+                    ? ` · 已退 ${formatCentsToYuan(originalExpense.refundedCents)}`
+                    : ''}
                 </Text>
               </View>
             ) : null}
 
-            {/* 退款金额 */}
+            {/* 退款金额（占位提示默认金额，留空直接提交即沿用） */}
             <View style={{ marginTop: theme.spacing.lg }}>
               <View style={styles.fieldHeader}>
                 <Text
@@ -291,26 +312,38 @@ export function RefundSheet({
                 >
                   退款金额
                 </Text>
-                {maxRefundableCents > 0 ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setAmountInput(centsToInputString(maxRefundableCents));
-                      setError(null);
-                    }}
-                    hitSlop={8}
-                    style={({ pressed }) => [pressed && { opacity: theme.opacity.pressed }]}
-                  >
+                {defaultAmountCents > 0 ? (
+                  hasTypedAmount ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        hapticLight();
+                        setAmountInput('');
+                        setError(null);
+                      }}
+                      hitSlop={8}
+                      style={({ pressed }) => [pressed && { opacity: theme.opacity.pressed }]}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.action,
+                          fontSize: theme.fontSize.xs,
+                          fontWeight: theme.fontWeight.semibold,
+                        }}
+                      >
+                        {isEdit ? '恢复原金额' : '默认全额退'}
+                      </Text>
+                    </Pressable>
+                  ) : (
                     <Text
                       style={{
-                        color: theme.colors.action,
+                        color: theme.colors.textMuted,
                         fontSize: theme.fontSize.xs,
-                        fontWeight: theme.fontWeight.semibold,
                       }}
                     >
-                      全额退
+                      {isEdit ? '留空保持原金额' : '留空默认全额退'}
                     </Text>
-                  </Pressable>
+                  )
                 ) : null}
               </View>
 
@@ -319,7 +352,7 @@ export function RefundSheet({
                   styles.amountRow,
                   {
                     backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
+                    borderColor: error ? theme.colors.expense : theme.colors.border,
                     borderRadius: theme.radius.md,
                     marginTop: theme.spacing.sm,
                   },
@@ -327,7 +360,7 @@ export function RefundSheet({
               >
                 <Text
                   style={{
-                    color: theme.colors.income,
+                    color: hasTypedAmount ? theme.colors.income : theme.colors.textMuted,
                     fontSize: theme.fontSize.xl,
                     fontWeight: theme.fontWeight.semibold,
                     marginRight: theme.spacing.xs,
@@ -337,15 +370,25 @@ export function RefundSheet({
                 </Text>
                 <TextInput
                   accessibilityLabel="退款金额"
+                  accessibilityHint={
+                    defaultAmountCents > 0
+                      ? isEdit
+                        ? `不输入则保持原退款金额 ${formatCentsToYuan(defaultAmountCents)}`
+                        : `不输入则默认全额退 ${formatCentsToYuan(defaultAmountCents)}`
+                      : '请输入大于 0 的正数退款金额'
+                  }
                   value={amountInput}
                   onChangeText={(text) => {
-                    setAmountInput(text);
+                    setAmountInput(truncateExcessDecimalsInput(text));
                     if (error) {
                       setError(null);
                     }
                   }}
+                  onBlur={handleAmountFinishEditing}
+                  onSubmitEditing={handleAmountFinishEditing}
+                  returnKeyType="done"
                   keyboardType="decimal-pad"
-                  placeholder="0.00"
+                  placeholder={amountPlaceholder}
                   placeholderTextColor={theme.colors.textMuted}
                   style={[
                     styles.amountInput,
@@ -357,6 +400,24 @@ export function RefundSheet({
                     },
                   ]}
                 />
+                {hasTypedAmount ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="清空输入金额"
+                    hitSlop={8}
+                    onPress={() => {
+                      hapticLight();
+                      setAmountInput('');
+                      setError(null);
+                    }}
+                    style={({ pressed }) => [
+                      styles.clearAmountBtn,
+                      pressed && { opacity: theme.opacity.pressed },
+                    ]}
+                  >
+                    <AppIcon name="close-circle" size={18} color={theme.colors.textMuted} />
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
@@ -568,15 +629,6 @@ export function RefundSheet({
                 </Text>
               </View>
             ) : null}
-
-            <Button
-              label={isEdit ? '保存修改' : '确认退款'}
-              onPress={() => void handleSubmit()}
-              loading={saving}
-              disabled={saving || maxRefundableCents <= 0}
-              style={{ marginTop: theme.spacing.xl }}
-            />
-        </ScrollView>
       </BottomSheet>
 
       <DatePickerSheet
@@ -590,17 +642,7 @@ export function RefundSheet({
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  footerBar: {},
   contextBanner: {},
   fieldHeader: {
     flexDirection: 'row',
@@ -617,6 +659,10 @@ const styles = StyleSheet.create({
   amountInput: {
     flex: 1,
     paddingVertical: 8,
+  },
+  clearAmountBtn: {
+    marginLeft: 6,
+    padding: 2,
   },
   chip: {
     minHeight: 36,

@@ -43,55 +43,9 @@ export function ActionSheet({
       ref={sheetRef}
       visible={visible}
       onClose={onClose}
+      title={title}
+      subtitle={subtitle}
       backdropLabel="关闭操作菜单"
-      header={
-        <View
-          style={[
-            styles.header,
-            {
-              paddingHorizontal: theme.spacing.lg,
-              paddingBottom: theme.spacing.md,
-              borderBottomColor: theme.colors.border,
-              borderBottomWidth: theme.borderWidth.hairline,
-            },
-          ]}
-        >
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.semibold,
-              }}
-            >
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text
-                style={{
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.xs,
-                  marginTop: 2,
-                }}
-              >
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭"
-            onPress={() => sheetRef.current?.dismiss()}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="close" size={20} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
-      }
     >
       <View
         style={{
@@ -203,18 +157,6 @@ export function ActionSheet({
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   optionRow: {
     minHeight: 56,
     flexDirection: 'row',

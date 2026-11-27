@@ -10,6 +10,64 @@ export const MAX_AMOUNT_CENTS = 99_999_999_999;
 export const CURRENCY_SYMBOL = '¥';
 
 const AMOUNT_INPUT_PATTERN = /^\d+(?:\.\d{0,2})?$/;
+const POSITIVE_AMOUNT_DRAFT_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+export type PositiveAmountInputResult =
+  | { kind: 'empty'; normalized: '' }
+  | { kind: 'valid'; normalized: string; cents: number }
+  | { kind: 'invalid'; reason: string };
+
+/**
+ * 输入过程中即时截断超过两位的多余小数位（直接删除，不四舍五入），
+ * 同时保留 ".5"、"0001" 等编辑中形态供输入完成时自动规整。
+ */
+export function truncateExcessDecimalsInput(raw: string): string {
+  const dotIndex = raw.indexOf('.');
+  if (dotIndex < 0) {
+    return raw;
+  }
+  const intPart = raw.slice(0, dotIndex);
+  const rest = raw.slice(dotIndex + 1);
+  if (/^\d+$/.test(rest) && rest.length > 2) {
+    return `${intPart}.${rest.slice(0, 2)}`;
+  }
+  return raw;
+}
+
+/**
+ * 输入完成后的正数金额自动规整与合法性校验（仅允许 > 0 的两位小数正数，不限制业务上限）：
+ * - 留空返回 empty；
+ * - ".5" 自动补全前导零为 "0.5"；
+ * - "0001" / "000.5" 自动删除多余前导零为 "1" / "0.5"；
+ * - "0.123" 自动删除超出两位的尾数小数为 "0.12"（不四舍五入）；
+ * - 非正数（0、负数）或非法字符返回 invalid。
+ */
+export function normalizePositiveAmountInput(raw: string): PositiveAmountInputResult {
+  const trimmed = raw.trim().replaceAll(',', '');
+  if (trimmed.length === 0) {
+    return { kind: 'empty', normalized: '' };
+  }
+
+  if (!POSITIVE_AMOUNT_DRAFT_PATTERN.test(trimmed)) {
+    return { kind: 'invalid', reason: '请输入大于 0 的正数金额' };
+  }
+
+  const [rawInt = '', rawDec = ''] = trimmed.split('.');
+  const normalizedInt = rawInt.replace(/^0+/, '') || '0';
+  const truncatedDec = rawDec.slice(0, 2);
+  const normalized =
+    truncatedDec.length > 0 ? `${normalizedInt}.${truncatedDec}` : normalizedInt;
+
+  const cents = parseYuanToCents(normalized);
+  if (cents === null) {
+    return { kind: 'invalid', reason: '金额超出系统最大有效范围' };
+  }
+  if (cents <= 0) {
+    return { kind: 'invalid', reason: '请输入大于 0 的正数金额' };
+  }
+
+  return { kind: 'valid', normalized, cents };
+}
 
 /**
  * 将用户输入的「元」文本解析为非负整数「分」。

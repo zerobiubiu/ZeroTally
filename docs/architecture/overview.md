@@ -2,7 +2,7 @@
 
 - **状态**：参考
 - **影响范围**：全项目（`app/`、`src/`）
-- **生效版本**：v1.1.5
+- **生效版本**：v1.2.0
 
 ## 结论概览
 
@@ -22,7 +22,7 @@
 | `src/features/settings/` | 应用设置、侧边抽屉与安全门禁职责 | 极简设置抽屉（顶栏右侧纯「i」关于图标、置顶外观切换持久化、分类管理、高级设置、底部版本号）、4 位随机数字验证码清空账本弹窗与配置仓储 | 核心账目与资产业务规则 | `app/`、`export` |
 | `src/features/navigation/` | 主导航路由与共享顶栏上下文职责 | Expo Router 双页 Tab 占位描述符补齐、固定顺序规范化纯逻辑及主界面共享顶栏/抽屉上下文 | 具体页面渲染与业务规则 | `app/(tabs)/` |
 | `src/db/` | 本地数据库基础设施 | `SqlExecutor` 契约、Schema v4 迁移（含 `app_settings` 与 `quick_templates`）、幂等默认单一钱包与分类种子、Expo/Node 适配器、变更通知上下文 | 业务领域校验与汇总计算 | `app/`、`src/features/*` |
-| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、可拖拽 `BottomSheet` / 统一滑动分段控件 `SlidingSegmentedControl` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |
+| `src/shared/` | 跨职责通用底层原语 | 金额「分」解析格式化与正数输入规整、日期月份工具、FNV-1a 校验指纹、分层 Haptics 震动封装、9 主题 146 项双图库图标目录、异形屏 `SafeScreen`、统一可拖拽 `BottomSheet`（内置标准顶栏/滚动手势协同/两段展开与非展开禁上拉）/ 统一滑动分段控件 `SlidingSegmentedControl` / 弹窗原子 | 任何记账或资产业务规则 | 全项目 |
 | `src/theme/` | 设计令牌与主题系统 | 浅色/深色语义配色、排版、间距、圆角、阴影、系统主题跟随 | 业务逻辑与数据读写 | `app/`、`src/features/*`、`src/shared/ui/` |
 
 ## 依赖方向约束
@@ -56,9 +56,9 @@ flowchart TD
 
 | 规则 | 权威定义位置 | 执行位置 | 影响方 | 验证测试 |
 | --- | --- | --- | --- | --- |
-| 金额以整数「分」存储、上限与千分位格式化 | `src/shared/money/money.ts` | 全部表单与展示组件 | 全项目 | `src/shared/money/money.test.ts` |
+| 金额以整数「分」存储、正数输入两位小数截断/规整、上限与千分位格式化 | `src/shared/money/money.ts` | 全部表单与展示组件 | 全项目 | `src/shared/money/money.test.ts` |
 | 业务日期（`YYYY-MM-DD`）与月度归属（`YYYY-MM`） | `src/shared/date/date.ts` | 明细筛选、记账日期、日分组 | `transactions` | `src/shared/date/date.test.ts` |
-| 交易余额增量计算（支出扣减、收入与退款增加、转账一减一增）与关联退款上限/连带回滚约束 | `src/features/transactions/rules.ts` | `src/features/transactions/service.ts` 事务内 | `accounts` 余额、`transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
+| 交易余额增量计算（支出扣减、收入与退款增加、转账一减一增）与关联退款连带回滚约束（不限制退款金额上限） | `src/features/transactions/rules.ts` | `src/features/transactions/service.ts` 事务内 | `accounts` 余额、`transactions` | `src/features/transactions/rules.test.ts`、`service.test.ts` |
 | 月度/周期收支结余汇总与单日小计（转账不计入收支；周期总览退款抵扣净支出，明细单日小计仅展示收/支且退款归入当日收入） | `src/features/transactions/rules.ts` | 明细页月度总览、按日小计与账务分析 | `transactions`、`analytics` | `src/features/transactions/rules.test.ts`、`analytics/service.test.ts` |
 | 总资产、总负债与净资产汇总（负债欠款以负数净值存储） | `src/features/accounts/rules.ts` | 资产页总览与账户调账 | `accounts` | `src/features/accounts/rules.test.ts`、`service.test.ts` |
 | 分类删除保护（已被账目引用时仅允许归档停用）与两级层级约束 | `src/features/categories/rules.ts` | `src/features/categories/service.ts` | `categories`、`transactions`、`analytics` | `src/features/categories/rules.test.ts`、`service.test.ts` |

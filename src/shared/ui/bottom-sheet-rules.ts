@@ -18,7 +18,9 @@ export interface ClampSheetDragParams {
 }
 
 /**
- * 计算拖拽过程中的实时 translateY（向上超出 0 时施加橡皮筋阻尼，向下 1:1 跟手）。
+ * 计算拖拽过程中的实时 translateY：
+ * - maxOverdragUp <= 0（不支持展开的单段弹窗）：严格限制在 [0, maxDismissOffset]，禁止向上拉动；
+ * - maxOverdragUp > 0（支持展开的两段弹窗）：向上超出 0 时施加渐进橡皮筋阻尼，向下 1:1 跟手。
  */
 export function clampBottomSheetDragOffset({
   startOffset,
@@ -28,6 +30,9 @@ export function clampBottomSheetDragOffset({
 }: ClampSheetDragParams): number {
   const raw = startOffset + translationY;
   if (raw < 0) {
+    if (maxOverdragUp <= 0) {
+      return 0;
+    }
     // 软阻尼曲线：越往上拉阻力越大，永不超过 -maxOverdragUp
     const damped = -maxOverdragUp * (1 - Math.exp(raw / (maxOverdragUp * 3)));
     return Math.max(-maxOverdragUp, damped);

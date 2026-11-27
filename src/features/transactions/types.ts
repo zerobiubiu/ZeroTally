@@ -55,7 +55,7 @@ export type UpdateTransactionInput = CreateTransactionInput;
 export interface CreateRefundInput {
   /** 被退款的原支出交易 ID */
   originalTransactionId: string;
-  /** 本次退款金额（分，须 > 0 且不超过剩余可退金额） */
+  /** 本次退款金额（分，须 > 0，不限制金额上限以兼容含运费/补偿金场景） */
   amountCents: number;
   /** 退款退回的资金账户 ID */
   accountId: string;

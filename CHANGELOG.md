@@ -2,6 +2,19 @@
 
 本文件记录「ZeroTally」的语义化版本变更。
 
+## [1.2.0] - 2026-11-27
+
+### 新增与优化
+
+- **退款页面金额输入体验与规则全面升级**（`RefundSheet.tsx`、`money.ts`、`transactions/service.ts`）：
+  - **占位提示默认金额（免手删）**：新建退款以浅色占位提示展示剩余全额、编辑退款以占位提示展示原退款金额，不占用输入框；不输入直接确认即沿用默认金额，需要改金额时直接点击输入即可，无需先删除原数字，输入后支持一键清空恢复默认。
+  - **自动规整与严格两位小数校验**（新增 `truncateExcessDecimalsInput` 与 `normalizePositiveAmountInput` 权威规则及单测）：输入超过两位小数时自动删除超出位（不四舍五入，如 `0.123 → 0.12`）；输入完成后自动将 `.5 → 0.5`、`0001 → 1`，并拦截 `<= 0` 或非法字符。
+  - **放开退款金额上限限制**：不再限制退款不能超过「原支出 / 剩余可退」，只要输入 `> 0` 的正数即可退款（兼容含运费/补偿金多退与二次补充退款），同步优化明细行与详情页超额退款标注。
+- **全应用统一底部手势卡片基座 `BottomSheet` 升级与全仓收口**（`BottomSheet.tsx`、`bottom-sheet-rules.ts` 及全仓 6 个底部弹窗）：
+  - 基座新增内置标准标题栏（`title / subtitle` + 关闭按钮）与 `scrollable` 滚动手势协同（`useSimultaneousGestures`），各业务卡片仅需自定义填充内容，消除约 170 行重复头部模板与主体拖拽死区。
+  - **两段展开卡片**（`RefundSheet`、`TransactionDetailSheet`）：全区支持跟手上滑展开至近全屏、下滑回半屏或关闭，且底部主操作栏始终贴底、软键盘弹出自动舒展防遮挡。
+  - **单段不可展开卡片**（`AccountPickerSheet`、`DatePickerSheet`、`PeriodPickerSheet`、`ActionSheet`）：严格仅支持下滑收起（`activeOffsetY: 10`、`maxOverdragUp: 0`），彻底屏蔽无意义的上滑拉动；`AccountPickerSheet` 列表滚至顶部时可直接下滑关闭。
+
 ## [1.1.5] - 2026-11-27
 
 ### 优化

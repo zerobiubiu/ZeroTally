@@ -220,42 +220,8 @@ export function DatePickerSheet({
       ref={sheetRef}
       visible={visible}
       onClose={handleClose}
+      title="选择日期"
       backdropLabel="关闭日期选择"
-      header={
-        <View
-          style={[
-            styles.header,
-            {
-              paddingHorizontal: theme.spacing.lg,
-              paddingBottom: theme.spacing.md,
-              borderBottomColor: theme.colors.border,
-              borderBottomWidth: theme.borderWidth.hairline,
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: theme.fontSize.base,
-              fontWeight: theme.fontWeight.semibold,
-            }}
-          >
-            选择日期
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭"
-            onPress={() => sheetRef.current?.dismiss()}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && { opacity: theme.opacity.pressed },
-            ]}
-          >
-            <AppIcon name="close" size={20} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
-      }
     >
       <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
           {/* 顶部周期切换头：日期态点年月进选月、月份态点年份进选年、年份范围态不可点击 */}
@@ -592,17 +558,6 @@ export function DatePickerSheet({
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   periodBar: {
     flexDirection: 'row',
     alignItems: 'center',

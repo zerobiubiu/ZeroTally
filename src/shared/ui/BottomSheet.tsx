@@ -1,8 +1,10 @@
 /**
  * 约束简报（Workflow B / C）：
- * - 统一底部半屏弹窗基座：收口全项目所有底部 Sheet 的进出场动画、遮罩淡入淡出、顶部抓手条与真实物理下拉关闭手势，彻底消除不可拖动的“假横条”
- * - 手势与性能：全链路基于 Animated useNativeDriver: true GPU 合成，零布局重排；支持单段跟手下拉关闭，及可选两段式（半屏 ⇄ 近全屏展开 ⇄ 关闭）且底部固定操作栏始终贴底不位移
- * - 冲突隔离：Modal 内部独立包裹 GestureHandlerRootView；非滚动面板全区支持下拉（failOffsetX 隔离日历/年份横滑）；含竖向 ScrollView 面板通过顶部宽大抓手+头部热区随时拖拽
+ * - 全应用统一底部卡片弹窗基座：收口进出场动画、遮罩淡入淡出、顶部抓手、标准标题栏（title / subtitle / 关闭按钮）、软键盘避让、底部贴底 footer 与手势物理，调用方只需填充自定义内容
+ * - 能力分级：
+ *   1. expandable = true（如账目详情、记录/编辑退款）：支持全区跟手上滑展开至近全屏、点按抓手切换半屏⇄全屏、任意态跟手下滑回半屏或关闭，软键盘弹出自动舒展避免遮挡；
+ *   2. expandable = false（如日期选择、周期选择、账户选择、操作菜单）：仅支持跟手下滑收起，严格屏蔽上滑手势与上拉越界（maxOverdragUp = 0）。
+ * - 滚动协同：开启 scrollable 后内置 ScrollView + useSimultaneousGestures 协同，顶部栏随时可拖，主体区在半屏态全区响应上下滑、在展开/单段态滚至顶部时无缝衔接下滑收起，彻底消除死区。
  */
 import React, {
   useCallback,
@@ -19,20 +21,27 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar as RNStatusBar,
   StyleSheet,
+  Text,
   useWindowDimensions,
   View,
+  type ScrollViewProps,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import {
   GestureDetector,
   GestureHandlerRootView,
+  useNativeGesture,
   usePanGesture,
+  useSimultaneousGestures,
 } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/theme-context';
 import { hapticLight, hapticSelection } from '../haptics/haptics';
+import { AppIcon } from './AppIcon';
 import {
   clampBottomSheetDragOffset,
   resolveBottomSheetSnapTarget,
@@ -58,24 +67,42 @@ export interface BottomSheetProps {
   onClose: () => void;
   /** 遮罩无障碍关闭文案 */
   backdropLabel?: string;
-  /** 顶部头部插槽（置于抓手条正下方，与抓手共用下拉/上拉拖拽热区） */
+  /** 标准顶部标题（传入后自动渲染统一标题栏与右侧关闭按钮，无需重复手写 header） */
+  title?: string;
+  /** 标准顶部副标题（配合 title 使用） */
+  subtitle?: string;
+  /** 标准标题栏是否展示右侧关闭按钮（默认 true） */
+  showCloseButton?: boolean;
+  /** 自定义顶部头部插槽（优先级高于 title/subtitle，适用于详情金额主视觉等复杂头部） */
   header?: React.ReactNode;
   /** 面板主体内容（两段模式下可传函数读取纯布局状态） */
   children: React.ReactNode | ((state: BottomSheetLayoutState) => React.ReactNode);
   /** 底部固定操作栏（两段模式下自动反向抵消位移，在半屏与全屏间始终贴紧屏底，下滑关闭时随面板同步滑出） */
   footer?: React.ReactNode;
-  /** 是否允许上拉展开至近全屏（适用于详情展示等长内容半屏窗） */
+  /** 是否允许上滑展开至近全屏；false 时仅支持下滑收起且严格禁止上滑拉动 */
   expandable?: boolean;
   /** 两段模式下半屏高度占屏高比例（默认 0.56） */
   collapsedRatio?: number;
   /** 非两段模式下最大高度样式（如 '85%' / '72%'） */
   maxHeight?: ViewStyle['maxHeight'];
   /**
-   * 为 true 时仅在顶部抓手与 header 区域响应拖拽，避免与主体内部竖向 ScrollView 或输入框冲突；
-   * 为 false 时整个面板均可向下滑动收起（通过 failOffsetX 自动让权给内部横向滑动）。
+   * 内置垂直滚动区并自动与上下滑手势协同：
+   * - 展开态/单段态在列表滑至顶部时无缝衔接向下拉收起；
+   * - 两段模式半屏态下全区直接支持上滑展开与下滑收起。
+   */
+  scrollable?: boolean;
+  /** scrollable=true 时主体 ScrollView 的内容区样式 */
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  /** scrollable=true 时主体 ScrollView 的键盘点击策略（默认 'handled'） */
+  keyboardShouldPersistTaps?: ScrollViewProps['keyboardShouldPersistTaps'];
+  /** scrollable=true 且非两段模式时滚动区最大高度（如 360） */
+  scrollMaxHeight?: number;
+  /**
+   * 仅当未使用 scrollable 且调用方自行渲染冲突竖向滚动区时才需开启；
+   * 正常请直接开启 scrollable 由本基座统一协调手势。
    */
   dragHandleOnly?: boolean;
-  /** 是否内置 KeyboardAvoidingView（含输入框的表单弹窗开启） */
+  /** 是否内置 KeyboardAvoidingView（含输入框的表单弹窗开启；与 expandable 搭配时弹出键盘自动展开防遮挡） */
   avoidKeyboard?: boolean;
   /** 面板是否自带底部安全区内边距（若使用了自带安全区的 footer 可设为 false） */
   includeBottomInset?: boolean;
@@ -88,12 +115,19 @@ export function BottomSheet({
   visible,
   onClose,
   backdropLabel = '关闭弹窗',
+  title,
+  subtitle,
+  showCloseButton = true,
   header,
   children,
   footer,
   expandable = false,
   collapsedRatio = 0.56,
   maxHeight,
+  scrollable = false,
+  contentContainerStyle,
+  keyboardShouldPersistTaps = 'handled',
+  scrollMaxHeight,
   dragHandleOnly = false,
   avoidKeyboard = false,
   includeBottomInset = true,
@@ -117,6 +151,7 @@ export function BottomSheet({
 
   const [mounted, setMounted] = useState(visible);
   const [expanded, setExpanded] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   if (visible && !mounted) {
     setMounted(true);
     if (expanded) {
@@ -134,10 +169,13 @@ export function BottomSheet({
   const visibleRef = useRef(visible);
   const closingRef = useRef(false);
   const expandedRef = useRef(false);
+  const keyboardVisibleRef = useRef(false);
   const sheetHeightRef = useRef(expandable ? expandedHeight : defaultSingleHeight);
   const collapsedOffsetRef = useRef(collapsedOffset);
   const dragStartOffsetRef = useRef(collapsedOffset);
-  const draggingRef = useRef(false);
+  const headerDraggingRef = useRef(false);
+  const bodyDraggingRef = useRef(false);
+  const scrollOffsetYRef = useRef(0);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
@@ -158,6 +196,7 @@ export function BottomSheet({
     if (visible) {
       closingRef.current = false;
       expandedRef.current = false;
+      scrollOffsetYRef.current = 0;
 
       const startFrom = expandable
         ? expandedHeight
@@ -235,6 +274,28 @@ export function BottomSheet({
     [backdropAnim, translateY]
   );
 
+  // 两段式表单弹窗弹出软键盘时自动舒展至展开态，避免输入区与底部主按钮被遮挡
+  useEffect(() => {
+    if (!mounted || !avoidKeyboard) {
+      return;
+    }
+    const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      keyboardVisibleRef.current = true;
+      setKeyboardVisible(true);
+      if (expandable && !expandedRef.current && !closingRef.current) {
+        animateToSnap(true, false);
+      }
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardVisibleRef.current = false;
+      setKeyboardVisible(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [animateToSnap, avoidKeyboard, expandable, mounted]);
+
   const dismiss = useCallback(
     (afterClose?: () => void) => {
       if (closingRef.current) {
@@ -284,34 +345,16 @@ export function BottomSheet({
     [dismiss, toggleExpanded]
   );
 
-  const panGesture = usePanGesture({
-    enabled: visible,
-    disableReanimated: true,
-    runOnJS: true,
-    // 两段模式上下都响应；单段模式仅向下（及轻微上拉阻尼）响应，避免拦截横向滑动
-    activeOffsetY: expandable ? [-10, 10] : [-14, 10],
-    failOffsetX: dragHandleOnly ? [-24, 24] : [-14, 14],
-    onActivate: () => {
-      if (closingRef.current) {
-        return;
-      }
-      Keyboard.dismiss();
-      draggingRef.current = true;
-      dragStartOffsetRef.current =
-        expandable && !expandedRef.current ? collapsedOffsetRef.current : 0;
-    },
-    onUpdate: (event) => {
-      if (!draggingRef.current || closingRef.current) {
-        return;
-      }
+  const applyDragUpdate = useCallback(
+    (translationY: number) => {
       const dismissLimit = expandable
         ? expandedHeight
         : Math.max(300, sheetHeightRef.current);
       const nextY = clampBottomSheetDragOffset({
         startOffset: dragStartOffsetRef.current,
-        translationY: event.translationY,
+        translationY,
         maxDismissOffset: dismissLimit,
-        maxOverdragUp: MAX_OVERDRAG_UP,
+        maxOverdragUp: expandable ? MAX_OVERDRAG_UP : 0,
       });
       translateY.setValue(nextY);
 
@@ -321,18 +364,18 @@ export function BottomSheet({
       const dismissProgress = Math.max(0, Math.min(1, (nextY - restY) / fadeSpan));
       backdropAnim.setValue(1 - dismissProgress);
     },
-    onDeactivate: (event) => {
-      if (!draggingRef.current || closingRef.current) {
-        return;
-      }
-      draggingRef.current = false;
+    [backdropAnim, expandable, expandedHeight, translateY]
+  );
+
+  const finishDrag = useCallback(
+    (translationY: number, velocityY: number) => {
       const target = resolveBottomSheetSnapTarget({
         expandable,
         startedExpanded: expandedRef.current,
         sheetHeight: expandable ? expandedHeight : sheetHeightRef.current,
         collapsedOffset: collapsedOffsetRef.current,
-        translationY: event.translationY,
-        velocityY: event.velocityY,
+        translationY,
+        velocityY,
       });
 
       if (target === 'dismiss') {
@@ -344,13 +387,117 @@ export function BottomSheet({
         animateToSnap(false, expandable && expandedRef.current);
       }
     },
+    [animateToSnap, dismiss, expandable, expandedHeight]
+  );
+
+  // 顶部栏/全卡手势：expandable=true 支持上下双向；expandable=false 严格仅响应向下收起，不做上滑
+  const headerPanGesture = usePanGesture({
+    enabled: visible,
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetY: expandable ? [-10, 10] : 10,
+    failOffsetX: scrollable || dragHandleOnly ? [-24, 24] : [-14, 14],
+    onActivate: () => {
+      if (closingRef.current) {
+        return;
+      }
+      Keyboard.dismiss();
+      headerDraggingRef.current = true;
+      dragStartOffsetRef.current =
+        expandable && !expandedRef.current ? collapsedOffsetRef.current : 0;
+    },
+    onUpdate: (event) => {
+      if (!headerDraggingRef.current || closingRef.current) {
+        return;
+      }
+      applyDragUpdate(event.translationY);
+    },
+    onDeactivate: (event) => {
+      if (!headerDraggingRef.current || closingRef.current) {
+        return;
+      }
+      headerDraggingRef.current = false;
+      finishDrag(event.translationY, event.velocityY);
+    },
     onFinalize: () => {
-      if (draggingRef.current && !closingRef.current) {
-        draggingRef.current = false;
+      if (headerDraggingRef.current && !closingRef.current) {
+        headerDraggingRef.current = false;
         animateToSnap(expandable && expandedRef.current, false);
       }
     },
   });
+
+  // 内置滚动区协同手势（scrollable=true）：
+  // - 两段半屏态：全区上滑直接展开、全区下滑直接关闭；
+  // - 展开态或单段滚动态：列表位于顶部（scrollOffsetY <= 2）时向下拉无缝接管收起/回半屏，不影响正常滚动。
+  const nativeScrollGesture = useNativeGesture({
+    disableReanimated: true,
+  });
+
+  const bodyPanGesture = usePanGesture({
+    enabled: visible && scrollable,
+    disableReanimated: true,
+    runOnJS: true,
+    activeOffsetY: expandable ? [-12, 12] : 12,
+    failOffsetX: [-16, 16],
+    onActivate: (event) => {
+      if (closingRef.current) {
+        bodyDraggingRef.current = false;
+        return;
+      }
+      if (expandable) {
+        if (expandedRef.current) {
+          // 已展开时：仅在滚动到顶部且手指向下拉时接管，向上或列表未到顶则交给 ScrollView
+          if (event.translationY <= 0 || scrollOffsetYRef.current > 2) {
+            bodyDraggingRef.current = false;
+            return;
+          }
+          Keyboard.dismiss();
+          bodyDraggingRef.current = true;
+          dragStartOffsetRef.current = 0;
+        } else {
+          // 半屏态：若软键盘已展开且内部发生滚动，则先允许滚动，否则全区上下滑直接展开/关闭
+          if (keyboardVisibleRef.current && scrollOffsetYRef.current > 2) {
+            bodyDraggingRef.current = false;
+            return;
+          }
+          Keyboard.dismiss();
+          bodyDraggingRef.current = true;
+          dragStartOffsetRef.current = collapsedOffsetRef.current;
+        }
+      } else {
+        // 单段滚动弹窗：仅在列表处于顶部且向下拉时接管收起，严格不响应上滑
+        if (event.translationY <= 0 || scrollOffsetYRef.current > 2) {
+          bodyDraggingRef.current = false;
+          return;
+        }
+        Keyboard.dismiss();
+        bodyDraggingRef.current = true;
+        dragStartOffsetRef.current = 0;
+      }
+    },
+    onUpdate: (event) => {
+      if (!bodyDraggingRef.current || closingRef.current) {
+        return;
+      }
+      applyDragUpdate(event.translationY);
+    },
+    onDeactivate: (event) => {
+      if (!bodyDraggingRef.current || closingRef.current) {
+        return;
+      }
+      bodyDraggingRef.current = false;
+      finishDrag(event.translationY, event.velocityY);
+    },
+    onFinalize: () => {
+      if (bodyDraggingRef.current && !closingRef.current) {
+        bodyDraggingRef.current = false;
+        animateToSnap(expandable && expandedRef.current, false);
+      }
+    },
+  });
+
+  const bodyScrollGesture = useSimultaneousGestures(bodyPanGesture, nativeScrollGesture);
 
   if (!mounted) {
     return null;
@@ -361,7 +508,62 @@ export function BottomSheet({
     collapsedScrollExtraPadding: expandable && !expanded ? collapsedOffset : 0,
   };
 
-  const renderedHeader = header;
+  const defaultHeader = title ? (
+    <View
+      style={[
+        styles.defaultHeader,
+        {
+          paddingHorizontal: theme.spacing.lg,
+          paddingBottom: theme.spacing.md,
+          borderBottomColor: theme.colors.border,
+          borderBottomWidth: theme.borderWidth.hairline,
+        },
+      ]}
+    >
+      <View style={styles.defaultHeaderText}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: theme.colors.text,
+            fontSize: theme.fontSize.base,
+            fontWeight: theme.fontWeight.semibold,
+          }}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={{
+              color: theme.colors.textMuted,
+              fontSize: theme.fontSize.xs,
+              marginTop: 2,
+            }}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {showCloseButton ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="关闭"
+          onPress={() => {
+            hapticLight();
+            dismiss();
+          }}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.defaultCloseBtn,
+            pressed && { opacity: theme.opacity.pressed },
+          ]}
+        >
+          <AppIcon name="close" size={20} color={theme.colors.textMuted} />
+        </Pressable>
+      ) : null}
+    </View>
+  ) : null;
+
+  const renderedHeader = header ?? defaultHeader;
   const renderedChildren = typeof children === 'function' ? children(layoutState) : children;
   const renderedFooter = footer;
 
@@ -404,6 +606,35 @@ export function BottomSheet({
     </View>
   );
 
+  const useSeparateHeaderAndBodyGestures = scrollable || dragHandleOnly;
+
+  const bodyNode = scrollable ? (
+    <GestureDetector gesture={bodyScrollGesture}>
+      <ScrollView
+        style={[
+          expandable ? styles.expandableBody : styles.autoBody,
+          !expandable && scrollMaxHeight !== undefined ? { maxHeight: scrollMaxHeight } : null,
+        ]}
+        scrollEnabled={!expandable || expanded || keyboardVisible}
+        scrollEventThrottle={16}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        onScroll={(e) => {
+          scrollOffsetYRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        contentContainerStyle={[
+          contentContainerStyle,
+          layoutState.collapsedScrollExtraPadding > 0
+            ? { paddingBottom: layoutState.collapsedScrollExtraPadding + theme.spacing.lg }
+            : null,
+        ]}
+      >
+        {renderedChildren}
+      </ScrollView>
+    </GestureDetector>
+  ) : (
+    <View style={expandable ? styles.expandableBody : styles.autoBody}>{renderedChildren}</View>
+  );
+
   const sheetInner = (
     <Animated.View
       onLayout={(e) => {
@@ -428,22 +659,24 @@ export function BottomSheet({
         expandable ? { height: expandedHeight } : maxHeight !== undefined ? { maxHeight } : null,
       ]}
     >
-      {/* 上拉微阻尼越界垫底，防止上拉 16dp 时屏底露缝 */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.overdragFiller,
-          { backgroundColor: theme.colors.surfaceRaised },
-        ]}
-      />
+      {/* 仅两段式支持上拉时铺设越界垫底，防止上拉微阻尼时屏底露缝 */}
+      {expandable ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.overdragFiller,
+            { backgroundColor: theme.colors.surfaceRaised },
+          ]}
+        />
+      ) : null}
 
-      {dragHandleOnly ? (
-        <GestureDetector gesture={panGesture}>{topChrome}</GestureDetector>
+      {useSeparateHeaderAndBodyGestures ? (
+        <GestureDetector gesture={headerPanGesture}>{topChrome}</GestureDetector>
       ) : (
         topChrome
       )}
 
-      <View style={expandable ? styles.expandableBody : styles.autoBody}>{renderedChildren}</View>
+      {bodyNode}
 
       {renderedFooter ? (
         footerCounterTranslateY ? (
@@ -465,10 +698,10 @@ export function BottomSheet({
     </Animated.View>
   );
 
-  const wrappedSheet = dragHandleOnly ? (
+  const wrappedSheet = useSeparateHeaderAndBodyGestures ? (
     sheetInner
   ) : (
-    <GestureDetector gesture={panGesture}>{sheetInner}</GestureDetector>
+    <GestureDetector gesture={headerPanGesture}>{sheetInner}</GestureDetector>
   );
 
   const content = (
@@ -540,6 +773,22 @@ const styles = StyleSheet.create({
   handle: {
     width: 38,
     height: 4,
+  },
+  defaultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  defaultHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  defaultCloseBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   expandableBody: {
     flex: 1,
