@@ -6,7 +6,7 @@
 AGENTS.md[SG8S]: F:规定项目Agent执行规则、Git版本门禁、架构边界与AOCI认知维护协议 | R:code:docs/README.md,code:package.json,code:app.json,code:CHANGELOG.md | A:项目执行规则与AOCI托管区块 | S:应用功能或界面更新通过verify后默认直接打包校验Android Release APK；纯文档或配置改动不递增版本也不打包；金额须用整数分且记账同事务联动余额
 CHANGELOG.md[SV5L]: F:按语义化版本记录ZeroTally从v0.1.0至v2.0.0各版新增、优化与修复变更历史 | R:code:package.json,code:.github/workflows/release-apk.yml | A:- | S:发版工作流与check-version按## [版本号]精确解析本文件，递增版本必须同步新增对应标题段
 LICENSE[SG3T]: F:声明ZeroTally项目MIT开源许可协议条款 | R:- | A:MIT License | S:-
-README.md[SG5M]: F:介绍ZeroTally功能特性、技术栈、本地构建与模块架构总览 | R:code:docs/architecture/overview.md,code:docs/README.md,code:src/theme/DESIGN.md | A:- | S:-
+README.md[SG5M]: F:介绍ZeroTally v2.0.0功能矩阵(记账/搜索/分析/隐私安全/双通道云备份与可选进阶账务)、安装与严格签名构建、架构目录与Schema v5备份格式 | R:code:docs/architecture/overview.md,code:docs/README.md,code:src/theme/DESIGN.md,code:src/features/export/formatter.ts,code:.github/workflows/release-apk.yml | A:- | S:-
 app.json[FV8T]: F:配置Expo应用元信息、双scheme、Android包名版本码、自适应图标与原生插件链 | R:code:package.json,code:plugins/with-windows-cmake-path-fix.js,code:plugins/with-release-signing-and-shrink.js,code:plugins/with-android-quick-widget.js | A:expo配置清单 | S:expo.version须与package.json同步；包名固定com.keepaccounts.app兼任OAuth回调scheme；按序启用CMake短路径、严格签名瘦身、原生小组件及secure-store/web-browser/notifications/local-auth插件
 babel.config.js[FV5T]: F:配置Expo默认Babel转译预设 | R:code:package.json | A:babel config(default) | S:启用api.cache(true)缓存编译配置
 bun.lock[FV5L]: F:锁定Bun依赖解析版本树(含expo-local-authentication/screen-capture/notifications)与完整性哈希 | R:code:package.json,code:bunfig.toml | A:- | S:CI与发版流水线使用bun install --frozen-lockfile严格校对本锁文件，切勿手工编辑
