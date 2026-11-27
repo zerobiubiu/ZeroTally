@@ -204,6 +204,12 @@ function RootNavigator(): React.JSX.Element {
           }}
         />
         <Stack.Screen
+          name="reimbursements"
+          options={{
+            title: '报销追踪',
+          }}
+        />
+        <Stack.Screen
           name="recurring"
           options={{
             title: '周期账单',

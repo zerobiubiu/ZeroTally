@@ -7,7 +7,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDatabase } from '../../../db/database-context';
+import {
+  getReimbursementConfig,
+  getReimbursementRecordByTxId,
+  removeReimbursementRecord,
+  upsertPendingReimbursementRecord,
+} from '../../reimbursement/repository';
+import type { ReimbursementRecord } from '../../reimbursement/types';
 import { formatDaySectionTitle } from '../../../shared/date/date';
+import { hapticLight } from '../../../shared/haptics/haptics';
 import { formatCentsToYuan, formatTransactionAmount } from '../../../shared/money/money';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { BottomSheet, type BottomSheetHandle } from '../../../shared/ui/BottomSheet';
@@ -63,7 +71,7 @@ export function TransactionDetailSheet({
 }: TransactionDetailSheetProps): React.JSX.Element | null {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { db, revision } = useDatabase();
+  const { db, revision, notifyChange } = useDatabase();
   const sheetRef = useRef<BottomSheetHandle>(null);
 
   // 缓存最近一次非空条目，确保收起滑落动画期间界面内容保持完整不突兀消失
@@ -77,6 +85,11 @@ export function TransactionDetailSheet({
     refunds: [],
     original: null,
   });
+  const [reimbState, setReimbState] = useState<{
+    ownerId: string;
+    enabled: boolean;
+    record: ReimbursementRecord | null;
+  }>({ ownerId: '', enabled: false, record: null });
 
   useEffect(() => {
     if (!item) {
@@ -85,17 +98,28 @@ export function TransactionDetailSheet({
     let active = true;
     void (async () => {
       if (item.type === 'expense') {
-        const refunds = await listTransactionRefunds(db, item.id);
+        const [refunds, reimbConfig, reimbRecord] = await Promise.all([
+          listTransactionRefunds(db, item.id),
+          getReimbursementConfig(db),
+          getReimbursementRecordByTxId(db, item.id),
+        ]);
         if (active) {
           setLinked({ ownerId: item.id, refunds, original: null });
+          setReimbState({
+            ownerId: item.id,
+            enabled: reimbConfig.enabled,
+            record: reimbRecord,
+          });
         }
       } else if (item.type === 'refund' && item.refundOfId) {
         const original = await getTransactionById(db, item.refundOfId);
         if (active) {
           setLinked({ ownerId: item.id, refunds: [], original });
+          setReimbState({ ownerId: item.id, enabled: false, record: null });
         }
       } else if (active) {
         setLinked({ ownerId: item.id, refunds: [], original: null });
+        setReimbState({ ownerId: item.id, enabled: false, record: null });
       }
     })();
     return () => {
@@ -519,6 +543,94 @@ export function TransactionDetailSheet({
             />
           </View>
 
+          {/* 设置中开启「报销追踪」后，为支出详情补充单行轻量报销标记入口 */}
+          {isExpense && reimbState.ownerId === activeItem.id && reimbState.enabled ? (
+            <View
+              style={[
+                styles.reimbBar,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radius.md,
+                  marginTop: theme.spacing.md,
+                },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: theme.colors.text,
+                    fontSize: theme.fontSize.sm,
+                    fontWeight: theme.fontWeight.semibold,
+                  }}
+                >
+                  {reimbState.record?.status === 'reimbursed'
+                    ? `已报销 ${formatCentsToYuan(reimbState.record.settledCents)}`
+                    : reimbState.record?.status === 'pending'
+                      ? '待报销'
+                      : '报销追踪'}
+                </Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 1 }}>
+                  {reimbState.record?.status === 'reimbursed'
+                    ? `已于 ${reimbState.record.settledOn ?? '-'} 完成核销`
+                    : reimbState.record?.status === 'pending'
+                      ? '可在设置「报销追踪」中一键核销入账'
+                      : '标记后纳入待报销清单跟踪'}
+                </Text>
+              </View>
+
+              {reimbState.record?.status !== 'reimbursed' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    hapticLight();
+                    void (async () => {
+                      if (reimbState.record?.status === 'pending') {
+                        await removeReimbursementRecord(db, activeItem.id);
+                        setReimbState((prev) => ({ ...prev, record: null }));
+                      } else {
+                        const expected = Math.max(
+                          1,
+                          activeItem.amountCents - activeItem.refundedCents
+                        );
+                        const saved = await upsertPendingReimbursementRecord(db, {
+                          transactionId: activeItem.id,
+                          expectedCents: expected,
+                          note: activeItem.note,
+                        });
+                        setReimbState((prev) => ({ ...prev, record: saved }));
+                      }
+                      notifyChange();
+                    })();
+                  }}
+                  style={({ pressed }) => [
+                    styles.reimbBtn,
+                    {
+                      backgroundColor:
+                        reimbState.record?.status === 'pending'
+                          ? theme.colors.chipInactive
+                          : theme.colors.actionSurface,
+                      borderRadius: 8,
+                    },
+                    pressed && { opacity: theme.opacity.pressed },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color:
+                        reimbState.record?.status === 'pending'
+                          ? theme.colors.textSecondary
+                          : theme.colors.action,
+                      fontSize: 12,
+                      fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    {reimbState.record?.status === 'pending' ? '取消标记' : '标记待报销'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
           {/* 关联退款明细（原支出维度） */}
           {refunds.length > 0 ? (
             <View style={{ marginTop: theme.spacing.lg }}>
@@ -807,5 +919,16 @@ const styles = StyleSheet.create({
   },
   tabular: {
     fontVariant: ['tabular-nums'],
+  },
+  reimbBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  reimbBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
 });

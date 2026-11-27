@@ -58,6 +58,7 @@ export function SettingsPanel({
       | '/categories'
       | '/recurring'
       | '/budgets'
+      | '/reimbursements'
       | '/cloud-backup'
       | '/security'
       | '/gestures-guide'
@@ -92,6 +93,12 @@ export function SettingsPanel({
       label: '预算管理',
       icon: 'pie-chart-outline',
       onPress: () => navigateTo('/budgets'),
+    },
+    {
+      key: 'reimbursements',
+      label: '报销追踪',
+      icon: 'receipt-outline',
+      onPress: () => navigateTo('/reimbursements'),
     },
     {
       key: 'cloud-backup',
